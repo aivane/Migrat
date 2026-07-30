@@ -68,6 +68,22 @@ export async function resetPassword({ token, password }) {
   return normalizeAuth(await authPost('/api/auth/reset-password', { token, new_password: password }))
 }
 
+export async function googleUrl() {
+  if (apiMode === 'wordpress') {
+    return normalizeAuth(await wpPost('fund_google_url'))
+  }
+
+  return normalizeAuth(await authPost('/api/auth/google/url'))
+}
+
+export async function googleVerify(credential) {
+  if (apiMode === 'wordpress') {
+    return normalizeAuth(await wpPost('fund_google_verify', { credential }))
+  }
+
+  return normalizeAuth(await authPost('/api/auth/google/verify', { credential }))
+}
+
 export async function updateProfile({ token, displayName }) {
   if (apiMode === 'wordpress') {
     return normalizeAuth(await wpPost('fund_update_profile', { token, display_name: displayName }))

@@ -2,6 +2,8 @@ import { defineStore } from 'pinia'
 import {
   accountInfo,
   forgotPassword,
+  googleUrl,
+  googleVerify,
   login,
   logout,
   profile,
@@ -86,6 +88,37 @@ export const useAuthStore = defineStore('auth', {
         throw error
       } finally {
         this.loading = false
+      }
+    },
+    async loginWithGoogle(credential) {
+      this.loading = true
+      this.error = ''
+
+      try {
+        const payload = await googleVerify(credential)
+        this.token = payload.token || payload.access_token || ''
+        this.user = payload.user || payload.profile || payload
+        this.persist()
+        return payload
+      } catch (error) {
+        this.error = error?.message || error?.error || 'เข้าสู่ระบบด้วย Google ไม่สำเร็จ'
+        throw error
+      } finally {
+        this.loading = false
+      }
+    },
+    async getGoogleClientId() {
+      try {
+        const data = await googleUrl()
+        // รองรับทั้ง { url: '...?client_id=xxx' } และ { client_id: 'xxx' }
+        if (data?.client_id) return data.client_id
+        if (data?.url) {
+          const match = data.url.match(/client_id=([^&]+)/)
+          return match ? decodeURIComponent(match[1]) : null
+        }
+        return null
+      } catch {
+        return null
       }
     },
     async registerAccount(payload) {
