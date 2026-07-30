@@ -108,9 +108,13 @@ export const useAuthStore = defineStore('auth', {
       }
     },
     async getGoogleClientId() {
+      // ลอง env variable ก่อน (เร็วกว่า ไม่ต้องรอ backend)
+      const envClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
+      if (envClientId) return envClientId
+
+      // ถ้าไม่มีใน env ค่อยดึงจาก backend
       try {
         const data = await googleUrl()
-        // รองรับทั้ง { url: '...?client_id=xxx' } และ { client_id: 'xxx' }
         if (data?.client_id) return data.client_id
         if (data?.url) {
           const match = data.url.match(/client_id=([^&]+)/)
