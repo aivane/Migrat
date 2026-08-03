@@ -10,7 +10,7 @@ const navLinks = [
   { to: '/dashboard', label: 'FUNDINFO' },
   { to: '/insights', label: 'IDEAFUND' },
   { to: '/articles', label: 'บทความ/บทวิเคราะห์' },
-  { to: '/', label: 'คำถามที่พบบ่อย' },
+  { to: '/Faq', label: 'คำถามที่พบบ่อย' },
 ]
 
 function goSearch() {
