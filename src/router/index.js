@@ -9,6 +9,11 @@ import LoginView from '../views/LoginView.vue'
 import ProfileView from '../views/ProfileView.vue'
 import RegisterView from '../views/RegisterView.vue'
 import FaqView from '../views/FaqView.vue'
+import FundinfoLayout from '../views/fundinfo/FundinfoLayout.vue'
+import FeederFundView from '../views/fundinfo/FeederFundView.vue'
+import OffshoreFundView from '../views/fundinfo/OffshoreFundView.vue'
+import ThaiFundView from '../views/fundinfo/ThaiFundView.vue'
+import MixedFundView from '../views/fundinfo/MixedFundView.vue'
 
 const routes = [
   {
@@ -61,6 +66,17 @@ const routes = [
     path: '/Faq',
     name: 'faq',
     component: FaqView,
+  },
+  {
+    path: '/fundinfo',
+    component: FundinfoLayout,
+    children: [
+      { path: '', redirect: { name: 'fundinfo-feeder' } },
+      { path: 'feeder', name: 'fundinfo-feeder', component: FeederFundView },
+      { path: 'offshore', name: 'fundinfo-offshore', component: OffshoreFundView },
+      { path: 'thai', name: 'fundinfo-thai', component: ThaiFundView },
+      { path: 'mixed', name: 'fundinfo-mixed', component: MixedFundView },
+    ],
   },
 ]
 
