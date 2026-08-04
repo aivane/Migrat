@@ -3,10 +3,7 @@ import vue from '@vitejs/plugin-vue'
 
 const fundApiTarget = 'https://isabella-hagiologic-rolland.ngrok-free.dev'
 const fundBackendTarget = 'https://unexcusable-depreciatingly-lieselotte.ngrok-free.dev'
-<<<<<<< HEAD
-=======
 const wpSiteTarget = 'https://ideatradefund.com'
->>>>>>> Faq
 
 // https://vite.dev/config/
 export default defineConfig({
