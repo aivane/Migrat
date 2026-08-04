@@ -12,13 +12,10 @@ const wpAjaxURL =
   import.meta.env.VITE_WP_AJAX_URL ||
   '/wp-admin/admin-ajax.php'
 
-<<<<<<< HEAD
-=======
 const wpRestBaseURL =
   import.meta.env.VITE_WP_REST_URL ||
   '/wp-json/wp/v2'
 
->>>>>>> Faq
 export const apiMode = import.meta.env.VITE_API_MODE || 'direct'
 
 export const reconClient = axios.create({
@@ -42,8 +39,6 @@ export const authClient = axios.create({
   },
 })
 
-<<<<<<< HEAD
-=======
 export const wpRestClient = axios.create({
   baseURL: wpRestBaseURL,
   timeout: 30000,
@@ -52,7 +47,6 @@ export const wpRestClient = axios.create({
   },
 })
 
->>>>>>> Faq
 export function unwrapResponse(response) {
   const payload = response?.data ?? response
 
@@ -110,8 +104,6 @@ export async function authPost(path, data = {}, token = '') {
   })
   return unwrapResponse(response)
 }
-<<<<<<< HEAD
-=======
 
 export async function wpRestGet(path, params = {}) {
   const response = await wpRestClient.get(path, { params })
@@ -122,4 +114,3 @@ export async function wpRestGet(path, params = {}) {
     totalPages: Number(response.headers?.['x-wp-totalpages'] || 0),
   }
 }
->>>>>>> Faq
