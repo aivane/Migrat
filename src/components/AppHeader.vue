@@ -9,8 +9,8 @@ const navLinks = [
   { to: '/', label: 'หน้าหลัก' },
   { to: '/dashboard', label: 'FUNDINFO' },
   { to: '/insights', label: 'IDEAFUND' },
-  { to: '/insights', label: 'บทความ/บทวิเคราะห์' },
-  { to: '/', label: 'คำถามที่พบบ่อย' },
+  { to: '/articles', label: 'บทความ/บทวิเคราะห์' },
+  { to: '/Faq', label: 'คำถามที่พบบ่อย' },
 ]
 
 function goSearch() {

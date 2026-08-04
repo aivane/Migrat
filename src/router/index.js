@@ -1,4 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import ArticleDetailView from '../views/ArticleDetailView.vue'
+import ArticlesView from '../views/ArticlesView.vue'
 import DashboardView from '../views/DashboardView.vue'
 import ForgotPasswordView from '../views/ForgotPasswordView.vue'
 import HomeView from '../views/HomeView.vue'
@@ -6,6 +8,7 @@ import InsightsView from '../views/InsightsView.vue'
 import LoginView from '../views/LoginView.vue'
 import ProfileView from '../views/ProfileView.vue'
 import RegisterView from '../views/RegisterView.vue'
+import FaqView from '../views/FaqView.vue'
 
 const routes = [
   {
@@ -22,6 +25,17 @@ const routes = [
     path: '/insights',
     name: 'insights',
     component: InsightsView,
+  },
+  {
+    path: '/articles',
+    name: 'articles',
+    component: ArticlesView,
+  },
+  {
+    path: '/articles/:id',
+    name: 'article-detail',
+    component: ArticleDetailView,
+    props: true,
   },
   {
     path: '/login',
@@ -42,6 +56,11 @@ const routes = [
     path: '/profile',
     name: 'profile',
     component: ProfileView,
+  },
+  {
+    path: '/Faq',
+    name: 'faq',
+    component: FaqView,
   },
 ]
 
