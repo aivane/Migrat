@@ -1,9 +1,6 @@
 <script setup>
-import { ref } from 'vue'
-import { RouterLink, useRouter } from 'vue-router'
-
-const router = useRouter()
-const searchText = ref('')
+import { RouterLink } from 'vue-router'
+import SearchBar from './SearchBar.vue'
 
 const navLinks = [
   { to: '/', label: 'หน้าหลัก' },
@@ -12,16 +9,6 @@ const navLinks = [
   { to: '/articles', label: 'บทความ/บทวิเคราะห์' },
   { to: '/Faq', label: 'คำถามที่พบบ่อย' },
 ]
-
-function goSearch() {
-  const symbols = searchText.value
-    .split(/[,\s]+/)
-    .map((item) => item.trim().toUpperCase())
-    .filter(Boolean)
-    .join(',')
-
-  router.push(symbols ? `/dashboard?symbols=${encodeURIComponent(symbols)}` : '/dashboard')
-}
 </script>
 
 <template>
@@ -38,10 +25,7 @@ function goSearch() {
     </nav>
 
     <div class="idea-nav-tools">
-      <form class="idea-search" @submit.prevent="goSearch">
-        <input v-model="searchText" type="search" placeholder="ค้นหากองทุน / หุ้น..." />
-        <button type="submit" aria-label="ค้นหา">⌕</button>
-      </form>
+      <SearchBar />
       <RouterLink class="idea-login" to="/login">เข้าสู่ระบบ</RouterLink>
     </div>
   </header>
