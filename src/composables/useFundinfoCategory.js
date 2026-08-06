@@ -5,7 +5,36 @@ function unique(values) {
   return [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b))
 }
 
-export function useFundinfoCategory(type, { defaultSortBy = 'perf' } = {}) {
+// เอาออกมาเป็น util แยกเพราะ useFundinfoScreener.js ต้องเรียง screenedFunds (ผลลัพธ์หลังผ่าน
+// ตัวกรองขั้นสูงเพิ่มเติม) ด้วย logic การเรียงเดียวกันเป๊ะๆ กับตารางกองทุนปกติ ไม่อยากก็อปโค้ดซ้ำ
+export function sortFundsBy(list, sortBy, sortDir) {
+  const dir = sortDir === 'desc' ? -1 : 1
+  return [...list].sort((a, b) => {
+    const left = a[sortBy]
+    const right = b[sortBy]
+
+    if (typeof left === 'string' || typeof right === 'string') {
+      return String(left ?? '').localeCompare(String(right ?? '')) * dir
+    }
+
+    return ((Number(left) || 0) - (Number(right) || 0)) * dir
+  })
+}
+
+// instances ถูก cache ต่อ type (เหมือน useFundinfoRanking) เพราะตอนนี้มีมากกว่าหนึ่งจุดที่ต้อง
+// อ่าน/เขียน state เดียวกันของแต่ละแท็บ — ตาราง FundView เดิม กับ ThaiFundSearchFilterSection.vue
+// (ผ่าน useFundinfoScreener) ต้องเห็น state.search / state.selectedAmc ชุดเดียวกัน ไม่งั้นพิมพ์ค้นหา
+// ในกล่องค้นหาใหม่แล้วตารางจะไม่กรองตาม
+const instances = new Map()
+
+export function useFundinfoCategory(type, options = {}) {
+  if (instances.has(type)) return instances.get(type)
+  const instance = createFundinfoCategory(type, options)
+  instances.set(type, instance)
+  return instance
+}
+
+function createFundinfoCategory(type, { defaultSortBy = 'perf' } = {}) {
   const funds = fundsByType(type)
 
   const state = reactive({
@@ -43,19 +72,7 @@ export function useFundinfoCategory(type, { defaultSortBy = 'perf' } = {}) {
     return rows
   })
 
-  const sortedFunds = computed(() =>
-    [...filteredFunds.value].sort((a, b) => {
-      const left = a[state.sortBy]
-      const right = b[state.sortBy]
-      const dir = state.sortDir === 'desc' ? -1 : 1
-
-      if (typeof left === 'string' || typeof right === 'string') {
-        return String(left ?? '').localeCompare(String(right ?? '')) * dir
-      }
-
-      return ((Number(left) || 0) - (Number(right) || 0)) * dir
-    }),
-  )
+  const sortedFunds = computed(() => sortFundsBy(filteredFunds.value, state.sortBy, state.sortDir))
 
   const summary = computed(() => {
     if (!funds.length) {
