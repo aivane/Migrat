@@ -10,11 +10,11 @@ const meta = FUND_TYPES.feeder
 </script>
 
 <template>
-  <div class="space-y-6">
-    <p class="text-xs font-semibold flex items-center gap-1.5" :style="{ color: meta.accent }">
-      <span>{{ meta.emoji }}</span>
-      <span>{{ meta.sub }}</span>
-    </p>
+  <div class="fund-workspace space-y-9">
+    <div class="fund-page-title">
+      <h1>{{ meta.label }}</h1>
+      <p>{{ meta.sub }}</p>
+    </div>
 
     <!-- ① Analytics Sections -->
     <ThemeTrendSection type="feeder" />

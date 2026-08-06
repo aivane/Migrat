@@ -10,10 +10,10 @@ const meta = FUND_TYPES.mixed
 </script>
 
 <template>
-  <div class="space-y-6 pb-24">
-    <div>
-      <h1 class="text-xl font-bold txt">Mixed Fund</h1>
-      <p class="text-xs sub">สำรวจโครงสร้างกองทุนที่ผสมหลายสินทรัพย์ไว้ในพอร์ตเดียว</p>
+  <div class="fund-workspace space-y-9 pb-24">
+    <div class="fund-page-title">
+      <h1>{{ meta.label }}</h1>
+      <p>{{ meta.sub }}</p>
     </div>
 
     <!-- ① Market Lens Section -->
