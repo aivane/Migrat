@@ -1,6 +1,7 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { useFundinfoScreener } from '../../composables/useFundinfoScreener'
+import { useFundinfoWatchlist } from '../../composables/useFundinfoWatchlist'
 import { STOCK_META } from '../../data/fundinfoData'
 import { formatPercent } from '../../utils/fundinfoFormat'
 import FundCompareTable from './FundCompareTable.vue'
@@ -10,7 +11,7 @@ const props = defineProps({
 })
 
 const { sortedScreenedFunds, setSort, toggleCompare, compareFunds, compareOrderOf } = useFundinfoScreener(props.type)
-const starredFunds = ref(new Set())
+const { isWatched, toggleWatch } = useFundinfoWatchlist()
 const selectedFundsList = computed(() => compareFunds.value)
 
 // The reference shows the three direct-equity offshore funds only.  Keep this
@@ -19,13 +20,6 @@ const displayFunds = computed(() => {
   if (props.type !== 'offshore') return sortedScreenedFunds.value
   return sortedScreenedFunds.value.filter((fund) => fund.top5?.some((holding) => STOCK_META[holding.name]))
 })
-
-function toggleStar(id) {
-  const next = new Set(starredFunds.value)
-  if (next.has(id)) next.delete(id)
-  else next.add(id)
-  starredFunds.value = next
-}
 
 function taxBenefitLabel(value) {
   return { ssf: 'SSF', rmf: 'RMF', thaiesg: 'Thai ESG', none: '-' }[value] || '-'
@@ -97,6 +91,7 @@ function clearAllCompare() {
           <tr
             v-for="fund in displayFunds"
             :key="fund.id"
+            :id="`fund-row-${fund.id}`"
             class="fund-result-row"
             :class="{ selected: compareOrderOf(fund.id) > -1 }"
             role="button"
@@ -113,7 +108,15 @@ function clearAllCompare() {
                   <strong class="txt block truncate max-w-[220px]">{{ fund.name }}</strong>
                   <span class="block sub font-['Inter']">{{ fund.id }}</span>
                 </div>
-                <button type="button" class="star ml-auto" :class="{ on: starredFunds.has(fund.id) }" @click.stop="toggleStar(fund.id)">☆</button>
+                <button
+                  type="button"
+                  class="star ml-auto"
+                  :class="{ on: isWatched(fund.id) }"
+                  :aria-label="isWatched(fund.id) ? `นำ ${fund.name} ออกจาก wishlist` : `เพิ่ม ${fund.name} ไปยัง wishlist`"
+                  :aria-pressed="isWatched(fund.id)"
+                  :title="isWatched(fund.id) ? 'นำออกจาก wishlist' : 'เพิ่มใน wishlist'"
+                  @click.stop="toggleWatch(fund.id)"
+                >{{ isWatched(fund.id) ? '★' : '☆' }}</button>
               </div>
             </td>
             <td class="sub max-w-[170px] truncate font-['Inter']" :title="holdingTickers(fund)">{{ holdingTickers(fund) }}</td>

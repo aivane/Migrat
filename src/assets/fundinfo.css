@@ -210,8 +210,29 @@
   white-space: nowrap;
 }
 
-.fundinfo-scope .star { color: var(--border-strong); cursor: pointer; font-size: 15px; line-height: 1; }
+.fundinfo-scope .star {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--border-strong);
+  cursor: pointer;
+  font-size: 21px;
+  line-height: 1;
+  transition: background-color .15s ease, color .15s ease, transform .15s ease;
+}
+.fundinfo-scope .star:hover { background: #fff7db; color: #d99d09; transform: scale(1.08); }
+.fundinfo-scope .star:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 .fundinfo-scope .star.on { color: #f0b429; }
+.fundinfo-scope .watchlist-trigger { justify-content: center; }
+.fundinfo-scope .watchlist-icon { color: #f0b429; font-size: 19px; line-height: 1; }
+.fundinfo-scope .watchlist-item { display: block; min-width: 0; flex: 1 1 auto; border: 0; background: transparent; cursor: pointer; }
+.fundinfo-scope .watchlist-item:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: 4px; }
 
 .fundinfo-scope .fpill {
   white-space: nowrap;
@@ -667,6 +688,7 @@
 .fundinfo-scope .fund-results-table tbody tr:hover { background: var(--surf2); }
 .fundinfo-scope .fund-results-table .fund-result-row { cursor: pointer; outline: 0; }
 .fundinfo-scope .fund-results-table .fund-result-row.selected { background: #f1f7ff; box-shadow: inset 3px 0 0 var(--brand); }
+.fundinfo-scope .fund-results-table .fund-result-row.wishlist-focus { scroll-margin-top: 96px; background: #fff7db; box-shadow: inset 3px 0 0 #f0b429; }
 .fundinfo-scope .fund-results-table .fund-result-row:focus-visible { box-shadow: inset 0 0 0 2px var(--brand); }
 .fundinfo-scope .fund-results-table .badge { padding: 2px 5px; font-size: 8px; }
 .fundinfo-scope .fund-results-table .fund-amc-mark { min-width: 22px; width: 22px; height: 22px; border-radius: 6px; font-size: 7px; }

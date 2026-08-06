@@ -1,5 +1,6 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { nextTick, ref, onMounted, onUnmounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { FUND_TYPES } from '../../data/fundinfoData'
 import { useFundinfoTheme } from '../../composables/useFundinfoTheme'
 import { useFundinfoWatchlist } from '../../composables/useFundinfoWatchlist'
@@ -13,9 +14,37 @@ const tabs = [
 
 const { isDark, toggleTheme } = useFundinfoTheme()
 const { count, watchedFunds, removeWatch } = useFundinfoWatchlist()
+const route = useRoute()
+const router = useRouter()
 
 const watchPanelOpen = ref(false)
 const watchPanelRef = ref(null)
+let focusTimer
+
+const fundRouteByType = {
+  feeder: 'fundinfo-feeder',
+  offshore: 'fundinfo-offshore',
+  thai: 'fundinfo-thai',
+  mixed: 'fundinfo-mixed',
+}
+
+async function goToWatchedFund(fund) {
+  const targetRoute = fundRouteByType[fund.type]
+  if (!targetRoute) return
+
+  watchPanelOpen.value = false
+  if (route.name !== targetRoute) await router.push({ name: targetRoute })
+  await nextTick()
+
+  const row = document.getElementById(`fund-row-${fund.id}`)
+  if (!row) return
+
+  row.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  document.querySelectorAll('.fund-result-row.wishlist-focus').forEach((item) => item.classList.remove('wishlist-focus'))
+  row.classList.add('wishlist-focus')
+  window.clearTimeout(focusTimer)
+  focusTimer = window.setTimeout(() => row.classList.remove('wishlist-focus'), 1800)
+}
 
 function handleOutsideClick(event) {
   if (watchPanelOpen.value && watchPanelRef.value && !watchPanelRef.value.contains(event.target)) {
@@ -63,11 +92,11 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
               <div class="relative" ref="watchPanelRef">
                 <button
                   type="button"
-                  class="surf brd h-9 px-2.5 rounded-lg text-sm font-bold flex items-center gap-1"
+                  class="watchlist-trigger surf brd h-10 min-w-10 px-2.5 rounded-lg font-bold flex items-center gap-1"
                   title="รายการติดตาม"
                   @click="watchPanelOpen = !watchPanelOpen"
                 >
-                  ⭐<span class="num text-[11px]">{{ count }}</span>
+                  <span class="watchlist-icon" aria-hidden="true">★</span><span class="num text-[11px]">{{ count }}</span>
                 </button>
 
                 <div
@@ -83,15 +112,15 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
                   </div>
                   <div v-else class="max-h-72 overflow-y-auto divide-y divide-[var(--line)]">
                     <div v-for="fund in watchedFunds" :key="fund.id" class="p-2.5 flex items-center justify-between hover:bg-[var(--surf2)]">
-                      <div class="min-w-0">
+                      <button type="button" class="watchlist-item min-w-0 text-left" :title="`ไปยังกองทุน ${fund.name}`" @click="goToWatchedFund(fund)">
                         <strong class="num txt block truncate text-xs">{{ fund.id }}</strong>
                         <span class="sub text-[11px] truncate block">{{ fund.name }}</span>
-                      </div>
+                      </button>
                       <button
                         type="button"
                         class="text-[11px] font-bold sub hover:text-[var(--neg)] shrink-0 ml-2"
                         title="นำออกจากรายการติดตาม"
-                        @click="removeWatch(fund.id)"
+                        @click.stop="removeWatch(fund.id)"
                       >
                         ✕
                       </button>
