@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import Chart from 'chart.js/auto'
 import { useFundinfoExposureTrend, holdingIcon, trendSeries } from '../../composables/useFundinfoExposureTrend'
 import { performanceSeries, CMP_LABELS, COMPARE_COLORS, COMPARE_DASH } from '../../composables/useFundinfoThemeTrend'
@@ -29,8 +29,6 @@ const {
 
 const detailCanvas = ref(null)
 const chartGroupsOpen = ref(true)
-const scopePickerOpen = ref(false)
-const availableScopes = computed(() => scopes.value.filter((scope) => orderOf(scope.id) === -1))
 let detailChart = null
 
 function scopeColor(index) {
@@ -48,11 +46,6 @@ function signed(value) {
 
 function performanceClass(value) {
   return value >= 0 ? 'is-positive' : 'is-negative'
-}
-
-function addScope(id) {
-  toggle(id)
-  if (selectedStats.value.length >= maxSelected) scopePickerOpen.value = false
 }
 
 function buildDetailChart() {
@@ -206,33 +199,22 @@ onUnmounted(() => detailChart?.destroy())
       <div class="industry-taxonomy-note">⌄ หมวดใน taxonomy ที่ยังไม่มีข้อมูลจะไม่แสดงในรายการนี้</div>
 
       <div class="industry-selection-row">
-        <span>กลุ่มที่เลือก {{ selectedStats.length }}/{{ maxSelected }}</span>
-        <button
-          v-for="(scope, index) in selectedStats"
-          :key="scope.id"
-          type="button"
-          class="industry-chip"
-          :style="{ '--chip-color': scopeColor(index) }"
-          @click="toggle(scope.id)"
-        >{{ index + 1 }}. {{ scope.title }} <b>×</b></button>
-        <button v-if="selectedStats.length" type="button" class="industry-clear" @click="clear">ล้างทั้งหมด</button>
-        <button
-          v-if="availableScopes.length && selectedStats.length < maxSelected"
-          type="button"
-          class="industry-add-scope"
-          :aria-expanded="scopePickerOpen"
-          @click="scopePickerOpen = !scopePickerOpen"
-        >+ เพิ่มกลุ่ม</button>
-        <div v-if="scopePickerOpen" class="industry-scope-picker">
-          <span>เลือกเพิ่มได้อีก {{ maxSelected - selectedStats.length }} กลุ่ม</span>
+        <span>เลือกกลุ่มที่แสดงบนกราฟ {{ selectedStats.length }}/{{ maxSelected }}</span>
+        <div class="industry-scope-options" aria-label="เลือกเมกะเทรนด์และอุตสาหกรรมเพื่อเปรียบเทียบ">
           <button
-            v-for="scope in availableScopes"
+            v-for="scope in scopes"
             :key="scope.id"
             type="button"
-            class="industry-scope-option"
-            @click="addScope(scope.id)"
-          >+ {{ scope.title }}</button>
+            class="industry-scope-toggle"
+            :class="{ selected: orderOf(scope.id) > -1 }"
+            :style="{ '--scope-color': selectionColor(scope) }"
+            :aria-pressed="orderOf(scope.id) > -1"
+            :disabled="orderOf(scope.id) === -1 && selectedStats.length >= maxSelected"
+            :title="orderOf(scope.id) > -1 ? 'เอาออกจากกราฟ' : selectedStats.length < maxSelected ? 'เพิ่มในกราฟ' : `เลือกได้สูงสุด ${maxSelected} กลุ่ม`"
+            @click="toggle(scope.id)"
+          ><i aria-hidden="true">{{ orderOf(scope.id) > -1 ? '✓' : '' }}</i>{{ scope.title }}</button>
         </div>
+        <button v-if="selectedStats.length" type="button" class="industry-clear" @click="clear">ล้างทั้งหมด</button>
       </div>
 
       <div v-if="selectedStats.length" class="industry-compare">
