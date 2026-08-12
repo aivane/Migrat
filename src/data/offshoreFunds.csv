@@ -1,5 +1,78 @@
-id,name,amc,amcShort,risk,fee,div,active,country,master,asset,top5,themes,netbuy,perf,pop,nav,aum,group,taxBenefit,minInvestment,fxHedging,geography,megatrend,style,sd,sharpe,maxDrawdown
-KGHEALTH,กสิกร สุขภาพโลก (Global Healthcare),กสิกรไทย (บลจ.),KASIKORN,6,1.95,0.50,,สหรัฐฯ/ยุโรป,,หุ้นต่างประเทศ:94|เงินฝากและอื่นๆ:6,Eli Lilly:6.2|UnitedHealth:5.1|Novo Nordisk:4.7|Johnson & Johnson:4.0|AbbVie:3.6,สุขภาพ|เมกะเทรนด์|สังคมสูงวัย,430,9.8,12800,14.4000,142,Foreign Equity,none,1000,Fully Hedged (100%),Global Equity,Healthcare,Active (เชิงรุก),16.9,0.85,-23.6
-SCBCHA,ไทยพาณิชย์ หุ้นจีน A-Shares,ไทยพาณิชย์ จำกัด (บลจ.),SCB,6,1.84,0.00,,จีน,,หุ้นต่างประเทศ:96|เงินฝากและอื่นๆ:4,Kweichow Moutai:5.8|CATL:4.9|Ping An:3.6|Midea Group:3.1|BYD:2.9,จีน|ผู้บริโภคจีน|EV,760,3.2,28400,29.9000,316,Foreign Equity,none,1000,Unhedged (ไม่ป้องกัน),China Equity,Technology|AI & Robotics,Active (เชิงรุก),20.3,0.63,-31.4
-KKPGNP,เกียรตินาคินภัทร หุ้นโลก (Global Equity),เกียรตินาคินภัทร (บลจ.),KKP,6,2.01,0.30,,ทั่วโลก,,หุ้นต่างประเทศ:95|เงินฝากและอื่นๆ:5,Microsoft:3.4|Novo Nordisk:2.8|Meta:2.5|TSMC:2.3|LVMH:2.0,หุ้นโลก|เติบโต,520,13.2,14200,18.5500,158,Foreign Equity,none,5000,ตามดุลยพินิจ (บางส่วน),Global Equity,Technology|AI & Robotics,Active (เชิงรุก),15.8,1.06,-22.1
-TUSFIN,ธนชาต ตราสารหนี้โลก,อีสท์สปริง (บลจ.),TMB,4,1.05,1.80,,ทั่วโลก,,ตราสารหนี้ต่างประเทศ:92|เงินฝากและอื่นๆ:8,US Treasury 10Y:6.0|German Bund:4.2|US Treasury 5Y:3.8|UK Gilt:2.6|JGB 10Y:2.1,ตราสารหนี้|รายได้สม่ำเสมอ,260,4.0,7400,11.2400,82,Global Bond,none,1000,Fully Hedged (100%),Global Equity,ESG / ยั่งยืน,Dividend (ปันผล),8.9,1.10,-12.8
+อันดับ,ชื่อกองทุนไทย (Offshore Equity Fund),1W (1 สัปดาห์),1M (1 เดือน),1Y (1 ปี),,,,
+1,SCBRMS&P500 (หุ้นสหรัฐ S&P500),+฿180 ลบ.,+฿720 ลบ.,+฿5.60 พันลบ.,,,,
+2,K-USXNDQ-A(A) (หุ้นเทคโนโลยี US NASDAQ-100),+฿120 ลบ.,+฿540 ลบ.,+฿4.20 พันลบ.,,,,
+3,KKP G-THEME-HA (หุ้นเติบโต Global Theme),+฿85 ลบ.,+฿310 ลบ.,+฿2.10 พันลบ.,,,,
+4,KF-GTECH (หุ้นเทคโนโลยีระดับโลก),+฿60 ลบ.,+฿240 ลบ.,+฿1.85 พันลบ.,,,,
+5,SCBKEQTG (หุ้นเกาหลีใต้),-฿15 ลบ.,+฿110 ลบ.,+฿950 ลบ.,,,,
+,,,,,,,,
+อันดับ,ชื่อกองทุนไทย,1M (1 เดือน),3M (3 เดือน),1Y (1 ปี),3Y (3 ปี),5Y (5 ปี),,
+1,**DAOL-GOLD** *(หุ้นเหมืองทองคำและโลหะมีค่า)*,+5.40%,+12.10%,+28.54%,+41.20%,+65.20%,,
+2,**KT-PRECIOUS** *(หุ้นเหมืองทองคำระดับโลก)*,+4.80%,+10.50%,+24.83%,+35.10%,+52.40%,,
+3,**K-USXNDQ-A(A)** *(หุ้นเทคโนโลยี US NASDAQ-100)*,+4.10%,+11.50%,+23.84%,+47.20%,+92.50%,,
+4,**ASP-DIGIBLOC** *(หุ้นนวัตกรรมบล็อกเชน)*,+2.10%,+8.40%,+18.20%,-15.40%,+10.20%,,
+5,**SCBKEQTG** *(หุ้นเกาหลีใต้)*,+1.50%,+4.90%,+10.80%,-6.20%,+8.50%,,
+,,,,,,,,
+อันดับ,ชื่อกองทุนไทย (Offshore Equity Fund),Dividend Yield (%),,,,,,
+1,LH GLOBAL BLOCKCHAIN-D,6.50%,,,,,,
+2,KFGPROP-D (อสังหาริมทรัพย์และ REITs ต่างประเทศ),5.80%,,,,,,
+3,T-PREMIUM BRAND (หุ้นแบรนด์เนมและสินค้าลักชัวรี),4.20%,,,,,,
+4,SCB Japan Equity Dividend (SCBJANEQ) (หุ้นญี่ปุ่นปันผล),3.50%,,,,,,
+5,K-USXNDQ-A(D) (หุ้น US NASDAQ-100 ชนิดจ่ายปันผล),2.10%,,,,,,
+,,,,,,,,
+ชื่อกองทุน,Header,Return (1Y Return),Drawdown (Max Drawdown),vs Benchmark,Size & Valuation,Dividend / Policy,Top Holdings,
+SCBRMS&P500,SCBRMS&P500 · หุ้นสหรัฐฯ (S&P 500 Index) · RMF,+21.4%,-14.2%,-0.5% (vs S&P 500),AUM ฿18.5 พันลบ. · NAV ฿28.45 · Avg P/E 24.5x · Avg P/B 4.2x,ไม่มีปันผล (RMF),"NVIDIA (6.8%), Microsoft (6.5%), Apple (6.1%), Amazon (3.8%), Meta (2.4%)",
+K-USXNDQ-A(A),K-USXNDQ-A(A) · หุ้นเทคโนโลยีสหรัฐฯ (NASDAQ-100),+23.8%,-18.5%,-0.8% (vs NASDAQ-100),AUM ฿14.2 พันลบ. · NAV ฿35.12 · Avg P/E 29.8x · Avg P/B 6.1x,ไม่จ่ายปันผล (สะสมมูลค่า),"NVIDIA (8.5%), Apple (8.1%), Microsoft (7.8%), Broadcom (4.6%), Amazon (4.5%)",
+KKP G-THEME-HA,KKP G-THEME-HA · หุ้นเติบโตระดับโลก (Global Growth),+18.5%,-21%,+2.1% (vs MSCI World),AUM ฿8.6 พันลบ. · NAV ฿18.90 · Avg P/E 32.4x · Avg P/B 4.8x,ไม่จ่ายปันผล,"Amazon (6.2%), Meta (5.5%), TSMC (4.8%), ASML (4.1%), MercadoLibre (3.9%)",
+KF-GTECH,KF-GTECH · หุ้นเทคโนโลยีระดับโลก,+22.1%,-19.8%,+1.2% (vs MSCI World Tech),AUM ฿6.8 พันลบ. · NAV ฿22.40 · Avg P/E 31.0x · Avg P/B 5.5x,ไม่จ่ายปันผล,"NVIDIA (9.2%), Microsoft (8.1%), Broadcom (5.4%), Cadence Design (4.2%), ASML (3.8%)",
+SCBKEQTG,SCBKEQTG · หุ้นประเทศเกาหลีใต้,+10.8%,-24.5%,-0.4% (vs MSCI Korea),AUM ฿3.2 พันลบ. · NAV ฿12.15 · Avg P/E 11.2x · Avg P/B 0.9x,ไม่จ่ายปันผล,"Samsung Electronics (21.5%), SK Hynix (9.8%), POSCO Holdings (4.2%), Hyundai Motor (3.1%), Naver (2.8%)",
+,,,,,,,,
+,,,,,,,,
+,,,,,,,,
+ชื่อกองทุน,Header,Return (1Y Return),Drawdown (Max Drawdown),vs Benchmark,Size & Valuation,Dividend / Policy,Top Holdings,
+LH GLOBAL BLOCKCHAIN-D,LH GLOBAL BLOCKCHAIN-D · หุ้นบล็อกเชนและสินทรัพย์ดิจิทัล,+15.4%,-28.6%,-1.10%,AUM ฿520 ลบ. · NAV ฿8.75 · Avg P/E 35.2x · Avg P/B 3.8x,Dividend Yield 6.5% · ปันผลสม่ำเสมอ,"Coinbase (8.5%), Block Inc (6.9%), Marathon Digital (5.8%), Riot Platforms (4.5%), Hut 8 Mining (3.8%)",
+KFGPROP-D,KFGPROP-D · อสังหาริมทรัพย์และ REITs ต่างประเทศ,+8.2%,-12.4%,-0.30%,AUM ฿1.8 พันลบ. · NAV ฿10.40 · Avg P/E 19.8x · Avg P/B 1.4x,Dividend Yield 5.8% · จ่ายปันผลรายไตรมาส,"Prologis (7.8%), Equinix (6.2%), Welltower (5.1%), Simon Property Group (4.3%), Public Storage (3.9%)",
+T-PREMIUM BRAND,T-PREMIUM BRAND · หุ้นสินค้าลักชัวรีและแบรนด์เนมระดับโลก,+11.5%,-15.1%,-0.80%,AUM ฿1.1 พันลบ. · NAV ฿13.60 · Avg P/E 25.4x · Avg P/B 4.8x,Dividend Yield 4.2% · จ่ายปันผล,"LVMH (8.4%), Hermès (7.2%), Ferrari (6.1%), Compagnie Financière Richemont (5.3%), L'Oréal (4.5%)",
+SCBJANEQ,SCBJANEQ · หุ้นญี่ปุ่นขนาดใหญ่และมีปันผล,+12.1%,-13.8%,+0.2%,AUM ฿980 ลบ. · NAV ฿11.85 · Avg P/E 14.2x · Avg P/B 1.3x,Dividend Yield 3.5% · จ่ายปันผล,"Toyota Motor (5.8%), Sony Group (4.9%), Mitsubishi UFJ Financial (4.5%), Keyence (3.8%), Tokyo Electron (3.2%)",
+K-USXNDQ-A(D),K-USXNDQ-A(D) · หุ้นเทคโนโลยีสหรัฐฯ (NASDAQ-100),+23.5%,-18.5%,-1.10%,AUM ฿3.5 พันลบ. · NAV ฿24.80 · Avg P/E 29.8x · Avg P/B 6.1x,Dividend Yield 2.1% · จ่ายปันผลรายปี,"NVIDIA (8.5%), Apple (8.1%), Microsoft (7.8%), Broadcom (4.6%), Amazon (4.5%)",
+,,,,,,,,
+,,,,,,,,
+ชื่อกองทุน,Header,1Y Return,Max Drawdown,vs Benchmark,Size & Valuation,Dividend / Policy,Top Holdings,
+DAOL-GOLD,DAOL-GOLD · หุ้นเหมืองทองคำและโลหะมีค่า,+28.5%,-16.8%,\+1.8% เทียบ MSCI ACWI *(หรือ NYSE Arca Gold Miners)*,AUM ฿1.4 พันลบ. · NAV ฿15.80 · Avg P/E 18.2x · Avg P/B 1.8x,ไม่จ่ายปันผล (สะสมมูลค่า),"Agnico Eagle Mines (8.2%), Wheaton Precious Metals (7.5%), Barrick Gold (6.8%), Fresnillo (5.1%), Pan American Silver (4.4%)",
+KT-PRECIOUS,KT-PRECIOUS · หุ้นเหมืองทองคำระดับโลก,+24.8%,-17.2%,\+0.9% เทียบ MSCI ACWI *(หรือ FTSE Gold Mines)*,AUM ฿2.1 พันลบ. · NAV ฿14.25 · Avg P/E 17.5x · Avg P/B 1.6x,ไม่จ่ายปันผล (สะสมมูลค่า),"Newmont (9.1%), Endeavour Mining (6.5%), Perseus Mining (5.2%), Gold Fields (4.8%), Alamos Gold (4.1%)",
+K-USXNDQ-A(A),K-USXNDQ-A(A) · หุ้นเทคโนโลยีสหรัฐฯ (NASDAQ-100),+23.8%,-18.5%,\-0.8% เทียบ MSCI ACWI *(หรือ NASDAQ-100)*,AUM ฿14.2 พันลบ. · NAV ฿35.12 · Avg P/E 29.8x · Avg P/B 6.1x,ไม่จ่ายปันผล (สะสมมูลค่า),"NVIDIA (8.5%), Apple (8.1%), Microsoft (7.8%), Broadcom (4.6%), Amazon (4.5%)",
+ASP-DIGIBLOC,ASP-DIGIBLOC · หุ้นนวัตกรรมและโครงสร้างพื้นฐานบล็อกเชน,+18.2%,-32.4%,+1.9% เทียบ MSCI ACWI,AUM ฿890 ลบ. · NAV ฿9.85 · Avg P/E 38.5x · Avg P/B 4.1x,ไม่จ่ายปันผล (สะสมมูลค่า),"MicroStrategy (8.9%), Coinbase (8.2%), NVIDIA (6.5%), Marathon Digital (5.4%), CleanSpark (4.1%)",
+SCBKEQTG,SCBKEQTG · หุ้นประเทศเกาหลีใต้,+10.8%,-24.5%,\-0.4% เทียบ MSCI ACWI *(หรือ MSCI Korea)*,AUM ฿3.2 พันลบ. · NAV ฿12.15 · Avg P/E 11.2x · Avg P/B 0.9x,ไม่จ่ายปันผล (สะสมมูลค่า),"Samsung Electronics (21.5%), SK Hynix (9.8%), POSCO Holdings (4.2%), Hyundai Motor (3.1%), Naver (2.8%)",
+,,,,,,,,
+หุ้น,,,,,,,,
+,,,,,,,,
+อันดับ,ชื่อหุ้น / สัญลักษณ์,จำนวนกองทุนที่ถือ,,,,,,
+1,NVO · Novo Nordisk,2 กอง,,,,,,
+2,LLY · Eli Lilly,1 กอง,,,,,,
+3,600519 · Kweichow Moutai,1 กอง,,,,,,
+4,UNH · UnitedHealth,1 กอง,,,,,,
+5,300750 · CATL,1 กอง,,,,,,
+,,,,,,,,
+อันดับ,ชื่อหุ้น / สัญลักษณ์,น้ำหนักรวม,,,,,,
+1,NVO · Novo Nordisk,7.5%,,,,,,
+2,LLY · Eli Lilly,6.2%,,,,,,
+3,600519 · Kweichow Moutai,5.8%,,,,,,
+4,UNH · UnitedHealth,5.1%,,,,,,
+5,300750 · CATL,4.9%,,,,,,
+,,,,,,,,
+อันดับ,ชื่อหุ้น / สัญลักษณ์,อัตราเงินปันผลตอบแทนต่อปี,,,,,,
+1,TSM · Taiwan Semiconductor (TSMC),0.84%,,,,,,
+2,MSFT · Microsoft,0.7%,,,,,,
+3,LLY · Eli Lilly,0.58%,,,,,,
+4,002594 · BYD,0.44%,,,,,,
+5,META · Meta Platforms,0.35%,,,,,,
+,,,,,,,,
+หุ้น,ผลตอบแทน 1 ปี,Market Cap (USD),Max Drawdown,P/E Ratio,P/B Ratio,น้ำหนักรวม,เงินปันผล (Yield),เทียบ MSCI ACWI (+/-%)
+**NVO** · Novo Nordisk,+28.54%,$208.92 B,-28.4%,~11.8x,~7.1x,7.50%,~3.60%,**+12.30%** *
+**LLY** · Eli Lilly,+33.50%,"$1,190.00 B",-18.2%,~40.3x,~38.5x,6.20%,~0.58%,**+17.26%**
+**600519** · Kweichow Moutai,+10.80%,$242.58 B,-35.1%,~18.8x,~6.2x,5.80%,~3.90%,**-5.44%**
+**UNH** · UnitedHealth,+12.40%,$370.00 B,-22.6%,~24.9x,~4.8x,5.10%,~2.20%,**-3.84%**
+**300750** · CATL,+18.20%,$266.61 B,-42.8%,~20.7x,~4.5x,4.90%,~2.10%,**+1.96%**
+**TSM** · TSMC,+31.50%,"$2,180.00 B",-26.5%,~29.3x,~8.9x,*ตามกองทุน*,~0.84%,**+15.26%**
+**MSFT** · Microsoft,+18.90%,"$3,800.00 B",-15.4%,~27.2x,~7.8x,*ตามกองทุน*,~0.70%,**+2.66%**
+**002594** · BYD,+22.50%,$122.82 B,-38.2%,~19.5x,~3.9x,*ตามกองทุน*,~0.44%,**+6.26%**
+**META** · Meta Platforms,+35.60%,"$1,510.00 B",-24.1%,~22.2x,~5.4x,*ตามกองทุน*,~0.35%,**+19.36%**

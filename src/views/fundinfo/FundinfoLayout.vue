@@ -1,5 +1,5 @@
 <script setup>
-import { nextTick, ref, onMounted, onUnmounted } from 'vue'
+import { computed, nextTick, ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { FUND_TYPES } from '../../data/fundinfoData'
 import { useFundinfoTheme } from '../../composables/useFundinfoTheme'
@@ -16,6 +16,7 @@ const { isDark, toggleTheme } = useFundinfoTheme()
 const { count, watchedFunds, removeWatch } = useFundinfoWatchlist()
 const route = useRoute()
 const router = useRouter()
+const activeTab = computed(() => tabs.find((tab) => route.path.startsWith(tab.to)))
 
 const watchPanelOpen = ref(false)
 const watchPanelRef = ref(null)
@@ -57,31 +58,38 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
 </script>
 
 <template>
-  <div class="fundinfo-scope min-h-screen" :class="{ dark: isDark }">
+  <div class="fundinfo-scope min-h-screen" :class="{ dark: isDark }" :style="{ '--brand': activeTab?.accent || '#2456d8' }">
     <main class="min-h-screen bg-[var(--bg)] text-[var(--txt)] font-['Prompt'] antialiased">
 
-      <header class="sticky top-0 z-30 surf brdb px-4 py-2">
-        <div class="max-w-[1120px] mx-auto flex flex-col md:flex-row md:items-center justify-between gap-3">
+      <!-- ปรับ py-2 เป็น py-4 เพื่อขยายขนาดความสูงของ Header และเอา h-16 ออกเพื่อให้ความสูงยืดหยุ่นตามเนื้อหา -->
+      <header class="sticky top-0 z-30 surf brdb px-4 py-4">
+        
+        <!-- เพิ่ม h-full และปรับ gap-3 เป็น gap-4 -->
+        <div class="max-w-[1120px] mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4 h-full">
 
           <!-- Branding: FI mark + Fundinfo / Investment Exposure Workspace -->
           <div class="flex items-center gap-3">
-            <div class="w-7 h-7 rounded-md bg-[var(--brand)] text-white font-extrabold flex items-center justify-center text-[10px] shrink-0">FI</div>
+            <!-- ปรับขนาดโลโก้: w-9 h-9, text-xs -->
+            <div class="w-9 h-9 rounded-md bg-[var(--brand)] text-white font-extrabold flex items-center justify-center text-xs shrink-0">FI</div>
             <div>
-              <div class="text-sm font-extrabold txt leading-tight">Fundinfo</div>
-              <div class="text-[8px] font-bold uppercase tracking-wider sub leading-tight">Investment Exposure Workspace</div>
+              <!-- ปรับขนาดชื่อ: text-base -->
+              <div class="text-base font-extrabold txt leading-tight">Fundinfo</div>
+              <!-- ปรับขนาดซับไตเติ้ล: text-[10px] -->
+              <div class="text-[10px] font-bold uppercase tracking-wider sub leading-tight">Investment Exposure Workspace</div>
             </div>
           </div>
 
           <div class="flex items-center gap-3 justify-between md:justify-end">
-            <!-- Fund type tabs — fully-rounded pills, active tab = solid --brand -->
+            <!-- Fund type tabs -->
             <nav class="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0" aria-label="ประเภทกองทุน">
               <RouterLink
                 v-for="tab in tabs"
                 :key="tab.to"
                 :to="tab.to"
-                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all whitespace-nowrap border border-transparent sub hover:surf2 hover:txt"
+                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition-all whitespace-nowrap border border-transparent sub hover:surf2 hover:txt"
                 active-class="!bg-[var(--brand)] !text-white !border-[var(--brand)] shadow-md shadow-blue-500/20"
               >
+                <!-- ปรับขนาดข้อความใน Tab เป็น text-sm ทั้งคู่ -->
                 <span class="text-sm">{{ tab.emoji }}</span>
                 <span>{{ tab.label }}</span>
               </RouterLink>
@@ -144,7 +152,7 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
         </div>
       </header>
 
-      <div class="max-w-[1120px] mx-auto px-5 py-7 md:px-7 md:py-8">
+      <div class="max-w-[1120px] mx-auto px-4 py-7 md:py-8">
         <RouterView />
       </div>
 

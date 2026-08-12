@@ -1,12 +1,10 @@
+import feederFundsCsv from './feederFunds.csv?raw'
 import offshoreFundsCsv from './offshoreFunds.csv?raw'
 import thaiFundsCsv from './thaiFunds.csv?raw'
+import mixedFundsCsv from './mixedFunds.csv?raw'
 import { fundRowsFromCsv } from './fundCsv'
 
 // Mock data for the Fundinfo category pages (Feeder / Offshore / Thai / Mixed).
-// Adapted from the "Fundinfo v3.2.1 — Master Fund Comparison Workspace" HTML prototype.
-// This is sample data only, not investment advice — it exists so the 4 routes render
-// something real while the actual API integration/design is finalized.
-
 function pairs(list) {
   return list.map(([name, percent]) => ({ name, percent }))
 }
@@ -17,7 +15,7 @@ export const FUND_TYPES = {
     label: 'Feeder Fund',
     emoji: '🌐',
     accent: '#2456d8',
-    sub: 'กองทุนไทยที่ลงทุนผ่าน Master Fund ต่างประเทศ — เปรียบเทียบก่อนเลือกกองทุนที่เข้าถึงได้',
+    sub: 'สำรวจและเปรียบเทียบ Master Fund ก่อนค้นหากองทุนไทยที่เข้าถึงได้',
   },
   offshore: {
     key: 'offshore',
@@ -31,14 +29,14 @@ export const FUND_TYPES = {
     label: 'Thai Fund',
     emoji: '🇹🇭',
     accent: '#0e9f6e',
-    sub: 'กองทุนหุ้นไทยที่ลงทุนในหุ้นรายตัวในตลาดหลักทรัพย์แห่งประเทศไทย',
+    sub: 'กองทุนหุ้นไทยที่ลงทุนในหุ้นรายตัว — เริ่มจากกลุ่มอุตสาหกรรม แล้วเจาะดูหุ้นและกองทุนที่ถือ',
   },
   mixed: {
     key: 'mixed',
     label: 'Mixed Fund',
     emoji: '⚖️',
     accent: '#7a5af5',
-    sub: 'กองทุนผสมหลายสินทรัพย์ไว้ในพอร์ตเดียว (หุ้น/ตราสารหนี้/ทองคำ/เงินสด)',
+    sub: 'สำรวจโครงสร้างกองทุนที่ผสมหลายสินทรัพย์ไว้ในพอร์ตเดียว',
   },
 }
 
@@ -201,12 +199,9 @@ const FALLBACK_FUNDS = [
 ]
 
 // ==========================================================================
-// Reference / taxonomy tables — ported from the fundinfo v3.2.1 HTML prototype.
-// These power the theme-trend, ranking, and stock/master-fund comparison
-// sections (Sections ①–③) built on top of the screener already in place.
+// Reference / taxonomy tables
 // ==========================================================================
 
-// ประเทศ -> กลุ่มเปรียบเทียบ (ใช้จัดกลุ่ม Feeder/Offshore fund ตาม exposure)
 export const GROUP = {
   สหรัฐฯ: 'US Equity',
   ทั่วโลก: 'Global Equity',
@@ -217,7 +212,6 @@ export const GROUP = {
   'สหรัฐฯ/ยุโรป': 'Global Healthcare',
 }
 
-// บลจ. -> ตัวย่อ (ใช้แสดงเป็น avatar ในตาราง/การ์ด)
 export const AMC = {
   'ไทยพาณิชย์ จำกัด (บลจ.)': 'SCB',
   'อีสท์สปริง (บลจ.)': 'ES',
@@ -232,7 +226,6 @@ export const AMC = {
 
 export const WRAPPER_TYPES = ['ทั่วไป', 'SSF', 'RMF', 'ThaiESG', 'ThaiESGX', 'LTF']
 
-// สีประจำสินทรัพย์ (ใช้ในกราฟ/แถบสัดส่วน Mixed Fund)
 export const CMIX = {
   หุ้นไทย: '#2456d8',
   หุ้นต่างประเทศ: '#0e7ac0',
@@ -243,7 +236,6 @@ export const CMIX = {
 }
 export const ASSETS = ['หุ้นไทย', 'หุ้นต่างประเทศ', 'ตราสารหนี้', 'ทองคำ', 'น้ำมัน/โภคภัณฑ์', 'เงินสด']
 
-// สัดส่วนตาม Sector (GICS-style) ต่อกองทุน — ใช้ในการ์ด/กราฟเจาะลึกรายกอง
 export const SECTORS = {
   SCBNDQ: pairs([['Technology', 48], ['Consumer Disc.', 18], ['Communication', 16], ['Health Care', 6], ['Industrials', 5], ['อื่นๆ', 7]]),
   TNDQ: pairs([['Technology', 48], ['Consumer Disc.', 18], ['Communication', 16], ['Health Care', 6], ['Industrials', 5], ['อื่นๆ', 7]]),
@@ -265,7 +257,6 @@ export const SECTORS = {
   SCBCONSER: pairs([['การเงิน', 20], ['พลังงาน', 16], ['ICT', 12], ['พาณิชย์', 10], ['อิเล็กทรอนิกส์', 8], ['อื่นๆ', 34]]),
 }
 
-// ป้ายกำกับ scope (แปล GICS -> ไทย) — ใช้เวลาสร้าง scope การ์ดจาก sector ที่พบ
 export const SCOPE_LABELS = {
   'Technology': 'เทคโนโลยี',
   'Health Care': 'สุขภาพ',
@@ -280,7 +271,6 @@ export function normalizeScopeLabel(label) {
   return SCOPE_LABELS[label] || label
 }
 
-// ข้อมูลหุ้นรายตัวที่ปรากฏใน Top Holdings ของกองทุน Offshore/Thai — ใช้ทำ Stock Comparison
 export const STOCK_META = {
   'Eli Lilly': { ticker: 'LLY', sector: 'สุขภาพ', country: 'สหรัฐฯ', ret: 33.5, dd: -18.4, div: 0.7, pe: 37.8, pb: 20.4, cap: 'US$ 775B' },
   UnitedHealth: { ticker: 'UNH', sector: 'สุขภาพ', country: 'สหรัฐฯ', ret: -8.2, dd: -31.6, div: 1.6, pe: 17.2, pb: 5.1, cap: 'US$ 455B' },
@@ -313,7 +303,6 @@ export const STOCK_META = {
   SPA: { ticker: 'SPA', sector: 'ขนส่งและท่องเที่ยว', country: 'ไทย', ret: -4.1, dd: -25.3, div: 1.0, pe: 29.4, pb: 5.7, cap: '฿ 8B' },
 }
 
-// กลุ่มอุตสาหกรรมไทย — ใช้ในหน้า Thai Fund เพื่อเจาะจากกลุ่มไปหุ้น/กองทุน
 export const THAI_INDUSTRY_GROUPS = [
   { id: 'AGRO', title: 'เกษตรและอุตสาหกรรมอาหาร', subtitle: 'AGRO', stocks: [] },
   { id: 'CONSUMP', title: 'สินค้าอุปโภคบริโภค', subtitle: 'CONSUMP', stocks: [] },
@@ -325,7 +314,6 @@ export const THAI_INDUSTRY_GROUPS = [
   { id: 'TECH', title: 'เทคโนโลยี', subtitle: 'TECH', stocks: ['DELTA', 'ADVANC', 'INTUCH'] },
 ]
 
-// กลุ่มภูมิภาค/ประเทศ — ใช้ในหน้า Offshore Fund เมื่อเลือกโหมด "ประเทศ"
 export const OFFSHORE_REGION_GROUPS = [
   { id: 'REG_GLOBAL', title: 'หุ้นโลก', subtitle: 'Global Equity', fundIds: ['KGHEALTH', 'KKPGNP'] },
   { id: 'REG_US', title: 'หุ้นสหรัฐฯ', subtitle: 'US Equity', fundIds: [] },
@@ -338,7 +326,6 @@ export const OFFSHORE_REGION_GROUPS = [
   { id: 'REG_EM', title: 'ตลาดเกิดใหม่', subtitle: 'Emerging Markets', fundIds: [] },
 ]
 
-// กลุ่มธีมการลงทุน — ใช้ในหน้า Offshore Fund เมื่อเลือกโหมด "ธีม"
 export const OFFSHORE_THEME_GROUPS = [
   { id: 'MEGA_TECH', title: 'เทคโนโลยีภาพรวม', subtitle: 'Technology / Tech', stocks: ['Microsoft', 'Meta', 'TSMC'] },
   { id: 'MEGA_AI', title: 'ปัญญาประดิษฐ์และหุ่นยนต์', subtitle: 'AI & Robotics', stocks: ['Microsoft', 'Meta'] },
@@ -351,8 +338,6 @@ export const OFFSHORE_THEME_GROUPS = [
   { id: 'MEGA_REIT', title: 'อสังหาริมทรัพย์ทั่วโลก', subtitle: 'Global REITs', stocks: [] },
 ]
 
-// บทวิเคราะห์ / ข้อมูล Master Fund ราย theme — คีย์คือชื่อ Master Fund (feeder)
-// หรือ theme key (offshore/thai) — ใช้ในส่วน "Master Fund / Stock Comparison"
 export const INSIGHT = {
   'Invesco NASDAQ-100 ETF': {
     theme: 'US Technology (NASDAQ-100)',
@@ -389,7 +374,6 @@ export const INSIGHT = {
     master: { name: 'SPDR Gold Shares (GLD)', amc: 'State Street', aum: 'US$ 78.4B', incep: 'พ.ย. 2004', te: 0.09, pm: 'ทองคำทำจุดสูงสุดใหม่จากการอ่อนค่าของดอลลาร์และความต้องการสินทรัพย์ปลอดภัย ธนาคารกลางยังเป็นผู้ซื้อสุทธิต่อเนื่อง' },
     top: [['Physical Gold Bullion', 'GOLD', 100.0, 21.0]],
   },
-  // offshore themes (key = fund.themes[0])
   สุขภาพ: {
     theme: 'Global Healthcare',
     narr: 'เมกะเทรนด์การดูแลสุขภาพระยะยาวจากสังคมสูงวัยและนวัตกรรมยา เช่น ยาลดน้ำหนัก (GLP-1) และเทคโนโลยีชีวภาพ',
@@ -418,7 +402,6 @@ export const INSIGHT = {
     master: { name: 'Bloomberg Global Aggregate (อ้างอิง)', amc: 'ดัชนีอ้างอิง', aum: '—', incep: '—', te: 0.9, pm: 'วัฏจักรดอกเบี้ยขาลงหนุนราคาตราสารหนี้ เราเพิ่ม duration ในพันธบัตรคุณภาพสูงเพื่อรับ capital gain' },
     top: [['US Treasury 10Y', 'UST10', 6.0, 3.2], ['German Bund', 'BUND', 4.2, 2.1], ['US Treasury 5Y', 'UST5', 3.8, 2.8], ['UK Gilt 10Y', 'GILT', 2.6, 1.4], ['JGB 10Y', 'JGB', 2.1, -0.6], ['US TIPS', 'TIPS', 1.9, 3.0], ['France OAT', 'OAT', 1.6, 1.1], ['Canada 10Y', 'CAN', 1.4, 2.2], ['Australia 10Y', 'ACGB', 1.2, 1.8], ['Corp IG', 'IG', 1.0, 4.1]],
   },
-  // thai themes (key = fund.themes[1])
   'คัดเลือกเชิงรุก (Active)': {
     theme: 'Thai Active Equity',
     narr: 'กองหุ้นไทยบริหารเชิงรุก ผู้จัดการคัดหุ้นพื้นฐานดีเพื่อมุ่งเอาชนะดัชนี SET เหมาะกับผู้เชื่อในการคัดเลือกหุ้นรายตัว',
@@ -449,38 +432,35 @@ export const INSIGHT = {
   },
 }
 
-// ==========================================================================
-// Derived per-fund fields — deterministic (seeded from the fund id), so the
-// numbers are stable across renders/reloads instead of re-randomizing.
-// Ported from the same hashing approach as the HTML prototype.
-// ==========================================================================
 function hashId(id) {
   return [...id].reduce((sum, ch) => sum + ch.charCodeAt(0), 0)
 }
 
-// Offshore and Thai data are loaded from their CSV files. The other sections
-// retain their in-file demo data until matching source files are supplied.
-const CSV_FUNDS = [
-  ...fundRowsFromCsv(offshoreFundsCsv, 'offshore'),
-  ...fundRowsFromCsv(thaiFundsCsv, 'thai'),
-]
+// ==========================================================================
+// Parsing dynamic data from CSV files for each category
+// ==========================================================================
+const feederCsvFunds = fundRowsFromCsv(feederFundsCsv, 'feeder')
+const offshoreCsvFunds = fundRowsFromCsv(offshoreFundsCsv, 'offshore')
+const thaiCsvFunds = fundRowsFromCsv(thaiFundsCsv, 'thai')
+const mixedCsvFunds = fundRowsFromCsv(mixedFundsCsv, 'mixed')
 
+// Combine funds from CSVs. If a CSV has no valid rows, fall back to default data for that type.
 export const FUNDS = [
-  ...FALLBACK_FUNDS.filter((fund) => fund.type !== 'offshore' && fund.type !== 'thai'),
-  ...CSV_FUNDS,
+  ...(feederCsvFunds.length > 0 ? feederCsvFunds : FALLBACK_FUNDS.filter((f) => f.type === 'feeder')),
+  ...(offshoreCsvFunds.length > 0 ? offshoreCsvFunds : FALLBACK_FUNDS.filter((f) => f.type === 'offshore')),
+  ...(thaiCsvFunds.length > 0 ? thaiCsvFunds : FALLBACK_FUNDS.filter((f) => f.type === 'thai')),
+  ...(mixedCsvFunds.length > 0 ? mixedCsvFunds : FALLBACK_FUNDS.filter((f) => f.type === 'mixed')),
 ]
 
 FUNDS.forEach((f) => {
   const h = hashId(f.id)
   const j = (seed, scale) => (((h * seed) % 11) / 11 - 0.5) * scale
 
-  // เงินไหลเข้า/ออก แยกตามช่วงเวลา (1 สัปดาห์ / 1 เดือน / 1 ปี)
   f.flowP = {
     w1: Math.round(f.netbuy * (0.3 + j(3, 0.15))),
     m1: f.netbuy,
     y1: Math.round(f.netbuy * (6 + j(7, 1.4))),
   }
-  // ผลตอบแทนแยกตามช่วงเวลา (1M / 3M / 1Y / 3Y / 5Y)
   f.retP = {
     m1: +(f.perf * (0.14 + j(2, 0.06))).toFixed(1),
     q1: +(f.perf * (0.42 + j(4, 0.12))).toFixed(1),
@@ -512,7 +492,6 @@ FUNDS.forEach((f) => {
   const recover = Math.round(4 + Math.abs(j(13, 9)))
   f.stats = { sharpe, sd, beta, maxdd, recover, fxhedge: fx }
 
-  // ผลตอบแทนรายปีปฏิทิน (พ.ศ.) ย้อนหลัง 5 ปี — ใช้วาดกราฟแท่งใน FundDetailRow
   const cyr = {}
   ;['2564', '2565', '2566', '2567', '2568'].forEach((year, i) => {
     const s = ((h * (i + 3)) % 97) / 97 - 0.42
@@ -520,7 +499,6 @@ FUNDS.forEach((f) => {
   })
   f.cyr = cyr
 
-  // Convenience fields consumed directly by FundDetailRow.vue's existing template
   f.sharpe = sharpe
   f.drawdown = `${maxdd}%`
   f.fx = fx === null ? 'ตามดุลยพินิจ' : fx === 0 ? 'ไม่ป้องกันความเสี่ยง' : fx === 100 ? 'ป้องกันความเสี่ยงทั้งหมด' : `ป้องกันบางส่วน (~${fx}%)`

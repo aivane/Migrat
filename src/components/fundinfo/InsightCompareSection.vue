@@ -1,3 +1,4 @@
+<!-- InsightCompareSection.vue -->
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import Chart from 'chart.js/auto'
@@ -11,32 +12,68 @@ const props = defineProps({
 })
 
 const { bench, cardsData, itemLabel, maxSelected, stock } = useFundinfoInsight(props.type)
-const { clearSelection, select } = useFundinfoRanking(props.type)
+const { clearSelection } = useFundinfoRanking(props.type)
 
-const stockOpen = ref(true)
-const fundOpen = ref(props.type !== 'thai')
-const stockCanvas = ref(null)
-const fundCanvas = ref(null)
-let stockChart = null
-let fundChart = null
+const combinedCanvas = ref(null)
+let combinedChart = null
+const sortDir = ref('desc')
 
-const stockCards = computed(() => cardsData.value.filter((card) => card.kind === 'stock'))
-const fundCards = computed(() => cardsData.value.filter((card) => card.kind !== 'stock'))
-const selectionSignature = computed(() => cardsData.value.map((card) => `${card.kind}:${card.id}`).join('|'))
-
-function destroyChart(kind) {
-  if (kind === 'stock' && stockChart) {
-    stockChart.destroy()
-    stockChart = null
+// จัดอันดับหุ้น (feeder, offshore หุ้นต่างประเทศ, thai หุ้นไทย) -> น้ำหนักรวมเสมอ
+// จัดอันดับกองทุน (offshore, thai, mixed) -> AUM เสมอ
+const sortConfig = computed(() => {
+  if (stock) {
+    return { field: 'weight', label: 'น้ำหนักรวม' }
   }
-  if (kind === 'fund' && fundChart) {
-    fundChart.destroy()
-    fundChart = null
+  return { field: 'aum', label: 'AUM' }
+})
+
+function parseAumValue(raw) {
+  if (typeof raw === 'number') return raw
+  if (typeof raw !== 'string') return 0
+  const match = raw.replace(/US\$|\$/g, '').match(/([\d.]+)\s*([MBK])?/i)
+  if (!match) return 0
+  const num = parseFloat(match[1])
+  const unit = (match[2] || '').toUpperCase()
+  const mult = unit === 'B' ? 1e9 : unit === 'M' ? 1e6 : unit === 'K' ? 1e3 : 1
+  return num * mult
+}
+
+function sortValue(card) {
+  switch (sortConfig.value.field) {
+    case 'weight':
+      return Number(card.weight ?? card.totalWeight ?? 0)
+    case 'aum':
+      return parseAumValue(card.aum ?? card.cap)
+    default:
+      return Number(card.perf ?? 0)
   }
 }
 
-function createChart(kind, canvas, entries) {
-  destroyChart(kind)
+const sortedCardsData = computed(() => {
+  const list = [...cardsData.value]
+  return list.sort((a, b) => (sortDir.value === 'desc' ? sortValue(b) - sortValue(a) : sortValue(a) - sortValue(b)))
+})
+const selectionSignature = computed(() => cardsData.value.map((card) => `${card.kind}:${card.id}`).join('|'))
+
+function toggleSortDir() {
+  sortDir.value = sortDir.value === 'desc' ? 'asc' : 'desc'
+}
+function shortBench(name) {
+  return (name || '').replace(/ Index$/, '')
+}
+function formatAum(aum) {
+  return typeof aum === 'string' ? aum.replace('US$', '$') : aum || '—'
+}
+
+function destroyChart() {
+  if (combinedChart) {
+    combinedChart.destroy()
+    combinedChart = null
+  }
+}
+
+function createChart(canvas, entries) {
+  destroyChart()
   if (!canvas || !entries.length) return
 
   const datasets = entries.map((entry, index) => ({
@@ -65,7 +102,7 @@ function createChart(kind, canvas, entries) {
     fill: false,
   })
 
-  const instance = new Chart(canvas, {
+  combinedChart = new Chart(canvas, {
     type: 'line',
     data: { labels: CMP_LABELS, datasets },
     options: {
@@ -90,38 +127,24 @@ function createChart(kind, canvas, entries) {
       },
     },
   })
-
-  if (kind === 'stock') stockChart = instance
-  else fundChart = instance
 }
 
 async function rebuildCharts() {
   await nextTick()
-  if (stockOpen.value) createChart('stock', stockCanvas.value, stockCards.value)
-  else destroyChart('stock')
-  if (fundOpen.value) createChart('fund', fundCanvas.value, fundCards.value)
-  else destroyChart('fund')
+  createChart(combinedCanvas.value, cardsData.value)
 }
 
-function togglePanel(kind) {
-  if (kind === 'stock') stockOpen.value = !stockOpen.value
-  else fundOpen.value = !fundOpen.value
-}
-
-watch([selectionSignature, stockOpen, fundOpen], rebuildCharts)
+watch(selectionSignature, rebuildCharts)
 onMounted(rebuildCharts)
-onUnmounted(() => {
-  destroyChart('stock')
-  destroyChart('fund')
-})
+onUnmounted(destroyChart)
 </script>
 
 <template>
   <section :id="`insight-${props.type}`" class="comparison-workspace">
     <div class="comparison-heading">
       <div>
-        <h2>เปรียบเทียบผลตอบแทนบนกราฟเดียวกัน</h2>
-        <p>เลือกจากรายการจัดอันดับด้านบนเพื่อดูการเคลื่อนไหวย้อนหลัง 12 เดือน</p>
+        <h2>เปรียบเทียบผลตอบแทนหุ้นต่างประเทศบนกราฟเดียวกัน</h2>
+        <p>ผลตอบแทนราคาแบบฐาน 100 · 12 เดือน · กองทุนที่ถือหุ้นเหล่านี้จะแสดงต่อในตารางด้านล่าง</p>
       </div>
       <div class="comparison-actions">
         <span>เลือกแล้ว {{ cardsData.length }}/{{ maxSelected }}</span>
@@ -130,64 +153,65 @@ onUnmounted(() => {
     </div>
 
     <article class="comparison-panel">
-      <button class="comparison-panel-title" type="button" @click="togglePanel('stock')">
-        <span class="comparison-title-copy">
-          <strong>1. เปรียบเทียบหุ้น{{ stock ? itemLabel.replace('หุ้น', '') : '' }}</strong>
-          <small>หุ้นที่เลือก {{ stockCards.length }} รายการ · อ้างอิง {{ bench.name }}</small>
-        </span>
-        <span class="comparison-chevron" :class="{ open: stockOpen }">⌄</span>
-      </button>
+      <div class="comparison-panel-body">
+        <template v-if="cardsData.length">
+          <!-- จุดอ้างอิง -->
+          <div class="industry-benchmark">
+            <span class="dashed-line">------</span>
+            <b>จุดอ้างอิง: {{ bench.name }}</b>
+            <span>ใช้เป็นเส้นกลางเพื่ออ่านทิศทาง ไม่ใช่ benchmark ทางการของ{{ itemLabel }}ทุกตัว</span>
+          </div>
+          <div class="comparison-chart-full">
+            <canvas ref="combinedCanvas" />
+          </div>
+        </template>
+        <div v-else class="comparison-empty">เลือกรายการจากการ์ดจัดอันดับด้านบนเพื่อเริ่มเปรียบเทียบ</div>
 
-      <div v-if="stockOpen" class="comparison-panel-body">
-        <div v-if="stockCards.length" class="comparison-grid">
-          <div class="comparison-chart"><canvas ref="stockCanvas" /></div>
-          <aside class="comparison-list">
-            <div v-for="(card, index) in stockCards" :key="card.id" class="compare-selection" :style="{ borderLeftColor: COMPARE_COLORS[index % COMPARE_COLORS.length] }">
-              <div>
-                <b>{{ index + 1 }}. {{ card.title }}</b>
-                <small>{{ card.subtitle }}</small>
-              </div>
-              <button type="button" aria-label="นำรายการออก" @click="select(card.id)">×</button>
-              <div class="compare-selection-metrics">
-                <span><i>1Y</i>{{ formatPercent(card.perf, 1) }}</span>
-                <span><i>Max DD</i>{{ card.maxDrawdown }}%</span>
-                <span><i>vs {{ bench.short }}</i>{{ card.gap > 0 ? '+' : '' }}{{ card.gap }}%</span>
-              </div>
-            </div>
-          </aside>
-        </div>
-        <div v-else class="comparison-empty">เลือกรายการหุ้นจากการ์ดจัดอันดับเพื่อเริ่มเปรียบเทียบ</div>
-      </div>
-    </article>
+        <!-- แยก Heading ออกมาจาก Table Wrap เพื่อไม่ให้เลื่อนตามตาราง -->
+        <template v-if="cardsData.length">
+          <div class="compare-table-heading">
+            <h3>{{ stock ? `${itemLabel}ที่กำลังเปรียบเทียบ` : 'กองทุนที่กำลังเปรียบเทียบ' }}</h3>
 
-    <article class="comparison-panel">
-      <button class="comparison-panel-title" type="button" @click="togglePanel('fund')">
-        <span class="comparison-title-copy">
-          <strong>2. เปรียบเทียบกองทุน</strong>
-          <small>กองทุนที่เลือก {{ fundCards.length }} รายการ · อ้างอิง {{ bench.name }}</small>
-        </span>
-        <span class="comparison-chevron" :class="{ open: fundOpen }">⌄</span>
-      </button>
-
-      <div v-if="fundOpen" class="comparison-panel-body">
-        <div v-if="fundCards.length" class="comparison-grid">
-          <div class="comparison-chart"><canvas ref="fundCanvas" /></div>
-          <aside class="comparison-list">
-            <div v-for="(card, index) in fundCards" :key="card.id" class="compare-selection" :style="{ borderLeftColor: COMPARE_COLORS[index % COMPARE_COLORS.length] }">
-              <div>
-                <b>{{ index + 1 }}. {{ card.title }}</b>
-                <small>{{ card.subtitle }}</small>
-              </div>
-              <button type="button" aria-label="นำรายการออก" @click="select(card.id)">×</button>
-              <div class="compare-selection-metrics">
-                <span><i>1Y</i>{{ formatPercent(card.perf, 1) }}</span>
-                <span><i>Max DD</i>{{ card.maxDrawdown }}%</span>
-                <span><i>vs {{ bench.short }}</i>{{ card.gap > 0 ? '+' : '' }}{{ card.gap }}%</span>
-              </div>
-            </div>
-          </aside>
-        </div>
-        <div v-else class="comparison-empty">เลือกรายการกองทุนจากการ์ดจัดอันดับเพื่อเริ่มเปรียบเทียบ</div>
+            <button type="button" class="compare-sort-btn" @click="toggleSortDir">
+              {{ sortConfig.label }}{{ sortDir === 'desc' ? 'มาก → น้อย' : 'น้อย → มาก' }}
+            </button>
+          </div>
+          
+          <div class="compare-table-wrap">
+            <table class="compare-fund-table">
+              <thead>
+                <tr>
+                  <th>{{ stock ? itemLabel : 'กองทุน' }}</th>
+                  <th class="text-right">{{ stock ? 'ผลตอบแทน 1 ปี' : 'ผลตอบแทนกองทุน 1 ปี' }}</th>
+                  <th class="text-right">{{ stock ? 'AUM / Market Cap' : 'AUM' }}</th>
+                  <th class="text-right">Max Drawdown</th>
+                  <th class="text-right">P/E Ratio</th>
+                  <th class="text-right">P/B Ratio</th>
+                  <th class="text-right">เทียบจุดอ้างอิง</th>
+                  <th>ดัชนีประจำกอง</th>
+                  <th>Top exposure</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(card, index) in sortedCardsData" :key="card.id">
+                  <td class="compare-fund-name">
+                    <span class="compare-fund-avatar" :style="{ background: COMPARE_COLORS[index % COMPARE_COLORS.length] }">{{ (card.title || '').slice(0, 2).toUpperCase() }}</span>
+                    <span class="compare-fund-text"><strong>{{ card.title }}</strong><small>{{ card.subtitle }}</small></span>
+                  </td>
+                  <td class="text-right" :class="card.perf >= 0 ? 'text-pos' : 'text-neg'">{{ formatPercent(card.perf, 1) }}</td>
+                  <td class="text-right">{{ formatAum(card.aum ?? card.cap) }}</td>
+                  <td class="text-right text-neg">{{ card.maxDrawdown }}%</td>
+                  <td class="text-right">{{ card.pe != null ? `${card.pe}x` : '-' }}</td>
+                  <td class="text-right">{{ card.pb != null ? `${card.pb}x` : '-' }}</td>
+                  <td class="text-right" :class="card.gap >= 0 ? 'text-pos' : 'text-neg'">{{ card.gap > 0 ? '+' : '' }}{{ card.gap }}%</td>
+                  <td>{{ card.benchName ? shortBench(card.benchName) : '-' }}</td>
+                  <td>{{ card.topTickers || card.holdings || '-' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </template>
+        
       </div>
     </article>
   </section>

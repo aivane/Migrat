@@ -31,6 +31,7 @@ const {
 } = useFundinfoScreener(props.type)
 
 const title = computed(() => {
+  if (props.type === 'feeder') return 'ค้นหาและคัดกรองกองทุนไทย'
   if (props.type === 'thai') return 'ค้นหาและคัดกรองกองทุนไทย'
   if (props.type === 'offshore') return 'ค้นหาและคัดกรองกองทุนต่างประเทศ'
   return `ค้นหาและคัดกรอง${FUND_TYPES[props.type]?.label || 'กองทุน'}`
@@ -69,14 +70,14 @@ function scrollToCompare() {
         <span>⌕</span>
         <input v-model="state.search" type="search" placeholder="ค้นหาชื่อกองทุน / หุ้นที่ถือ (NVIDIA, Microsoft, PTT, ADVANC)" />
       </label>
-      <span class="screener-count">พบ {{ resultCount }} กอง</span>
+      <span class="screener-count">พบ {{ resultCount }} กองทุน</span>
       <button type="button" class="screener-filter-toggle" :class="{ active: screener.advancedOpen }" @click="toggleAdvanced">
         ตัวกรองเพิ่มเติม
       </button>
     </div>
 
     <div class="screener-filter-block">
-      <div class="screener-filter-title">คัดกรองกองทุนที่ซื้อได้ <span>เลือกเงื่อนไขเพื่อหากองทุนที่เหมาะกับคุณ</span></div>
+      <div class="screener-filter-title">คัดกรองกองทุนที่ซื้อได้ <span>กรองเฉพาะกองทุนไทยที่ถือหุ้นที่เลือก — ตัวเลขผลตอบแทนส่วนนี้เป็นของกองทุน</span></div>
       <div class="screener-select-grid">
         <label>สิทธิประโยชน์ภาษี
           <select v-model="screener.taxBenefit" class="filter-select"><option value="">ทั้งหมด</option><option v-for="option in taxBenefitOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select>

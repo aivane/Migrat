@@ -1,3 +1,4 @@
+// useFundinfoExposureTrend.js
 import { computed, reactive } from 'vue'
 import {
   fundsByType,
@@ -149,16 +150,62 @@ function buildStockEntities(funds) {
   }))
 }
 
+// ---- Offshore-only persistence ----
+// offshore ต้อง auto-select scope ตอนเข้าครั้งแรก และห้ามหายเมื่อสลับหน้าไปมา "หรือสลับมุมมอง region/theme"
+// เก็บ selection แยกตามโหมด (region / theme) เพื่อไม่ให้การสลับมุมมองไปมาล้างของอีกฝั่งทิ้ง
+// thai ใช้ reactive() สดใหม่ทุกครั้งเหมือนเดิม (ของเดิมทำงานถูกต้องอยู่แล้ว ไม่แตะ)
+const OFFSHORE_STORAGE_KEY = 'fundinfo:exposureTrend:offshore'
+let offshoreStateCache = null
+
+function readOffshorePersisted() {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = window.sessionStorage.getItem(OFFSHORE_STORAGE_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch (e) {
+    return null
+  }
+}
+
+function persistOffshoreState(state) {
+  if (typeof window === 'undefined') return
+  try {
+    window.sessionStorage.setItem(
+      OFFSHORE_STORAGE_KEY,
+      JSON.stringify({ scopeMode: state.scopeMode, selectedByMode: state.selectedByMode }),
+    )
+  } catch (e) {
+    // private mode / quota — เงียบไว้ ไม่กระทบการใช้งาน
+  }
+}
+
+function getOffshoreState() {
+  if (!offshoreStateCache) {
+    const saved = readOffshorePersisted()
+    const savedByMode = saved?.selectedByMode || {}
+    offshoreStateCache = reactive({
+      scopeMode: saved?.scopeMode || 'region',
+      selectedByMode: {
+        region: savedByMode.region || [],
+        theme: savedByMode.theme || [],
+      },
+      selected: [],
+      initialized: !!saved,
+    })
+    // sync selected ให้ตรงกับโหมดปัจจุบันตั้งแต่สร้าง state
+    offshoreStateCache.selected = offshoreStateCache.selectedByMode[offshoreStateCache.scopeMode].slice()
+  }
+  return offshoreStateCache
+}
+
 export function useFundinfoExposureTrend(type = 'offshore') {
   const funds = fundsByType(type).filter(isDirectEquityFund)
   const bench = BENCHMARKS[type] || BENCHMARKS.offshore
   const accent = FUND_TYPES[type]?.accent || '#2456d8'
   const foreign = type === 'offshore'
 
-  const state = reactive({
-    scopeMode: 'region',
-    selected: [], // scope ids ที่เลือกไว้เปรียบเทียบบนกราฟ (สูงสุด 5 หมวด)
-  })
+  // offshore: ใช้ state ที่ persist ข้ามหน้า / thai (และอื่นๆ): reactive สดใหม่เหมือนของเดิม
+  const state = foreign ? getOffshoreState() : reactive({ scopeMode: 'region', selected: [] })
 
   const allScopes = computed(() => computeScopes(funds, type, state.scopeMode))
   const scopes = computed(() => allScopes.value.filter((s) => s.hasData))
@@ -173,7 +220,6 @@ export function useFundinfoExposureTrend(type = 'offshore') {
   const leaderPerf = computed(() => [...scopes.value].sort((a, b) => b.perf - a.perf)[0])
   const outperformCount = computed(() => scopes.value.filter((s) => s.perf > bench.ret).length)
 
-  // ตัดรายการที่เลือกไว้ทิ้งอัตโนมัติเมื่อสลับโหมด region/theme แล้ว scope id ชุดเปลี่ยน
   const selectedStats = computed(() =>
     state.selected.map((id) => scopes.value.find((s) => s.id === id)).filter(Boolean),
   )
@@ -195,6 +241,14 @@ export function useFundinfoExposureTrend(type = 'offshore') {
       : 'นำเปอร์เซ็นต์หุ้นมารวมกัน',
   )
 
+  // offshore: sync state.selected กลับเข้า selectedByMode[scopeMode ปัจจุบัน] แล้ว persist ลง sessionStorage "ทันทีแบบ synchronous"
+  // (ไม่ใช้ watch แบบ async) กันกรณีผู้ใช้กด toggle/สลับมุมมองแล้วเปลี่ยนหน้าทันที ก่อนที่ watcher จะทำงานทัน
+  function syncOffshore() {
+    if (!foreign) return
+    state.selectedByMode[state.scopeMode] = state.selected.slice()
+    persistOffshoreState(state)
+  }
+
   function orderOf(id) {
     return state.selected.indexOf(id)
   }
@@ -206,20 +260,47 @@ export function useFundinfoExposureTrend(type = 'offshore') {
     } else if (state.selected.length < MAX_SELECTED) {
       state.selected.push(id)
     }
+    syncOffshore()
   }
 
   function clear() {
     state.selected = []
+    syncOffshore()
   }
 
   function setScopeMode(mode) {
-    state.scopeMode = mode
-    state.selected = []
+    if (mode === state.scopeMode) return
+    if (foreign) {
+      // เก็บรายการที่เลือกไว้ของโหมดปัจจุบันก่อนสลับ (ไม่ล้างทิ้ง) แล้วดึงรายการของโหมดใหม่กลับมา
+      state.selectedByMode[state.scopeMode] = state.selected.slice()
+      state.scopeMode = mode
+      const targetScopes = computeScopes(funds, type, mode).filter((s) => s.hasData)
+      const validIds = new Set(targetScopes.map((s) => s.id))
+      const restored = (state.selectedByMode[mode] || []).filter((id) => validIds.has(id))
+      state.selected = restored.length ? restored : targetScopes.slice(0, MAX_SELECTED).map((s) => s.id)
+      syncOffshore()
+    } else {
+      state.scopeMode = mode
+      state.selected = []
+    }
   }
 
-  // Start with a compact, useful comparison just like the reference workspace.
-  // Users can add/remove scopes or clear them at any time.
-  state.selected = scopes.value.slice(0, 2).map((scope) => scope.id)
+  if (foreign) {
+    if (!state.initialized) {
+      // ยังไม่เคยมี state ค้างอยู่เลย (ไม่มี cache/sessionStorage) — ตั้งค่าเริ่มต้นแค่ครั้งแรก
+      state.selected = scopes.value.slice(0, MAX_SELECTED).map((scope) => scope.id)
+      state.initialized = true
+    } else {
+      // มี state เดิมค้างอยู่แล้ว (จาก cache ในหน่วยความจำ หรือกู้จาก sessionStorage) — คงรายการที่เลือกไว้เดิม
+      // กันไว้เฉพาะกรณี scope id เดิมหายไปจากชุดข้อมูลปัจจุบัน ไม่ให้ chip ค้างเลือกทั้งที่ไม่มีในลิสต์
+      const validIds = new Set(scopes.value.map((s) => s.id))
+      state.selected = state.selected.filter((id) => validIds.has(id))
+    }
+    syncOffshore()
+  } else {
+    // thai: คงพฤติกรรมเดิมทุกอย่าง (เลือก 2 อันดับแรกให้เป็นตัวอย่าง, รีเซ็ตทุกครั้งที่ mount)
+    state.selected = scopes.value.slice(0, 2).map((scope) => scope.id)
+  }
 
   return {
     foreign,

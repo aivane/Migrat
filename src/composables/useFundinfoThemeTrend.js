@@ -103,7 +103,12 @@ export function useFundinfoThemeTrend(type = 'feeder') {
   const state = reactive({
     view: 'interesting', // 'interesting' (top 3 by momentum) | 'all' (searchable)
     search: '',
-    selected: [], // theme ids, in the order they were picked
+    // Open with the strongest themes already selected, so the comparison
+    // workspace provides useful information at first glance.
+    selected: [...stats]
+      .sort((a, b) => b.q1 - a.q1 || b.flow - a.flow)
+      .slice(0, 3)
+      .map((s) => s.scope.id),
   })
 
   const positiveCount = stats.filter((s) => s.scope.perf > 0).length

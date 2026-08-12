@@ -155,6 +155,7 @@ export function useFundinfoInsight(type = 'feeder') {
         .slice(0, 3)
         .map((h) => `${h[0]} ${h[2]}%`)
         .join(' · ')
+      const topTickers = insight.top.slice(0, 3).map((h) => h[1]).join(', ')
 
       return {
         id: ent.id,
@@ -165,7 +166,10 @@ export function useFundinfoInsight(type = 'feeder') {
         gap,
         maxDrawdown: avgMaxDrawdown(ent),
         characteristics: keyCharacteristics(insight),
+        pe: insight.pe,
+        pb: insight.pb,
         exposure,
+        topTickers,
         aum: insight.master.aum,
         memberCount: ent.members.length,
         benchName: insight.bench,

@@ -19,7 +19,7 @@ function fundType(fund) {
   <section v-if="selectedFunds.length" class="fund-matrix">
     <header class="fund-matrix-heading">
       <button type="button" class="fund-matrix-title" @click="collapsed = !collapsed">
-        <span :class="{ collapsed }">⌄</span> เปรียบเทียบกองที่เลือก ({{ selectedFunds.length }})
+        <span :class="{ collapsed }">⌄</span> เปรียบเทียบกองทุนที่เลือก ({{ selectedFunds.length }})
       </button>
       <button type="button" class="fund-matrix-clear" @click="$emit('clear-all')">ล้าง ×</button>
     </header>

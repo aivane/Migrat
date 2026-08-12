@@ -1,5 +1,6 @@
+<!-- FundDetailCard.vue -->
 <script setup>
-import { ref, onMounted, watch, onUnmounted } from 'vue'
+import { computed, ref, onMounted, watch, onUnmounted } from 'vue'
 import Chart from 'chart.js/auto'
 
 const props = defineProps({
@@ -13,6 +14,34 @@ const cyChartRef = ref(null)
 const assetChartRef = ref(null)
 let cyChartInstance = null
 let assetChartInstance = null
+
+const AMC_META = {
+  KASIKORN: { label: 'KA', color: '#079ab4' },
+  KBANK: { label: 'KA', color: '#079ab4' },
+  KASSET: { label: 'KA', color: '#079ab4' },
+  KKP: { label: 'KKP', color: '#1671ca' },
+  KKPAM: { label: 'KKP', color: '#1671ca' },
+  SCB: { label: 'SCB', color: '#e5a800' },
+  SCBAM: { label: 'SCB', color: '#e5a800' },
+  BBLAM: { label: 'BBL', color: '#2369b1' },
+  BBL: { label: 'BBL', color: '#2369b1' },
+  BUALUANG: { label: 'BBL', color: '#2369b1' },
+  BCAP: { label: 'BC', color: '#7b4eaf' },
+  KTBCAP: { label: 'BC', color: '#7b4eaf' },
+  ABRDN: { label: 'AB', color: '#3d8577' },
+  ABERDEEN: { label: 'AB', color: '#3d8577' },
+}
+const DEFAULT_META = { label: null, color: '#0e91c8' }
+
+function amcMeta(fund) {
+  const key = fund?.amcShort?.toString().trim().toUpperCase()
+  const meta = AMC_META[key]
+  if (meta) return meta
+  return { label: key?.slice(0, 3) || 'FI', color: DEFAULT_META.color }
+}
+
+const accent = computed(() => amcMeta(props.fund).color)
+const badgeText = computed(() => props.fund.amcShort || amcMeta(props.fund).label || 'FI')
 
 function renderCharts() {
   if (cyChartInstance) cyChartInstance.destroy()
@@ -51,7 +80,7 @@ function renderCharts() {
       type: 'doughnut',
       data: {
         labels: assetData.map((i) => i.name),
-        datasets: [{ data: assetData.map((i) => i.percent), backgroundColor: ['#2563eb', '#64748b'], borderWidth: 0 }]
+        datasets: [{ data: assetData.map((i) => i.percent), backgroundColor: [accent.value, '#64748b'], borderWidth: 0 }]
       },
       options: {
         responsive: true,
@@ -72,13 +101,13 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4 font-['Prompt'] text-slate-800">
+  <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4 font-['Prompt'] text-slate-800" :style="{ '--fund-accent': accent }">
     <!-- Header Bar -->
     <div class="flex items-center justify-between border-b border-slate-100 pb-3">
       <div class="flex items-center gap-3">
         <!-- AMC Logo / Badge -->
-        <div class="w-10 h-10 rounded-xl bg-amber-400 text-slate-900 font-extrabold flex items-center justify-center text-xs shrink-0 shadow-sm">
-          {{ fund.amcShort || 'SCB' }}
+        <div class="w-10 h-10 rounded-xl bg-[var(--fund-accent)] text-white font-extrabold flex items-center justify-center text-xs shrink-0 shadow-sm">
+          {{ badgeText }}
         </div>
         <div>
           <div class="flex items-center gap-2">
@@ -112,7 +141,7 @@ onUnmounted(() => {
 
     <!-- Main Content 3-Column Grid -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-1">
-      
+
       <!-- Col 1: Calendar Year Return Chart & Metrics -->
       <div class="space-y-3">
         <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
@@ -145,7 +174,7 @@ onUnmounted(() => {
         <div class="h-28 relative">
           <canvas ref="assetChartRef"></canvas>
         </div>
-        
+
         <div class="space-y-1.5 pt-1">
           <span class="text-[10px] font-bold text-slate-400 uppercase block">สัดส่วนกลุ่มอุตสาหกรรม (Sector)</span>
           <div v-for="sec in (fund.sectors || [
@@ -156,7 +185,7 @@ onUnmounted(() => {
             <span class="text-slate-600 truncate max-w-[110px]">{{ sec.name }}</span>
             <div class="flex items-center gap-2 flex-1 ml-3">
               <div class="flex-1 bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                <div class="bg-blue-600 h-full rounded-full" :style="{ width: `${sec.percent}%` }"></div>
+                <div class="bg-[var(--fund-accent)] h-full rounded-full" :style="{ width: `${sec.percent}%` }"></div>
               </div>
               <span class="font-bold text-slate-700 w-7 text-right font-['Inter']">{{ sec.percent }}%</span>
             </div>
@@ -181,7 +210,7 @@ onUnmounted(() => {
               <span class="text-slate-700 font-medium truncate max-w-[120px]">{{ hold.name }}</span>
               <div class="flex items-center gap-2 flex-1 ml-3">
                 <div class="flex-1 bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                  <div class="bg-blue-600 h-full rounded-full" :style="{ width: `${hold.percent * 8}%` }"></div>
+                  <div class="bg-[var(--fund-accent)] h-full rounded-full" :style="{ width: `${hold.percent * 8}%` }"></div>
                 </div>
                 <span class="font-bold text-slate-800 w-8 text-right font-['Inter']">{{ hold.percent }}%</span>
               </div>
@@ -199,7 +228,7 @@ onUnmounted(() => {
           </div>
 
           <!-- Links -->
-          <div class="flex items-center gap-3 text-[11px] text-blue-600 font-medium pt-1">
+          <div class="flex items-center gap-3 text-[11px] font-medium pt-1" :style="{ color: 'var(--fund-accent)' }">
             <a href="#" class="flex items-center gap-1 hover:underline">📄 หนังสือชี้ชวน</a>
             <a href="#" class="flex items-center gap-1 hover:underline">📊 Factsheet</a>
           </div>
@@ -207,15 +236,16 @@ onUnmounted(() => {
 
         <!-- Action Buttons -->
         <div class="flex items-center gap-2 pt-2 border-t border-slate-100">
-          <button 
+          <button
             class="flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1"
-            :class="isSelected ? 'bg-blue-600 text-white shadow-sm' : 'border border-blue-600 text-blue-600 hover:bg-blue-50'"
+            :class="isSelected ? 'text-white shadow-sm bg-[var(--fund-accent)]' : 'border bg-white hover:bg-slate-50'"
+            :style="!isSelected ? { borderColor: 'var(--fund-accent)', color: 'var(--fund-accent)' } : {}"
             @click="$emit('toggle-compare', fund.id)"
           >
             <span v-if="isSelected">✓ อยู่ในเปรียบเทียบ</span>
             <span v-else>+ เพิ่มไปเปรียบเทียบ</span>
           </button>
-          <button class="flex-1 py-2 px-3 bg-blue-600 text-white rounded-xl text-xs font-bold shadow-sm hover:bg-blue-700 transition-colors">
+          <button class="flex-1 py-2 px-3 text-white rounded-xl text-xs font-bold shadow-sm transition-colors bg-[var(--fund-accent)] hover:brightness-90">
             ข้อมูลเพิ่มเติม
           </button>
         </div>
