@@ -1,3 +1,4 @@
+// useFundinfoScreener.js
 import { computed, reactive } from 'vue'
 import { useFundinfoCategory, sortFundsBy } from './useFundinfoCategory'
 
@@ -7,10 +8,14 @@ import { useFundinfoCategory, sortFundsBy } from './useFundinfoCategory'
 // on top of useFundinfoCategory(type) instead of replacing it: the plain
 // search/AMC/risk state used by the fund table still lives there (and is
 // now cached per-type, see useFundinfoCategory.js), this composable just
-// adds the extra screening criteria shown in the ThaiFundSearchFilterSection
-// design (tax benefit / AMC / dividend policy / min investment / FX hedging /
-// geography / megatrend / fund style / extra metric thresholds) and narrows
-// screenedFunds further on top of that shared filteredFunds.
+// adds the extra screening criteria shown in the SearchFilterSection design.
+//
+// The advanced-filter panel differs by fund universe:
+// - feeder / offshore (ลงทุนต่างประเทศ): FX Hedging / Geography / Megatrend / Fund Style
+// - thai / mixed (ลงทุนหุ้นไทย): Investment Style / Size & Characteristic
+// `usesInvestmentStyleFilters` tells the component which block to render;
+// both sets of state/tags exist on every instance so switching is free and
+// harmless (an unused set just stays empty and never filters anything).
 //
 // Thai fund data (fundinfoData.js) doesn't carry these screener tags yet, so
 // they're derived deterministically per fund id (same seeded-hash approach
@@ -21,6 +26,7 @@ import { useFundinfoCategory, sortFundsBy } from './useFundinfoCategory'
 // ==========================================================================
 
 const MAX_COMPARE = 4
+const THAI_STYLE_TYPES = ['thai', 'mixed']
 
 export const TAX_BENEFIT_OPTIONS = [
   { value: 'ssf', label: 'SSF (กองทุนรวมเพื่อการออม)' },
@@ -41,13 +47,24 @@ export const MIN_INVESTMENT_OPTIONS = [
   { value: '50000+', label: 'มากกว่า 50,000 บาท', min: 50000 },
 ]
 
+// Legacy advanced filters — feeder / offshore only, unchanged.
 export const FX_HEDGING_OPTIONS = ['Fully Hedged (100%)', 'ตามดุลยพินิจ (บางส่วน)', 'Unhedged (ไม่ป้องกัน)']
-
 export const GEOGRAPHY_OPTIONS = ['Global Equity', 'US Equity', 'China Equity', 'Europe', 'Asia ex-Japan', 'Emerging Markets']
-
 export const MEGATREND_OPTIONS = ['Technology', 'AI & Robotics', 'Semiconductor', 'Healthcare', 'ESG / ยั่งยืน', 'Gold / Commodities']
-
 export const STYLE_OPTIONS = ['Passive (ดัชนี)', 'Active (เชิงรุก)', 'Dividend (ปันผล)']
+
+// New advanced filters — thai / mixed only.
+export const INVESTMENT_STYLE_OPTIONS = [
+  'Index / Passive (SET50/100)',
+  'Active (เชิงรุก)',
+  'High Dividend (SETHD)',
+  'ESG / Thai ESG',
+]
+export const SIZE_OPTIONS = [
+  'Large-Cap (ใหญ่)',
+  'Mid/Small-Cap (เล็ก-กลาง)',
+  'Value / ปันผล',
+]
 
 export const EXTRA_METRIC_OPTIONS = [
   { key: 'perf', label: 'ผลตอบแทนกองทุน', suffix: '%', hint: 'ผลตอบแทนย้อนหลัง 1 ปี ไม่ต่ำกว่า' },
@@ -79,10 +96,14 @@ function deriveScreenerTags(fund) {
     taxBenefit: fund.taxBenefit || TAX_BENEFIT_SEEDS[seed % TAX_BENEFIT_SEEDS.length],
     dividendPolicy: fund.div > 0 || seed % 3 === 0 ? 'pay' : 'accumulate',
     minInvestment: fund.minInvestment || MIN_INVESTMENT_SEEDS[seed % MIN_INVESTMENT_SEEDS.length],
+    // legacy (feeder/offshore)
     fxHedging: fund.fxHedging || FX_HEDGING_OPTIONS[seed % FX_HEDGING_OPTIONS.length],
     geography: fund.geography?.length ? fund.geography : [GEOGRAPHY_OPTIONS[seed % GEOGRAPHY_OPTIONS.length]],
     megatrend: fund.megatrend?.length ? fund.megatrend : fund.themes?.length ? fund.themes : [MEGATREND_OPTIONS[(seed + 2) % MEGATREND_OPTIONS.length]],
     style: fund.style || STYLE_OPTIONS[(seed + 1) % STYLE_OPTIONS.length],
+    // new (thai/mixed)
+    investmentStyle: fund.investmentStyle || INVESTMENT_STYLE_OPTIONS[seed % INVESTMENT_STYLE_OPTIONS.length],
+    size: fund.size || SIZE_OPTIONS[(seed + 2) % SIZE_OPTIONS.length],
     metrics: { sd, sharpe, maxDrawdown },
   }
 
@@ -111,16 +132,21 @@ export function useFundinfoScreener(type = 'thai') {
 function createFundinfoScreener(type) {
   const base = useFundinfoCategory(type)
   const { state: baseState, filteredFunds } = base
+  const usesInvestmentStyleFilters = THAI_STYLE_TYPES.includes(type)
 
   const screener = reactive({
     advancedOpen: false,
     taxBenefit: '',
     dividendPolicy: '',
     minInvestment: '',
+    // legacy (feeder/offshore)
     fxHedging: '',
     geography: [],
     megatrend: [],
     style: [],
+    // new (thai/mixed)
+    investmentStyle: [],
+    sizeCharacteristic: [],
     activeExtraMetrics: [],
     extraMetricMin: {},
     compareSelected: [],
@@ -140,10 +166,14 @@ function createFundinfoScreener(type) {
         if (opt.max != null && tags.minInvestment > opt.max) return false
         return true
       })
+      // legacy (no-op unless feeder/offshore UI populates these)
       .filter(({ tags }) => !screener.fxHedging || tags.fxHedging === screener.fxHedging)
       .filter(({ tags }) => !screener.geography.length || tags.geography.some((g) => screener.geography.includes(g)))
       .filter(({ tags }) => !screener.megatrend.length || tags.megatrend.some((m) => screener.megatrend.includes(m)))
       .filter(({ tags }) => !screener.style.length || screener.style.includes(tags.style))
+      // new (no-op unless thai/mixed UI populates these)
+      .filter(({ tags }) => !screener.investmentStyle.length || screener.investmentStyle.includes(tags.investmentStyle))
+      .filter(({ tags }) => !screener.sizeCharacteristic.length || screener.sizeCharacteristic.includes(tags.size))
       .filter(({ fund, tags }) =>
         screener.activeExtraMetrics.every((key) => {
           const min = screener.extraMetricMin[key]
@@ -173,6 +203,7 @@ function createFundinfoScreener(type) {
     screener.advancedOpen = false
   }
 
+  // legacy (feeder/offshore)
   function toggleGeography(value) {
     toggleInArray(screener.geography, value)
   }
@@ -187,6 +218,15 @@ function createFundinfoScreener(type) {
 
   function setFxHedging(value) {
     screener.fxHedging = screener.fxHedging === value ? '' : value
+  }
+
+  // new (thai/mixed)
+  function toggleInvestmentStyle(value) {
+    toggleInArray(screener.investmentStyle, value)
+  }
+
+  function toggleSize(value) {
+    toggleInArray(screener.sizeCharacteristic, value)
   }
 
   function toggleExtraMetric(key) {
@@ -207,6 +247,8 @@ function createFundinfoScreener(type) {
     screener.geography = []
     screener.megatrend = []
     screener.style = []
+    screener.investmentStyle = []
+    screener.sizeCharacteristic = []
     screener.activeExtraMetrics = []
     screener.extraMetricMin = {}
   }
@@ -236,6 +278,7 @@ function createFundinfoScreener(type) {
     resultCount,
     compareFunds,
     maxCompare: MAX_COMPARE,
+    usesInvestmentStyleFilters,
     taxBenefitOptions: TAX_BENEFIT_OPTIONS,
     dividendPolicyOptions: DIVIDEND_POLICY_OPTIONS,
     minInvestmentOptions: MIN_INVESTMENT_OPTIONS,
@@ -243,6 +286,8 @@ function createFundinfoScreener(type) {
     geographyOptions: GEOGRAPHY_OPTIONS,
     megatrendOptions: MEGATREND_OPTIONS,
     styleOptions: STYLE_OPTIONS,
+    investmentStyleOptions: INVESTMENT_STYLE_OPTIONS,
+    sizeOptions: SIZE_OPTIONS,
     extraMetricOptions: EXTRA_METRIC_OPTIONS,
     toggleAdvanced,
     closeAdvanced,
@@ -250,6 +295,8 @@ function createFundinfoScreener(type) {
     toggleMegatrend,
     toggleStyle,
     setFxHedging,
+    toggleInvestmentStyle,
+    toggleSize,
     toggleExtraMetric,
     resetFilters,
     toggleCompare,

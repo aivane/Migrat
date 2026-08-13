@@ -1,3 +1,4 @@
+<!-- FundTableWithCompare.vue -->
 <script setup>
 import { computed, ref } from 'vue'
 import { useFundinfoScreener } from '../../composables/useFundinfoScreener'
@@ -14,6 +15,9 @@ const expandedFundId = ref(null)
 const selectedFundsList = computed(() => compareFunds.value)
 
 const displayFunds = computed(() => sortedScreenedFunds.value)
+
+// จำนวนคอลัมน์จริงของตาราง เปลี่ยนตาม type เพื่อให้ colspan ของแถวรายละเอียด/แถวว่าง ตรงกับหัวตารางเสมอ
+const columnCount = computed(() => (props.type === 'offshore' || props.type === 'thai' ? 13 : 11))
 
 function taxBenefitLabel(value) {
   if (!value) return '-'
@@ -55,11 +59,7 @@ function clearAllCompare() { selectedFundsList.value.forEach((fund) => toggleCom
             <th @click="setSort('amc')">บลจ.</th>
             <th>สิทธิภาษี</th>
             <th>ขั้นต่ำ</th>
-            <th class="text-right" @click="setSort('nav')">NAV/หน่วย</th>
-            
-            <!-- แสดงคอลัมน์เพิ่มสำหรับ Feeder Fund -->
-            <th v-if="type === 'feeder'" class="text-right">NAV/หน่วย ⓘ</th>
-            <th v-if="type === 'feeder'" class="text-center">ความเสี่ยง ⓘ</th>
+            <th class="text-center" @click="setSort('nav')">NAV/หน่วย</th>
 
             <th class="text-center" @click="setSort('risk')">ความเสี่ยง ↑</th>
             <th class="text-center" @click="setSort('perf')">ผลตอบแทนกองทุน 1 ปี</th>
@@ -107,13 +107,7 @@ function clearAllCompare() { selectedFundsList.value.forEach((fund) => toggleCom
               <!-- 7. NAV/หน่วย -->
               <td class="text-right font-['Inter'] sub">{{ fund.nav ? fund.nav.toFixed(4) : '-' }}</td>
 
-              <!-- ข้อมูลพิเศษเฉพาะ Feeder Fund -->
-              <td v-if="type === 'feeder'" class="text-right font-['Inter'] sub">{{ fund.masterNav ? fund.masterNav.toFixed(4) : '-' }}</td>
-              <td v-if="type === 'feeder'" class="text-center font-bold whitespace-nowrap" style="color: #475569;">
-                {{ fund.masterRisk ? `ความเสี่ยง ${fund.masterRisk}/8` : '-' }}
-              </td>
-
-              <!-- สำหรับ กองทุนปกติ -->
+              <!-- 8. ความเสี่ยง -->
               <td class="text-center font-bold whitespace-nowrap" style="color: #475569;">
                 {{ fund.risk ? `ความเสี่ยง ${fund.risk}/8` : '-' }}
               </td>
@@ -140,11 +134,11 @@ function clearAllCompare() { selectedFundsList.value.forEach((fund) => toggleCom
               </td>
 
             </tr>
-            <FundDetailRow v-if="expandedFundId === fund.id" :fund="fund" :colspan="type === 'feeder' ? 15 : 13" :in-compare="compareOrderOf(fund.id) > -1" @compare="toggleCompare(fund.id)" />
+            <FundDetailRow v-if="expandedFundId === fund.id" :fund="fund" :colspan="columnCount" :in-compare="compareOrderOf(fund.id) > -1" @compare="toggleCompare(fund.id)" />
           </template>
 
           <tr v-if="!displayFunds.length">
-            <td :colspan="type === 'feeder' ? 15 : 13" class="fund-results-empty">ไม่พบกองทุนที่ตรงกับเงื่อนไข</td>
+            <td :colspan="columnCount" class="fund-results-empty">ไม่พบกองทุนที่ตรงกับเงื่อนไข</td>
           </tr>
         </tbody>
       </table>

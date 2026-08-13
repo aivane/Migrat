@@ -704,7 +704,7 @@
 .fundinfo-scope .screener-filter-block { margin-top: 9px; }
 .fundinfo-scope .screener-filter-title { color: var(--txt); font-size: 10px; font-weight: 800; }
 .fundinfo-scope .screener-filter-title span { margin-left: 6px; color: var(--sub); font-size: 8px; font-weight: 400; }
-.fundinfo-scope .screener-select-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)) auto; gap: 7px; align-items: end; margin-top: 6px; }
+.fundinfo-scope .screener-select-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) auto; gap: 7px; align-items: end; margin-top: 6px; border-bottom: 1px solid var(--line); padding: 12px;}
 .fundinfo-scope .screener-select-grid label { display: grid; gap: 3px; min-width: 0; color: var(--sub); font-size: 8px; font-weight: 700; }
 .fundinfo-scope .screener-select-grid .filter-select { width: 100%; min-width: 0; min-height: 29px; padding: 0.3rem .5rem; font-size: 9px; }
 .fundinfo-scope .screener-reset { min-height: 29px; padding: 0 9px; background: var(--surf2); color: var(--sub); }
@@ -715,6 +715,11 @@
 .fundinfo-scope .screener-metric-inputs label { display: flex; align-items: center; gap: 4px; color: var(--sub); font-size: 8px; }
 .fundinfo-scope .screener-metric-inputs .filter-select { width: 58px; min-height: 25px; padding: .15rem .35rem; font-size: 9px; }
 .fundinfo-scope .screener-metric-inputs small { color: var(--sub); }
+.fundinfo-scope .screener-advanced-panel { margin-top: 10px; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--surf2); }
+.fundinfo-scope .screener-advanced-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.fundinfo-scope .screener-advanced-head h3 { margin: 0; color: var(--txt); font-size: 11px; font-weight: 800; }
+.fundinfo-scope .screener-advanced-head p { margin: 3px 0 0; color: var(--sub); font-size: 8px; }
+.fundinfo-scope .screener-advanced-close { border: 0; border-radius: 999px; padding: 4px 10px; background: var(--surf); color: var(--sub); font-size: 9px; font-weight: 700; white-space: nowrap; cursor: pointer; }
 .fundinfo-scope .screener-advanced { display: grid; gap: 8px; margin-top: 10px; }
 .fundinfo-scope .screener-advanced h3 { color: var(--sub); font-size: 8px; font-weight: 800; }
 .fundinfo-scope .screener-advanced h3 small { margin-left: 4px; font-size: 8px; font-weight: 400; }

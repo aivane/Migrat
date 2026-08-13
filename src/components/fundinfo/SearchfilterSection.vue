@@ -1,3 +1,4 @@
+<!-- SearchfilterSection.vue -->
 <script setup>
 import { computed } from 'vue'
 import { FUND_TYPES } from '../../data/fundinfoData'
@@ -13,6 +14,7 @@ const {
   screener,
   resultCount,
   maxCompare,
+  usesInvestmentStyleFilters,
   taxBenefitOptions,
   dividendPolicyOptions,
   minInvestmentOptions,
@@ -20,12 +22,17 @@ const {
   geographyOptions,
   megatrendOptions,
   styleOptions,
+  investmentStyleOptions,
+  sizeOptions,
   extraMetricOptions,
   toggleAdvanced,
+  closeAdvanced,
   toggleGeography,
   toggleMegatrend,
   toggleStyle,
   setFxHedging,
+  toggleInvestmentStyle,
+  toggleSize,
   toggleExtraMetric,
   resetFilters,
 } = useFundinfoScreener(props.type)
@@ -36,9 +43,6 @@ const title = computed(() => {
   if (props.type === 'offshore') return 'ค้นหาและคัดกรองกองทุนต่างประเทศ'
   return `ค้นหาและคัดกรอง${FUND_TYPES[props.type]?.label || 'กองทุน'}`
 })
-
-// The reference view presents the commonly used advanced filters immediately.
-if (!screener.advancedOpen) screener.advancedOpen = true
 
 function metricOption(key) {
   return extraMetricOptions.find((option) => option.key === key)
@@ -85,9 +89,6 @@ function scrollToCompare() {
         <label>บริษัทจัดการ (บลจ.)
           <select v-model="state.selectedAmc" class="filter-select"><option value="">ทั้งหมด</option><option v-for="amc in amcOptions" :key="amc" :value="amc">{{ amc }}</option></select>
         </label>
-        <label>ประเภทกองทุน
-          <select v-model="state.selectedRisk" class="filter-select"><option value="">ทั้งหมด</option><option value="low">ความเสี่ยงต่ำ (1-3)</option><option value="medium">ความเสี่ยงกลาง (4-5)</option><option value="high">ความเสี่ยงสูง (6+)</option></select>
-        </label>
         <label>นโยบายปันผล
           <select v-model="screener.dividendPolicy" class="filter-select"><option value="">ทั้งหมด</option><option v-for="option in dividendPolicyOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select>
         </label>
@@ -110,22 +111,43 @@ function scrollToCompare() {
       </div>
     </div>
 
-    <div v-if="screener.advancedOpen" class="screener-advanced">
-      <div>
-        <h3>FX Hedging <small>นโยบายป้องกันความเสี่ยงค่าเงิน</small></h3>
-        <div class="screener-pills"><button v-for="option in fxHedgingOptions" :key="option" type="button" :class="{ active: screener.fxHedging === option }" @click="setFxHedging(option)">{{ option }}</button></div>
+    <div v-if="screener.advancedOpen" class="screener-advanced-panel">
+      <div class="screener-advanced-head">
+        <div>
+          <h3>⚙ ตัวกรองเพิ่มเติม</h3>
+          <p>เลือกเงื่อนไขเพิ่มเพื่อคัดกรองกองทุนให้ตรงกับการลงทุน (เลือกได้หลายอัน)</p>
+        </div>
+        <button type="button" class="screener-advanced-close" @click="closeAdvanced">ปิด ✕</button>
       </div>
-      <div>
-        <h3>Geography <small>ภูมิภาค/ประเทศ</small></h3>
-        <div class="screener-pills"><button v-for="option in geographyOptions" :key="option" type="button" :class="{ active: screener.geography.includes(option) }" @click="toggleGeography(option)">{{ option }}</button></div>
+
+      <div v-if="usesInvestmentStyleFilters" class="screener-advanced">
+        <div>
+          <h3>Investment Style</h3>
+          <div class="screener-pills"><button v-for="option in investmentStyleOptions" :key="option" type="button" :class="{ active: screener.investmentStyle.includes(option) }" @click="toggleInvestmentStyle(option)">{{ option }}</button></div>
+        </div>
+        <div>
+          <h3>Size & Characteristic</h3>
+          <div class="screener-pills"><button v-for="option in sizeOptions" :key="option" type="button" :class="{ active: screener.sizeCharacteristic.includes(option) }" @click="toggleSize(option)">{{ option }}</button></div>
+        </div>
       </div>
-      <div>
-        <h3>Megatrends / Thematic</h3>
-        <div class="screener-pills"><button v-for="option in megatrendOptions" :key="option" type="button" :class="{ active: screener.megatrend.includes(option) }" @click="toggleMegatrend(option)">{{ option }}</button></div>
-      </div>
-      <div>
-        <h3>Fund Style</h3>
-        <div class="screener-pills"><button v-for="option in styleOptions" :key="option" type="button" :class="{ active: screener.style.includes(option) }" @click="toggleStyle(option)">{{ option }}</button></div>
+
+      <div v-else class="screener-advanced">
+        <div>
+          <h3>FX Hedging <small>(นโยบายป้องกันความเสี่ยงค่าเงิน)</small></h3>
+          <div class="screener-pills"><button v-for="option in fxHedgingOptions" :key="option" type="button" :class="{ active: screener.fxHedging === option }" @click="setFxHedging(option)">{{ option }}</button></div>
+        </div>
+        <div>
+          <h3>Geography <small>(ภูมิภาค/ประเทศ)</small></h3>
+          <div class="screener-pills"><button v-for="option in geographyOptions" :key="option" type="button" :class="{ active: screener.geography.includes(option) }" @click="toggleGeography(option)">{{ option }}</button></div>
+        </div>
+        <div>
+          <h3>Megatrends / Thematic</h3>
+          <div class="screener-pills"><button v-for="option in megatrendOptions" :key="option" type="button" :class="{ active: screener.megatrend.includes(option) }" @click="toggleMegatrend(option)">{{ option }}</button></div>
+        </div>
+        <div>
+          <h3>Fund Style</h3>
+          <div class="screener-pills"><button v-for="option in styleOptions" :key="option" type="button" :class="{ active: screener.style.includes(option) }" @click="toggleStyle(option)">{{ option }}</button></div>
+        </div>
       </div>
     </div>
   </section>
