@@ -16,16 +16,11 @@ const { clearSelection } = useFundinfoRanking(props.type)
 
 const combinedCanvas = ref(null)
 let combinedChart = null
-const sortDir = ref('desc')
 
-// จัดอันดับหุ้น (feeder, offshore หุ้นต่างประเทศ, thai หุ้นไทย) -> น้ำหนักรวมเสมอ
-// จัดอันดับกองทุน (offshore, thai, mixed) -> AUM เสมอ
-const sortConfig = computed(() => {
-  if (stock) {
-    return { field: 'weight', label: 'น้ำหนักรวม' }
-  }
-  return { field: 'aum', label: 'AUM' }
-})
+// เรียงตารางแบบคลิกหัวคอลัมน์ เหมือนตาราง "กองทุนที่ตรงเงื่อนไข" ด้านบน —
+// '' = ยังไม่เลือก sort (เรียงตามลำดับที่เลือกจาก Ranking Card)
+const localSortKey = ref('')
+const localSortDir = ref('desc') // 'desc' = มากไปน้อย, 'asc' = น้อยไปมาก
 
 function parseAumValue(raw) {
   if (typeof raw === 'number') return raw
@@ -38,26 +33,60 @@ function parseAumValue(raw) {
   return num * mult
 }
 
-function sortValue(card) {
-  switch (sortConfig.value.field) {
-    case 'weight':
-      return Number(card.weight ?? card.totalWeight ?? 0)
-    case 'aum':
-      return parseAumValue(card.aum ?? card.cap)
+// คืนค่า null เมื่อการ์ดนั้นไม่มีข้อมูลคอลัมน์นี้จริง ๆ (เช่น P/E ของกองทุนตราสารหนี้/ทองคำ)
+// เพื่อให้แถวที่ไม่มีข้อมูลถูกจัดไปท้ายตารางเสมอ แทนที่จะถูกนับเป็น 0 แล้วปนกับค่าจริง
+function sortValue(card, field) {
+  switch (field) {
+    case 'perf':
+      return card.perf ?? null
+    case 'aum': {
+      const raw = card.aum ?? card.cap
+      return raw != null ? parseAumValue(raw) : null
+    }
+    case 'maxDrawdown':
+      return card.maxDrawdown ?? null
+    case 'pe':
+      return card.pe ?? null
+    case 'pb':
+      return card.pb ?? null
+    case 'gap':
+      return card.gap ?? null
     default:
-      return Number(card.perf ?? 0)
+      return null
   }
 }
 
 const sortedCardsData = computed(() => {
   const list = [...cardsData.value]
-  return list.sort((a, b) => (sortDir.value === 'desc' ? sortValue(b) - sortValue(a) : sortValue(a) - sortValue(b)))
+  if (!localSortKey.value) return list
+  const dir = localSortDir.value === 'asc' ? 1 : -1
+  return list.sort((a, b) => {
+    const av = sortValue(a, localSortKey.value)
+    const bv = sortValue(b, localSortKey.value)
+    if (av == null && bv == null) return 0
+    if (av == null) return 1 // ไม่มีข้อมูล -> ไปท้ายตารางเสมอ ไม่ว่าจะ sort ทิศไหน
+    if (bv == null) return -1
+    return (av - bv) * dir
+  })
 })
+
 const selectionSignature = computed(() => cardsData.value.map((card) => `${card.kind}:${card.id}`).join('|'))
 
-function toggleSortDir() {
-  sortDir.value = sortDir.value === 'desc' ? 'asc' : 'desc'
+function setSortLocal(key) {
+  if (localSortKey.value === key) {
+    localSortDir.value = localSortDir.value === 'asc' ? 'desc' : 'asc'
+  } else {
+    localSortKey.value = key
+    localSortDir.value = 'desc'
+  }
 }
+
+// คว่ำลง (▼) = มากไปน้อย, หงายขึ้น (▲) = น้อยไปมาก, ↕ = คอลัมน์นี้ยังไม่ได้ sort
+function sortIcon(key) {
+  if (localSortKey.value !== key) return '↕'
+  return localSortDir.value === 'asc' ? '▲' : '▼'
+}
+
 function shortBench(name) {
   return (name || '').replace(/ Index$/, '')
 }
@@ -171,10 +200,6 @@ onUnmounted(destroyChart)
         <template v-if="cardsData.length">
           <div class="compare-table-heading">
             <h3>{{ stock ? `${itemLabel}ที่กำลังเปรียบเทียบ` : 'กองทุนที่กำลังเปรียบเทียบ' }}</h3>
-
-            <button type="button" class="compare-sort-btn" @click="toggleSortDir">
-              {{ sortConfig.label }}{{ sortDir === 'desc' ? 'มาก → น้อย' : 'น้อย → มาก' }}
-            </button>
           </div>
           
           <div class="compare-table-wrap">
@@ -182,12 +207,30 @@ onUnmounted(destroyChart)
               <thead>
                 <tr>
                   <th>{{ stock ? itemLabel : 'กองทุน' }}</th>
-                  <th class="text-right">{{ stock ? 'ผลตอบแทน 1 ปี' : 'ผลตอบแทนกองทุน 1 ปี' }}</th>
-                  <th class="text-right">{{ stock ? 'AUM / Market Cap' : 'AUM' }}</th>
-                  <th class="text-right">Max Drawdown</th>
-                  <th class="text-right">P/E Ratio</th>
-                  <th class="text-right">P/B Ratio</th>
-                  <th class="text-right">เทียบจุดอ้างอิง</th>
+                  <th class="text-right sortable" @click="setSortLocal('perf')">
+                    {{ stock ? 'ผลตอบแทน 1 ปี' : 'ผลตอบแทนกองทุน 1 ปี' }}
+                    <span class="sort-arrow" :class="{ active: localSortKey === 'perf' }">{{ sortIcon('perf') }}</span>
+                  </th>
+                  <th class="text-right sortable" @click="setSortLocal('aum')">
+                    {{ stock ? 'AUM / Market Cap' : 'AUM' }}
+                    <span class="sort-arrow" :class="{ active: localSortKey === 'aum' }">{{ sortIcon('aum') }}</span>
+                  </th>
+                  <th class="text-right sortable" @click="setSortLocal('maxDrawdown')">
+                    Max Drawdown
+                    <span class="sort-arrow" :class="{ active: localSortKey === 'maxDrawdown' }">{{ sortIcon('maxDrawdown') }}</span>
+                  </th>
+                  <th class="text-right sortable" @click="setSortLocal('pe')">
+                    P/E Ratio
+                    <span class="sort-arrow" :class="{ active: localSortKey === 'pe' }">{{ sortIcon('pe') }}</span>
+                  </th>
+                  <th class="text-right sortable" @click="setSortLocal('pb')">
+                    P/B Ratio
+                    <span class="sort-arrow" :class="{ active: localSortKey === 'pb' }">{{ sortIcon('pb') }}</span>
+                  </th>
+                  <th class="text-right sortable" @click="setSortLocal('gap')">
+                    เทียบจุดอ้างอิง
+                    <span class="sort-arrow" :class="{ active: localSortKey === 'gap' }">{{ sortIcon('gap') }}</span>
+                  </th>
                   <th>ดัชนีประจำกอง</th>
                   <th>Top exposure</th>
                 </tr>

@@ -755,13 +755,15 @@
   color: var(--sub); 
   font-size: 8px; 
   font-weight: 800; 
-  white-space: nowrap; 
+  white-space: nowrap;
 }
+.fundinfo-scope .fund-results-table th.sortable { cursor: pointer; }
+.fundinfo-scope .fund-results-table th .sort-arrow { margin-left: 3px; font-size: 7px; color: var(--sub); opacity: .45; }
+.fundinfo-scope .fund-results-table th .sort-arrow.active { color: var(--brand); opacity: 1; }
 
-.fundinfo-scope .fund-results-table th:not(:first-child) { 
-  cursor: pointer; 
-}
-
+.fundinfo-scope th.sortable { cursor: pointer; }
+.fundinfo-scope th .sort-arrow { margin-left: 3px; font-size: 7px; color: var(--sub); opacity: .45; }
+.fundinfo-scope th .sort-arrow.active { color: var(--brand); opacity: 1; }
 /* 3. ไม่ตัดคำ แสดงข้อความเต็มแถว */
 .fundinfo-scope .fund-results-table td { 
   padding: 7px 6px; 
@@ -1745,7 +1747,7 @@
 /* 1. คอลัมน์แรก (ชื่อกองทุน): ให้จัดชิดซ้าย และขยายรับพื้นที่ส่วนที่เหลือทั้งหมด */
 .fundinfo-scope .compare-fund-table th:first-child,
 .fundinfo-scope .compare-fund-table td:first-child { 
-  text-align: center; 
+  text-align: left; 
   width: auto; 
 }
 

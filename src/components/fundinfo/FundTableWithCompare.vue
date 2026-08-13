@@ -9,15 +9,58 @@ import FundCompareTable from './FundCompareTable.vue'
 import FundDetailRow from '../../views/fundinfo/FundDetailRow.vue'
 
 const props = defineProps({ type: { type: String, default: 'offshore' } })
-const { sortedScreenedFunds, setSort, toggleCompare, compareFunds, compareOrderOf } = useFundinfoScreener(props.type)
+// ใช้ screenedFunds (ยังไม่ sort) แล้ว sort เองในคอมโพเนนต์นี้ทั้งหมด แทนการพึ่ง
+// setSort/sortedScreenedFunds จาก useFundinfoScreener — เพราะ sortFundsBy กลาง
+// ไม่รองรับคีย์ minInvestment กับ sd (กด sort แล้วไม่กลับทิศทางมากไปน้อย/น้อยไปมาก)
+const { screenedFunds, toggleCompare, compareFunds, compareOrderOf } = useFundinfoScreener(props.type)
 const { isWatched, toggleWatch } = useFundinfoWatchlist()
 const expandedFundId = ref(null)
 const selectedFundsList = computed(() => compareFunds.value)
 
-const displayFunds = computed(() => sortedScreenedFunds.value)
-
-// จำนวนคอลัมน์จริงของตาราง เปลี่ยนตาม type เพื่อให้ colspan ของแถวรายละเอียด/แถวว่าง ตรงกับหัวตารางเสมอ
 const columnCount = computed(() => (props.type === 'offshore' || props.type === 'thai' ? 13 : 11))
+
+const localSortKey = ref('')
+const localSortDir = ref('asc') // 'asc' = น้อยไปมาก, 'desc' = มากไปน้อย
+
+function sortValue(fund, key) {
+  switch (key) {
+    case 'minInvestment': return Number(fund.minInvestment ?? fund.minInvest ?? 0)
+    case 'nav': return Number(fund.nav ?? 0)
+    case 'risk': return Number(fund.risk ?? 0)
+    case 'perf': return Number(fund.perf ?? fund.return1y ?? 0)
+    case 'sd': return Number(fund.sd ?? fund.stats?.sd ?? 0)
+    case 'sharpe': return Number(fund.sharpe ?? 0)
+    case 'fee': return Number(fund.fee ?? 0)
+    default: return 0
+  }
+}
+
+function setSortLocal(key) {
+  if (localSortKey.value === key) {
+    localSortDir.value = localSortDir.value === 'asc' ? 'desc' : 'asc'
+  } else {
+    localSortKey.value = key
+    localSortDir.value = 'asc'
+  }
+}
+
+function sortRiskHighToLow() {
+  localSortKey.value = 'risk'
+  localSortDir.value = 'desc'
+}
+
+// คว่ำลง (▼) = มากไปน้อย, หงายขึ้น (▲) = น้อยไปมาก, ↕ = คอลัมน์นี้ยังไม่ได้ sort
+function sortIcon(key) {
+  if (localSortKey.value !== key) return '↕'
+  return localSortDir.value === 'asc' ? '▲' : '▼'
+}
+
+const displayFunds = computed(() => {
+  const funds = [...screenedFunds.value]
+  if (!localSortKey.value) return funds
+  const dir = localSortDir.value === 'asc' ? 1 : -1
+  return funds.sort((a, b) => (sortValue(a, localSortKey.value) - sortValue(b, localSortKey.value)) * dir)
+})
 
 function taxBenefitLabel(value) {
   if (!value) return '-'
@@ -43,29 +86,29 @@ function clearAllCompare() { selectedFundsList.value.forEach((fund) => toggleCom
         <h2>กองทุนที่ตรงเงื่อนไข {{ displayFunds.length }} กอง</h2>
         <p>แสดงเฉพาะกองทุนไทยที่ถือหุ้นจากขอบเขตหรือรายการที่เลือก คลิกแถวเพื่อเปิดรายละเอียดกองทุน</p>
       </div>
-      <button type="button" class="fund-sort-button" @click="setSort('risk')">ความเสี่ยงสูง → ต่ำ</button>
+      <button type="button" class="fund-sort-button" @click="sortRiskHighToLow">ความเสี่ยงสูง → ต่ำ</button>
     </div>
 
     <div class="fund-results-table overflow-x-auto">
       <table class="w-full text-left">
         <thead>
           <tr>
-            <th @click="setSort('id')">กองทุน</th>
+            <th>กองทุน</th>
             
             <!-- แสดงทั้ง Thai Fund และ Offshore Fund -->
             <th v-if="type === 'offshore' || type === 'thai'">หุ้นที่ถือเยอะ</th>
             <th v-if="type === 'offshore' || type === 'thai'" class="text-right">น้ำหนักรวม</th>
             
-            <th @click="setSort('amc')">บลจ.</th>
+            <th>บลจ.</th>
             <th>สิทธิภาษี</th>
-            <th>ขั้นต่ำ</th>
-            <th class="text-center" @click="setSort('nav')">NAV/หน่วย</th>
+            <th class="text-center sortable" @click="setSortLocal('minInvestment')">ขั้นต่ำ <span class="sort-arrow" :class="{ active: localSortKey === 'minInvestment' }">{{ sortIcon('minInvestment') }}</span></th>
+            <th class="text-center sortable" @click="setSortLocal('nav')">NAV/หน่วย <span class="sort-arrow" :class="{ active: localSortKey === 'nav' }">{{ sortIcon('nav') }}</span></th>
 
-            <th class="text-center" @click="setSort('risk')">ความเสี่ยง ↑</th>
-            <th class="text-center" @click="setSort('perf')">ผลตอบแทนกองทุน 1 ปี</th>
-            <th class="text-center">SD</th>
-            <th class="text-right">Sharpe</th> <!-- หากต้องการให้ Sharpe ตรงกลางด้วย ให้เปลี่ยนเป็น text-center เช่นกันครับ -->
-            <th class="text-center font-['Inter'] sub">TER</th>
+            <th class="text-center sortable" @click="setSortLocal('risk')">ความเสี่ยง <span class="sort-arrow" :class="{ active: localSortKey === 'risk' }">{{ sortIcon('risk') }}</span></th>
+            <th class="text-center sortable" @click="setSortLocal('perf')">ผลตอบแทนกองทุน 1 ปี <span class="sort-arrow" :class="{ active: localSortKey === 'perf' }">{{ sortIcon('perf') }}</span></th>
+            <th class="text-center sortable" @click="setSortLocal('sd')">SD <span class="sort-arrow" :class="{ active: localSortKey === 'sd' }">{{ sortIcon('sd') }}</span></th>
+            <th class="text-right sortable" @click="setSortLocal('sharpe')">Sharpe <span class="sort-arrow" :class="{ active: localSortKey === 'sharpe' }">{{ sortIcon('sharpe') }}</span></th>
+            <th class="text-center font-['Inter'] sub sortable" @click="setSortLocal('fee')">TER <span class="sort-arrow" :class="{ active: localSortKey === 'fee' }">{{ sortIcon('fee') }}</span></th>
             <th class="text-center"></th>
           </tr>
         </thead>
@@ -80,7 +123,7 @@ function clearAllCompare() { selectedFundsList.value.forEach((fund) => toggleCom
                   <span class="fund-amc-mark" :class="badgeTone(fund)">{{ badgeLabel(fund) }}</span>
                   <div class="min-w-0">
                     <strong class="txt block truncate max-w-[190px]">{{ fund.name }}</strong>
-                    <span class="block sub font-['Inter']">
+                    <span class="block sub font-['Inter']" style="text-align: left;">
                       {{ fund.id }}
                       <template v-if="type === 'feeder' && fund.masterFund"> · {{ fund.masterFund }}</template>
                     </span>
@@ -102,7 +145,7 @@ function clearAllCompare() { selectedFundsList.value.forEach((fund) => toggleCom
               <td class="sub">{{ taxBenefitLabel(fund.taxBenefit) }}</td>
               
               <!-- 6. ขั้นต่ำ -->
-              <td class="sub">{{ formattedInvestment(fund.minInvestment ?? fund.minInvest) }}</td>
+              <td class="text-center sub">{{ formattedInvestment(fund.minInvestment ?? fund.minInvest) }}</td>
               
               <!-- 7. NAV/หน่วย -->
               <td class="text-right font-['Inter'] sub">{{ fund.nav ? fund.nav.toFixed(4) : '-' }}</td>

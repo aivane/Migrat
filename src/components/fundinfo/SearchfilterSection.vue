@@ -44,6 +44,8 @@ const title = computed(() => {
   return `ค้นหาและคัดกรอง${FUND_TYPES[props.type]?.label || 'กองทุน'}`
 })
 
+const isMixed = computed(() => props.type === 'mixed')
+
 function metricOption(key) {
   return extraMetricOptions.find((option) => option.key === key)
 }
@@ -57,6 +59,11 @@ function handleReset() {
 function scrollToCompare() {
   if (!screener.compareSelected.length) return
   document.getElementById(`fund-compare-${props.type}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+}
+
+function handleToggleAdvanced() {
+  if (isMixed.value) return
+  toggleAdvanced()
 }
 </script>
 
@@ -75,7 +82,13 @@ function scrollToCompare() {
         <input v-model="state.search" type="search" placeholder="ค้นหาชื่อกองทุน / หุ้นที่ถือ (NVIDIA, Microsoft, PTT, ADVANC)" />
       </label>
       <span class="screener-count">พบ {{ resultCount }} กองทุน</span>
-      <button type="button" class="screener-filter-toggle" :class="{ active: screener.advancedOpen }" @click="toggleAdvanced">
+      <button
+        v-if="!isMixed"
+        type="button"
+        class="screener-filter-toggle"
+        :class="{ active: screener.advancedOpen }"
+        @click="handleToggleAdvanced"
+      >
         ตัวกรองเพิ่มเติม
       </button>
     </div>
@@ -111,7 +124,7 @@ function scrollToCompare() {
       </div>
     </div>
 
-    <div v-if="screener.advancedOpen" class="screener-advanced-panel">
+    <div v-if="screener.advancedOpen && !isMixed" class="screener-advanced-panel">
       <div class="screener-advanced-head">
         <div>
           <h3>⚙ ตัวกรองเพิ่มเติม</h3>
