@@ -4,6 +4,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import Chart from 'chart.js/auto'
 import { useFundinfoExposureTrend, holdingIcon, trendSeries } from '../../composables/useFundinfoExposureTrend'
 import { performanceSeries, CMP_LABELS, COMPARE_COLORS, COMPARE_DASH } from '../../composables/useFundinfoThemeTrend'
+import InfoTooltip from '../common/InfoTooltip.vue'
 
 const props = defineProps({ type: { type: String, default: 'offshore' } })
 
@@ -153,8 +154,7 @@ onUnmounted(() => detailChart?.destroy())
     <div class="industry-workspace">
       <header class="industry-header">
   <div>
-    <h2>เปรียบเทียบ {{ label }} ก่อนเจาะดูหุ้นที่กองทุนถือ</h2>
-    <p>เลือกได้สูงสุด {{ maxSelected }} กลุ่มเพื่อดู Performance บนกราฟเดียวกัน และเรียงผลการจัดอันดับด้านล่าง</p>
+    <h2>เปรียบเทียบ {{ label }} ก่อนเจาะดูหุ้นที่กองทุนถือ <InfoTooltip :text="`เลือกได้สูงสุด ${maxSelected} กลุ่มเพื่อดู Performance บนกราฟเดียวกัน และเรียงผลการจัดอันดับด้านล่าง`" /></h2>
   </div>
 
   <!-- แสดง ปุ่มสลับมุมมอง กรณี Offshore/Foreign -->
@@ -232,9 +232,8 @@ onUnmounted(() => detailChart?.destroy())
           <div class="industry-chart-title" style="display: flex; flex-direction: column; gap: 6px; align-items: flex-start;">
             <div style="display: flex; align-items: center; gap: 6px;">
               <b style="font-size: 13px; font-weight: 800; color: #64748b;">เปรียบเทียบ Performance บนกราฟเดียวกัน</b>
-              <span style="color: var(--sub); font-size: 14px; cursor: help;" title="ข้อมูลเปรียบเทียบ">ⓘ</span>
+              <InfoTooltip :text="`ผลตอบแทนแบบฐาน 100 ย้อนหลัง 12 เดือน · เส้นประคือ ${bench.name}`" />
             </div>
-            <span style="font-size: 11px; color: var(--sub);">ผลตอบแทนแบบฐาน 100 ย้อนหลัง 12 เดือน · เส้นประคือ {{ bench.name }}</span>
           </div>
 
           <!-- 2. แถบเลือกกลุ่ม Chips (จัด Layout แนวยาว รองรับการเลือก/ไม่เลือกได้อย่างเป็นระเบียบ) -->

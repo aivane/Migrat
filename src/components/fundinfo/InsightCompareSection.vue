@@ -6,6 +6,7 @@ import { COMPARE_COLORS, COMPARE_DASH, useFundinfoInsight } from '../../composab
 import { useFundinfoRanking } from '../../composables/useFundinfoRanking'
 import { CMP_LABELS, performanceSeries } from '../../composables/useFundinfoThemeTrend'
 import { formatPercent } from '../../utils/fundinfoFormat'
+import InfoTooltip from '../common/InfoTooltip.vue'
 
 const props = defineProps({
   type: { type: String, default: 'offshore' },
@@ -172,8 +173,7 @@ onUnmounted(destroyChart)
   <section :id="`insight-${props.type}`" class="comparison-workspace">
     <div class="comparison-heading">
       <div>
-        <h2>เปรียบเทียบผลตอบแทนหุ้นต่างประเทศบนกราฟเดียวกัน</h2>
-        <p>ผลตอบแทนราคาแบบฐาน 100 · 12 เดือน · กองทุนที่ถือหุ้นเหล่านี้จะแสดงต่อในตารางด้านล่าง</p>
+        <h2>เปรียบเทียบผลตอบแทนหุ้นต่างประเทศบนกราฟเดียวกัน <InfoTooltip text="ผลตอบแทนราคาแบบฐาน 100 · 12 เดือน · กองทุนที่ถือหุ้นเหล่านี้จะแสดงต่อในตารางด้านล่าง" /></h2>
       </div>
       <div class="comparison-actions">
         <span>เลือกแล้ว {{ cardsData.length }}/{{ maxSelected }}</span>

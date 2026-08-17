@@ -3,6 +3,7 @@
 import { computed } from 'vue'
 import { FUND_TYPES } from '../../data/fundinfoData'
 import { useFundinfoScreener } from '../../composables/useFundinfoScreener'
+import InfoTooltip from '../common/InfoTooltip.vue'
 
 const props = defineProps({
   type: { type: String, default: 'offshore' },
@@ -94,7 +95,7 @@ function handleToggleAdvanced() {
     </div>
 
     <div class="screener-filter-block">
-      <div class="screener-filter-title">คัดกรองกองทุนที่ซื้อได้ <span>กรองเฉพาะกองทุนไทยที่ถือหุ้นที่เลือก — ตัวเลขผลตอบแทนส่วนนี้เป็นของกองทุน</span></div>
+      <div class="screener-filter-title">คัดกรองกองทุนที่ซื้อได้ <InfoTooltip text="กรองเฉพาะกองทุนไทยที่ถือหุ้นที่เลือก — ตัวเลขผลตอบแทนส่วนนี้เป็นของกองทุน" /></div>
       <div class="screener-select-grid">
         <label>สิทธิประโยชน์ภาษี
           <select v-model="screener.taxBenefit" class="filter-select"><option value="">ทั้งหมด</option><option v-for="option in taxBenefitOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select>
@@ -127,8 +128,7 @@ function handleToggleAdvanced() {
     <div v-if="screener.advancedOpen && !isMixed" class="screener-advanced-panel">
       <div class="screener-advanced-head">
         <div>
-          <h3>⚙ ตัวกรองเพิ่มเติม</h3>
-          <p>เลือกเงื่อนไขเพิ่มเพื่อคัดกรองกองทุนให้ตรงกับการลงทุน (เลือกได้หลายอัน)</p>
+          <h3>⚙ ตัวกรองเพิ่มเติม <InfoTooltip text="เลือกเงื่อนไขเพิ่มเพื่อคัดกรองกองทุนให้ตรงกับการลงทุน (เลือกได้หลายอัน)" /></h3>
         </div>
         <button type="button" class="screener-advanced-close" @click="closeAdvanced">ปิด ✕</button>
       </div>

@@ -5,6 +5,7 @@ import { useFundinfoRanking } from '../../composables/useFundinfoRanking'
 import { formatPercent } from '../../utils/fundinfoFormat'
 import { formatFlow } from '../../composables/useFundinfoThemeTrend'
 import { COMPARE_COLORS } from '../../composables/useFundinfoInsight'
+import InfoTooltip from '../common/InfoTooltip.vue'
 
 const props = defineProps({ type: { type: String, default: 'offshore' } })
 const { accent, heading, itemLabel, stock, state, cards, stockCards, fundCards, selectedEntities, maxSelected, orderOf, select, clearSelection, setRank } = useFundinfoRanking(props.type)
@@ -66,8 +67,7 @@ function scrollToInsight() { document.getElementById(`insight-${props.type}`)?.s
   <section class="ranking-workspace">
     <div class="ranking-heading" :class="{ 'ranking-heading-switcher': stock }">
       <div>
-        <h2>{{ heading }}</h2>
-        <p>{{ stock ? 'เลือกหุ้นหรือกองทุนเพื่อเปรียบเทียบผลตอบแทนแบบกราฟเดียวกัน จาก Ranking card' : 'เลือกกองทุนเพื่อเปรียบเทียบผลตอบแทนบนกราฟ จาก Ranking card' }}</p>
+        <h2>{{ heading }} <InfoTooltip :text="stock ? 'เลือกหุ้นหรือกองทุนเพื่อเปรียบเทียบผลตอบแทนแบบกราฟเดียวกัน จาก Ranking card' : 'เลือกกองทุนเพื่อเปรียบเทียบผลตอบแทนบนกราฟ จาก Ranking card'" /></h2>
       </div>
       <div v-if="stock" class="industry-switcher" aria-label="มุมมอง Ranking card">
         <span>มุมมอง:</span>

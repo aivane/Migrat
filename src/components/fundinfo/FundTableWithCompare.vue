@@ -7,20 +7,20 @@ import { STOCK_META } from '../../data/fundinfoData'
 import { formatPercent } from '../../utils/fundinfoFormat'
 import FundCompareTable from './FundCompareTable.vue'
 import FundDetailRow from '../../views/fundinfo/FundDetailRow.vue'
+import InfoTooltip from '../common/InfoTooltip.vue'
 
 const props = defineProps({ type: { type: String, default: 'offshore' } })
-// ใช้ screenedFunds (ยังไม่ sort) แล้ว sort เองในคอมโพเนนต์นี้ทั้งหมด แทนการพึ่ง
-// setSort/sortedScreenedFunds จาก useFundinfoScreener — เพราะ sortFundsBy กลาง
-// ไม่รองรับคีย์ minInvestment กับ sd (กด sort แล้วไม่กลับทิศทางมากไปน้อย/น้อยไปมาก)
+
 const { screenedFunds, toggleCompare, compareFunds, compareOrderOf } = useFundinfoScreener(props.type)
 const { isWatched, toggleWatch } = useFundinfoWatchlist()
 const expandedFundId = ref(null)
 const selectedFundsList = computed(() => compareFunds.value)
 
-const columnCount = computed(() => (props.type === 'offshore' || props.type === 'thai' ? 13 : 11))
+// ลด columnCount ลง 1 เพราะเอาคอลัมน์ บลจ. ออก
+const columnCount = computed(() => (props.type === 'offshore' || props.type === 'thai' ? 12 : 10))
 
 const localSortKey = ref('')
-const localSortDir = ref('asc') // 'asc' = น้อยไปมาก, 'desc' = มากไปน้อย
+const localSortDir = ref('asc') 
 
 function sortValue(fund, key) {
   switch (key) {
@@ -49,7 +49,6 @@ function sortRiskHighToLow() {
   localSortDir.value = 'desc'
 }
 
-// คว่ำลง (▼) = มากไปน้อย, หงายขึ้น (▲) = น้อยไปมาก, ↕ = คอลัมน์นี้ยังไม่ได้ sort
 function sortIcon(key) {
   if (localSortKey.value !== key) return '↕'
   return localSortDir.value === 'asc' ? '▲' : '▼'
@@ -77,21 +76,32 @@ function badgeLabel(fund) { return ({ KASIKORN: 'KA', KKP: 'KKP', SCB: 'SCB', BB
 function badgeTone(fund) { return ({ KASIKORN: 'kasikorn', KKP: 'kkp', SCB: 'scb', BBLAM: 'bblam', BCAP: 'bcap', ABRDN: 'abrdn' })[fund.amcShort] || 'default' }
 function toggleDetails(fundId) { expandedFundId.value = expandedFundId.value === fundId ? null : fundId }
 function clearAllCompare() { selectedFundsList.value.forEach((fund) => toggleCompare(fund.id)) }
+
+// ฟังก์ชันสำหรับจำกัดการเพิ่มลงตารางเปรียบเทียบแค่ 3 ตัว
+function handleToggleCompare(fundId) {
+  // หากยังไม่เคยถูกเลือก และตารางมีครบ 3 ตัวแล้ว ให้แจ้งเตือนและยกเลิก
+  if (compareOrderOf(fundId) === -1 && selectedFundsList.value.length >= 3) {
+    alert('คุณสามารถเปรียบเทียบกองทุนได้สูงสุด 3 กองทุนพร้อมกัน');
+    return;
+  }
+  toggleCompare(fundId);
+}
 </script>
 
 <template>
   <section class="fund-results">
     <div class="fund-results-heading">
       <div>
-        <h2>กองทุนที่ตรงเงื่อนไข {{ displayFunds.length }} กอง</h2>
-        <p>แสดงเฉพาะกองทุนไทยที่ถือหุ้นจากขอบเขตหรือรายการที่เลือก คลิกแถวเพื่อเปิดรายละเอียดกองทุน</p>
+        <h2>กองทุนที่ตรงเงื่อนไข {{ displayFunds.length }} กอง <InfoTooltip text="แสดงเฉพาะกองทุนไทยที่ถือหุ้นจากขอบเขตหรือรายการที่เลือก คลิกแถวเพื่อเปิดรายละเอียดกองทุน" /></h2>
       </div>
       <button type="button" class="fund-sort-button" @click="sortRiskHighToLow">ความเสี่ยงสูง → ต่ำ</button>
     </div>
 
-    <div class="fund-results-table overflow-x-auto">
+    <!-- เพิ่ม max-h-[300px] และ overflow-y-auto เพื่อให้แสดงประมาณ 3 กองแล้วที่เหลือให้เลื่อน -->
+    <div class="fund-results-table overflow-x-auto max-h-[250px] overflow-y-auto relative ">
       <table class="w-full text-left">
-        <thead>
+        <!-- เพิ่ม sticky top-0 และพื้นหลังสีขาว (bg-white หรือสีที่ใช้) เพื่อให้หัวตารางติดขอบเวลาเลื่อน -->
+        <thead class="sticky top-0 bg-[#f8fafc] z-10 shadow-sm">
           <tr>
             <th>กองทุน</th>
             
@@ -99,13 +109,14 @@ function clearAllCompare() { selectedFundsList.value.forEach((fund) => toggleCom
             <th v-if="type === 'offshore' || type === 'thai'">หุ้นที่ถือเยอะ</th>
             <th v-if="type === 'offshore' || type === 'thai'" class="text-right">น้ำหนักรวม</th>
             
-            <th>บลจ.</th>
+            <!-- นำ <th>บลจ.</th> ออกไปแล้ว -->
+            
             <th>สิทธิภาษี</th>
             <th class="text-center sortable" @click="setSortLocal('minInvestment')">ขั้นต่ำ <span class="sort-arrow" :class="{ active: localSortKey === 'minInvestment' }">{{ sortIcon('minInvestment') }}</span></th>
             <th class="text-center sortable" @click="setSortLocal('nav')">NAV/หน่วย <span class="sort-arrow" :class="{ active: localSortKey === 'nav' }">{{ sortIcon('nav') }}</span></th>
 
             <th class="text-center sortable" @click="setSortLocal('risk')">ความเสี่ยง <span class="sort-arrow" :class="{ active: localSortKey === 'risk' }">{{ sortIcon('risk') }}</span></th>
-            <th class="text-center sortable" @click="setSortLocal('perf')">ผลตอบแทนกองทุน 1 ปี <span class="sort-arrow" :class="{ active: localSortKey === 'perf' }">{{ sortIcon('perf') }}</span></th>
+            <th class="text-center sortable" @click="setSortLocal('perf')">ผลตอบแทน 1 ปี <span class="sort-arrow" :class="{ active: localSortKey === 'perf' }">{{ sortIcon('perf') }}</span></th>
             <th class="text-center sortable" @click="setSortLocal('sd')">SD <span class="sort-arrow" :class="{ active: localSortKey === 'sd' }">{{ sortIcon('sd') }}</span></th>
             <th class="text-right sortable" @click="setSortLocal('sharpe')">Sharpe <span class="sort-arrow" :class="{ active: localSortKey === 'sharpe' }">{{ sortIcon('sharpe') }}</span></th>
             <th class="text-center font-['Inter'] sub sortable" @click="setSortLocal('fee')">TER <span class="sort-arrow" :class="{ active: localSortKey === 'fee' }">{{ sortIcon('fee') }}</span></th>
@@ -119,7 +130,8 @@ function clearAllCompare() { selectedFundsList.value.forEach((fund) => toggleCom
               <!-- 1. กองทุน -->
               <td>
                 <div class="flex items-center gap-2 min-w-0">
-                  <button type="button" class="fund-row-plus" :class="{ active: compareOrderOf(fund.id) > -1 }" :aria-label="compareOrderOf(fund.id) > -1 ? `นำ ${fund.name} ออกจากการเปรียบเทียบ` : `เพิ่ม ${fund.name} เพื่อเปรียบเทียบ`" @click.stop="toggleCompare(fund.id)">{{ compareOrderOf(fund.id) > -1 ? '✓' : '+' }}</button>
+                  <!-- เปลี่ยนจาก toggleCompare เป็น handleToggleCompare -->
+                  <button type="button" class="fund-row-plus" :class="{ active: compareOrderOf(fund.id) > -1 }" :aria-label="compareOrderOf(fund.id) > -1 ? `นำ ${fund.name} ออกจากการเปรียบเทียบ` : `เพิ่ม ${fund.name} เพื่อเปรียบเทียบ`" @click.stop="handleToggleCompare(fund.id)">{{ compareOrderOf(fund.id) > -1 ? '✓' : '+' }}</button>
                   <span class="fund-amc-mark" :class="badgeTone(fund)">{{ badgeLabel(fund) }}</span>
                   <div class="min-w-0">
                     <strong class="txt block truncate max-w-[190px]">{{ fund.name }}</strong>
@@ -138,46 +150,46 @@ function clearAllCompare() { selectedFundsList.value.forEach((fund) => toggleCom
               <!-- 3. น้ำหนักรวม (แสดงสำหรับ Thai และ Offshore) -->
               <td v-if="type === 'offshore' || type === 'thai'" class="text-right font-['Inter'] sub">{{ totalHoldingWeight(fund) }}</td>
               
-              <!-- 4. บลจ. -->
-              <td class="sub">{{ fund.amcShort || fund.amc || '-' }}</td>
+              <!-- นำ <td> ของ บลจ. ออกไปแล้ว -->
               
-              <!-- 5. สิทธิภาษี -->
+              <!-- 4. สิทธิภาษี -->
               <td class="sub">{{ taxBenefitLabel(fund.taxBenefit) }}</td>
               
-              <!-- 6. ขั้นต่ำ -->
+              <!-- 5. ขั้นต่ำ -->
               <td class="text-center sub">{{ formattedInvestment(fund.minInvestment ?? fund.minInvest) }}</td>
               
-              <!-- 7. NAV/หน่วย -->
+              <!-- 6. NAV/หน่วย -->
               <td class="text-right font-['Inter'] sub">{{ fund.nav ? fund.nav.toFixed(4) : '-' }}</td>
 
-              <!-- 8. ความเสี่ยง -->
+              <!-- 7. ความเสี่ยง -->
               <td class="text-center font-bold whitespace-nowrap" style="color: #475569;">
-                {{ fund.risk ? `ความเสี่ยง ${fund.risk}/8` : '-' }}
+                {{ fund.risk ? ` ${fund.risk}/8` : '-' }}
               </td>
               
-              <!-- 9. ผลตอบแทนกองทุน 1 ปี -->
+              <!-- 8. ผลตอบแทนกองทุน 1 ปี -->
               <td class="text-center font-['Inter']" :class="(fund.perf ?? fund.return1y ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'">
                 {{ (fund.perf ?? fund.return1y) !== undefined ? ((fund.perf ?? fund.return1y) > 0 ? '+' : '') + (fund.perf ?? fund.return1y) + '%' : '-' }}
               </td>
 
-              <!-- 10. SD -->
+              <!-- 9. SD -->
               <td class="text-center font-['Inter'] sub">
                 {{ (fund.sd ?? fund.stats?.sd) ? (fund.sd ?? fund.stats?.sd) + '%' : '-' }}
               </td>
 
-              <!-- 11. Sharpe -->
+              <!-- 10. Sharpe -->
               <td class="text-right font-['Inter'] sub">{{ fund.sharpe || '-' }}</td>
 
-              <!-- 12. TER -->
+              <!-- 11. TER -->
               <td class="text-center font-['Inter'] sub">{{ fund.fee?.toFixed(2) || '-' }}%</td>
               
-              <!-- 13. Chevron -->
+              <!-- 12. Chevron -->
               <td class="text-center">
                 <button type="button" class="fund-row-chevron" :class="{ open: expandedFundId === fund.id }" :aria-expanded="expandedFundId === fund.id" :aria-label="expandedFundId === fund.id ? `ย่อรายละเอียด ${fund.name}` : `แสดงรายละเอียด ${fund.name}`" @click.stop="toggleDetails(fund.id)">⌄</button>
               </td>
 
             </tr>
-            <FundDetailRow v-if="expandedFundId === fund.id" :fund="fund" :colspan="columnCount" :in-compare="compareOrderOf(fund.id) > -1" @compare="toggleCompare(fund.id)" />
+            <!-- เปลี่ยนจาก toggleCompare เป็น handleToggleCompare -->
+            <FundDetailRow v-if="expandedFundId === fund.id" :fund="fund" :colspan="columnCount" :in-compare="compareOrderOf(fund.id) > -1" @compare="handleToggleCompare(fund.id)" />
           </template>
 
           <tr v-if="!displayFunds.length">
@@ -186,6 +198,8 @@ function clearAllCompare() { selectedFundsList.value.forEach((fund) => toggleCom
         </tbody>
       </table>
     </div>
+    
+    <!-- ไม่จำเป็นต้องแก้โค้ดคอมโพเนนต์เปรียบเทียบตาราง เพราะมันผูกกับ selectedFundsList อยู่แล้ว -->
     <FundCompareTable :id="`fund-compare-${props.type}`" :selected-funds="selectedFundsList" @clear-all="clearAllCompare" @remove-fund="toggleCompare" />
     <p class="fund-results-footnote">Fundinfo v3.2.1 · Master Fund Comparison Workspace · ข้อมูลเพื่อการออกแบบ ไม่ใช่คำแนะนำการลงทุน</p>
   </section>

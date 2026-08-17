@@ -1,3 +1,4 @@
+<!-- ThemeTrendSection.vue -->
 <script setup>
 import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import Chart from 'chart.js/auto'
@@ -9,6 +10,7 @@ import {
   COMPARE_COLORS,
   COMPARE_DASH,
 } from '../../composables/useFundinfoThemeTrend'
+import InfoTooltip from '../common/InfoTooltip.vue'
 
 const props = defineProps({ type: { type: String, default: 'feeder' } })
 
@@ -110,8 +112,7 @@ onUnmounted(() => detailChart?.destroy())
 
     <div class="theme-analysis-instruction">
       <div class="theme-instruction-text">
-        <h2>ติดตามทิศทางและผลตอบแทนของธีมเด่น ก่อนเลือกเปรียบเทียบ Master Fund ในมุมมองเดียว</h2>
-        <p>เลือกได้สูงสุด 5 กลุ่มเพื่อเปรียบเทียบผลตอบแทนบนกราฟเดียวกัน จากนั้น Ranking หุ้นและรายชื่อกองทุนด้านล่างจะปรับตาม</p>
+        <h2>ติดตามทิศทางและผลตอบแทนของธีมเด่น ก่อนเลือกเปรียบเทียบ Master Fund ในมุมมองเดียว <InfoTooltip text="เลือกได้สูงสุด 5 กลุ่มเพื่อเปรียบเทียบผลตอบแทนบนกราฟเดียวกัน จากนั้น Ranking หุ้นและรายชื่อกองทุนด้านล่างจะปรับตาม" /></h2>
       </div>
 
       <!-- 2. กลุ่มปุ่มสลับมุมมอง (รวมถึงคำว่า มุมมอง:) จะอยู่ฝั่งขวา -->
@@ -126,8 +127,7 @@ onUnmounted(() => detailChart?.destroy())
 
 <div class="theme-toolbar">
       <div>
-        <b>เปรียบเทียบ Performance บนกราฟเดียวกัน</b>
-        <small>ผลตอบแทนแบบฐาน 100 ย้อนหลัง 12 เดือน · เส้นประคือ {{ BENCH_LABEL }}</small>
+        <b>เปรียบเทียบ Performance บนกราฟเดียวกัน <InfoTooltip text="ผลตอบแทนแบบฐาน 100 ย้อนหลัง 12 เดือน · เส้นประคือ MSCI ACWI" /></b>
       </div>
       
       <!-- ย้ายช่องค้นหามาไว้ที่นี่ จะแสดงและถูกดันชิดขวาเฉพาะในโหมดเลือกธีมเอง (state.view === 'all') -->

@@ -280,7 +280,7 @@ function createFundinfoRanking(type) {
         key: 'dividend',
         emoji: '🌿',
         title: 'จ่ายปันผลสูงสุด',
-        desc: 'ดูรายการที่หุ้นที่ให้ปันผลสูง',
+        desc: 'ดูรายการหุ้นที่ให้ปันผลสูง',
         caption: 'ย้อนหลัง 12 เดือน',
         list: byDividend.value,
         valueType: 'dividend',

@@ -4,6 +4,7 @@ import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import Chart from 'chart.js/auto'
 import { useFundinfoMarketLens } from '../../composables/useFundinfoMarketLens'
 import { performanceSeries, CMP_LABELS, COMPARE_COLORS } from '../../composables/useFundinfoThemeTrend'
+import InfoTooltip from '../common/InfoTooltip.vue'
 
 const props = defineProps({ type: { type: String, default: 'mixed' } })
 const {
@@ -103,8 +104,7 @@ onUnmounted(() => chartInstance?.destroy())
     <div class="industry-workspace">
       <header class="industry-header">
         <div>
-          <h2>{{ chartTitle }}</h2>
-          <p>แสดงทั้งด้านบวกและด้านลบของตลาดโดยจำกัดไม่เกิน 5 กลุ่ม · คลิกสัญญาณ เส้น หรือปุ่ม เพื่อกรองข้อมูลส่วนถัดลงมา</p>
+          <h2>{{ chartTitle }} <InfoTooltip text="แสดงทั้งด้านบวกและด้านลบของตลาดโดยจำกัดไม่เกิน 5 กลุ่ม · คลิกสัญญาณ เส้น หรือปุ่ม เพื่อกรองข้อมูลส่วนถัดลงมา" /></h2>
         </div>
         <span class="market-lens-scope-badge">ขอบเขต: {{ state.scope || 'ภาพรวมตลาด' }}</span>
       </header>
@@ -135,9 +135,8 @@ onUnmounted(() => chartInstance?.destroy())
       <div class="industry-chart-title" style="display: flex; flex-direction: column; gap: 6px; align-items: flex-start; margin-top: 20px;">
         <div style="display: flex; align-items: center; gap: 6px;">
           <b style="font-size: 13px; font-weight: 800; color: #64748b;">เปรียบเทียบ Performance บนกราฟเดียวกัน</b>
-          <span style="color: var(--sub); font-size: 14px; cursor: help;" title="ข้อมูลเปรียบเทียบ">ⓘ</span>
+          <InfoTooltip :text="`ผลตอบแทนแบบฐาน 100 ย้อนหลัง 12 เดือน · เส้นประคือ ${bench.name}`" />
         </div>
-        <span style="font-size: 11px; color: var(--sub);">ผลตอบแทนแบบฐาน 100 ย้อนหลัง 12 เดือน · เส้นประคือ {{ bench.name }}</span>
       </div>
 
       <div class="industry-benchmark" style="justify-content: flex-start; margin-top: 12px;">
