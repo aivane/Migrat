@@ -79,8 +79,7 @@
 .fundinfo-scope .brdb { border-bottom: 1px solid var(--line); }
 .fundinfo-scope .txt { color: var(--txt); }
 .fundinfo-scope .sub { color: var(--sub); }
-
-.fundinfo-scope .cs { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 10px 30px -16px rgba(0, 0, 0, 0.4); }
+.fundinfo-scope .cs { box-shadow: none; }
 .fundinfo-scope .gb { background: linear-gradient(135deg, #2456d8, #4b83ff); }
 
 /* Badges & Colors */
@@ -113,7 +112,7 @@
   border-radius: 7px;
   background: var(--brand);
   color: #fff;
-  font: 700 10px/1 'Inter', sans-serif;
+  font: 700 11px/1 'Inter', sans-serif;
   flex: none;
 }
 
@@ -123,8 +122,9 @@
   color: var(--txt);
   border: 1px solid var(--line);
   border-radius: 0.5rem;
-  padding: 0.5rem 0.75rem;
-  font-size: 0.8125rem;
+  padding: 0.4rem 0.65rem;
+  font-size: 12px;
+  min-height: 34px;
   outline: none;
   transition: border-color 0.2s;
 }
@@ -144,7 +144,7 @@
 
 .fundinfo-scope .metric-cell { background: var(--surf2); border-radius: 8px; padding: 6px 7px; min-width: 0; }
 .fundinfo-scope .metric-help {
-  font-size: 8px;
+  font-size: 10px;
   color: var(--sub);
   white-space: nowrap;
   overflow: hidden;
@@ -161,7 +161,7 @@
   white-space: nowrap;
   padding: 5px 10px;
   border-radius: 999px;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   border: 1px solid var(--line);
   background: var(--surf);
@@ -205,7 +205,7 @@
   gap: 4px;
   padding: 3px 7px;
   border-radius: 999px;
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 800;
   white-space: nowrap;
 }
@@ -311,24 +311,27 @@
   color: var(--txt);
 }
 
-/* Fund workspace — compact editorial layout aligned with the reference board. */
+/* Fund workspace — full-bleed layout */
 .fundinfo-scope .fund-workspace {
-  max-width: 1000px;
-  margin: 0 auto;
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  padding-bottom: 48px;
+  box-sizing: border-box;
 }
 
 .fundinfo-scope .fund-page-title h1 {
   color: var(--txt);
-  font-size: clamp(26px, 3vw, 34px);
+  font-size: 31px;
   line-height: 1.05;
   font-weight: 800;
-  letter-spacing: -0.035em;
+  letter-spacing: -0.04em;
 }
 
 .fundinfo-scope .fund-page-title p {
   margin-top: 5px;
   color: var(--sub);
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1.45;
 }
 
@@ -349,16 +352,6 @@
   width: 100%;
   min-width: 0;
   max-width: none;
-}
-
-.fundinfo-scope .cs {
-  box-shadow: none;
-}
-
-.fundinfo-scope .filter-select {
-  min-height: 34px;
-  padding: 0.4rem 0.65rem;
-  font-size: 12px;
 }
 
 @media (max-width: 767px) {
@@ -390,25 +383,26 @@
 }
 
 .fundinfo-scope .comparison-heading h2 {
-  color: var(--txt);
   font-size: 17px;
   font-weight: 800;
   color: #64748b;
+  margin-left: 23px;
 }
 
 .fundinfo-scope .comparison-heading p,
 .fundinfo-scope .comparison-title-copy small,
 .fundinfo-scope .compare-selection small {
   color: var(--sub);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .fundinfo-scope .comparison-actions {
   align-items: center;
   gap: 8px;
   color: var(--sub);
-  font-size: 10px;
+  font-size: 11px;
   white-space: nowrap;
+  margin-right: 23px;
 }
 
 .fundinfo-scope .comparison-actions button {
@@ -418,6 +412,7 @@
   background: var(--surf);
   color: var(--sub);
   font-weight: 700;
+  font-size: 12px;
 }
 
 .fundinfo-scope .comparison-panel {
@@ -468,11 +463,13 @@
 .fundinfo-scope .comparison-grid {
   display: grid;
   width: 100%;
-  grid-template-columns: minmax(0, 3fr) minmax(240px, 1fr);
+  max-width: 1180px;
+  margin: 0 auto;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 360px);
   gap: 14px;
 }
 
-.fundinfo-scope .comparison-chart { height: 280px; min-width: 0; }
+.fundinfo-scope .comparison-chart { height: 210px; max-height: 26vh; min-width: 0; }
 
 .fundinfo-scope .comparison-list {
   display: grid;
@@ -504,8 +501,7 @@
   flex: 1;
 }
 
-.fundinfo-scope .compare-selection b { color: var(--txt); font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.fundinfo-scope .compare-selection small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fundinfo-scope .compare-selection b { color: var(--txt); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .fundinfo-scope .compare-selection > button {
   border: 0;
@@ -522,35 +518,16 @@
   margin-top: 4px;
 }
 
-.fundinfo-scope .compare-selection-metrics span { color: var(--txt); font: 700 10px/1.2 Inter, sans-serif; }
-.fundinfo-scope .compare-selection-metrics i { display: block; margin-bottom: 2px; color: var(--sub); font: 400 8px/1.2 'Prompt', sans-serif; font-style: normal; }
+.fundinfo-scope .compare-selection-metrics span { color: var(--txt); font: 700 11px/1.2 Inter, sans-serif; }
+.fundinfo-scope .compare-selection-metrics i { display: block; margin-bottom: 2px; color: var(--sub); font: 400 10px/1.2 'Prompt', sans-serif; font-style: normal; }
 
 .fundinfo-scope .comparison-empty {
   border: 1px dashed var(--line);
   border-radius: 8px;
   padding: 20px;
   color: var(--sub);
-  font-size: 11px;
+  font-size: 12px;
   text-align: center;
-}
-
-.fundinfo-scope .fund-results-heading {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: 14px;
-}
-
-.fundinfo-scope .fund-results-heading h2 {
-  color: var(--txt);
-  font-size: 15px;
-  font-weight: 800;
-}
-
-.fundinfo-scope .fund-results-heading p {
-  margin-top: 2px;
-  color: var(--sub);
-  font-size: 10px;
 }
 
 .fundinfo-scope .comparison-order {
@@ -563,7 +540,7 @@
   border-radius: 6px;
   background: var(--surf);
   color: var(--sub);
-  font: 800 11px/1 Inter, sans-serif;
+  font: 800 12px/1 Inter, sans-serif;
 }
 
 .fundinfo-scope .comparison-order.active {
@@ -581,61 +558,90 @@
   border-radius: 7px;
   background: #0e91c8;
   color: #fff;
-  font: 800 8px/1 Inter, sans-serif;
+  font: 800 10px/1 Inter, sans-serif;
 }
 
-/* fundinfo.css — แทนที่บล็อกเดิมตั้งแต่คอมเมนต์ "Ranking cards are deliberately split..."
-   จนถึงก่อน "/* Bottom screener and comparison matrix. */
-
-/* Ranking cards: มุมมอง (หุ้น / กองทุนไทยถือหุ้น) reuse โครงสร้างเดียวกับ .industry-header */
-.fundinfo-scope .ranking-workspace {  padding-top: 22px; }
+/* Ranking cards */
+.fundinfo-scope .ranking-workspace { padding-top: 22px; }
 .fundinfo-scope .ranking-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
 .fundinfo-scope .ranking-heading > div:first-child { min-width: 0; flex: 1 1 320px; }
-.fundinfo-scope .ranking-heading h2 { color: var(--txt); font-size: 17px; font-weight: 800; }
-.fundinfo-scope .ranking-heading p { margin-top: 3px; color: var(--sub); font-size: 10px; }
+.fundinfo-scope .ranking-heading h2 { color: var(--txt); font-size: 22px; font-weight: 800; }
+.fundinfo-scope .ranking-heading p { margin-top: 3px; color: var(--sub); font-size: 11px; }
 .fundinfo-scope .ranking-section { margin-top: 18px; }
 .fundinfo-scope .ranking-section + .ranking-section { margin-top: 24px; }
 .fundinfo-scope .ranking-section-heading { margin: 0 0 8px; }
 .fundinfo-scope .ranking-section-heading h3 { font-size: 12px; font-weight: 800; }
-.fundinfo-scope .ranking-section-heading p { margin-top: 2px; color: var(--sub); font-size: 9px; }
+.fundinfo-scope .ranking-section-heading p { margin-top: 2px; color: var(--sub); font-size: 11px; }
 
-.fundinfo-scope .ranking-card { overflow: hidden; border: 1px solid var(--line); border-radius: 9px; background: var(--surf); }
-.fundinfo-scope .ranking-card-header { min-height: 64px; padding: 9px 10px 7px; border-bottom: 1px solid var(--line); }
-.fundinfo-scope .ranking-card-title { display: flex; align-items: center; gap: 5px; color: var(--txt); font-size: 11px; font-weight: 800; }
-.fundinfo-scope .ranking-card-header p { min-height: 20px; margin: 3px 0 0; color: var(--sub); font-size: 8px; line-height: 1.3; }
-.fundinfo-scope .ranking-card-caption { display: block; margin: 2px 0 0; color: var(--sub); font-size: 8px; font-style: italic; line-height: 1.3; }
+.fundinfo-scope .ranking-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 340px));
+  justify-content: center;
+  align-items: start;
+  gap: 16px;
+  margin-top: 6px;
+}
+
+.fundinfo-scope .ranking-card {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surf);
+  box-shadow: 0 1px 2px rgba(15, 30, 55, .05);
+  height: 100%;
+  min-height: 290px;
+  display: flex;
+  flex-direction: column;
+  transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+}
+.fundinfo-scope .ranking-card:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--brand) 30%, var(--line));
+  box-shadow: 0 12px 26px -18px rgba(15, 30, 55, .45);
+}
+.fundinfo-scope .ranking-card-header { min-height: 64px; padding: 11px 12px 8px; border-bottom: 1px solid var(--line); flex: none; }
+.fundinfo-scope .ranking-card-title { display: flex; align-items: center; gap: 6px; color: var(--txt); font-size: 16px; font-weight: 800; }
+.fundinfo-scope .ranking-card-header p {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 28px;
+  margin: 4px 0 0;
+  color: var(--sub);
+  font-size: 13px;
+  line-height: 1.3;
+}
+.fundinfo-scope .ranking-card-caption { display: block; margin: 2px 0 0; color: var(--sub); font-size: 13px; font-style: italic; line-height: 1.3; }
 .fundinfo-scope .ranking-periods { display: flex; gap: 3px; margin-top: 5px; }
-.fundinfo-scope .ranking-periods button { border: 0; border-radius: 8px; padding: 2px 7px; background: var(--surf2); color: var(--sub); font: 800 8px/1.25 Inter, sans-serif; }
+.fundinfo-scope .ranking-periods button { border: 0; border-radius: 8px; padding: 2px 7px; background: var(--surf2); color: var(--sub); font: 800 10px/1.25 Inter, sans-serif; }
 .fundinfo-scope .ranking-periods button.active { color: #fff; }
 
-.fundinfo-scope .ranking-card-list { padding: 3px 0; }
-.fundinfo-scope .ranking-row { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto 18px; align-items: center; gap: 6px; width: 100%; min-height: 28px; padding: 4px 9px; color: var(--txt); text-align: left; }
+.fundinfo-scope .ranking-card-list { padding: 3px 0; flex: 1; }
+.fundinfo-scope .ranking-row { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto 18px; align-items: center; gap: 6px; width: 100%; min-height: 46px; padding: 4px 9px; color: var(--txt); text-align: left; }
 .fundinfo-scope .ranking-row + .ranking-row { border-top: 1px solid var(--line); }
 .fundinfo-scope .ranking-row:hover, .fundinfo-scope .ranking-row.selected { background: var(--surf2); }
 .fundinfo-scope .ranking-row.selected { box-shadow: inset 3px 0 0 var(--brand); }
-.fundinfo-scope .ranking-number { display: inline-flex; width: 16px; height: 16px; align-items: center; justify-content: center; border-radius: 50%; color: var(--sub); font: 800 8px/1 Inter, sans-serif; }
+.fundinfo-scope .ranking-number { display: inline-flex; width: 16px; height: 16px; align-items: center; justify-content: center; border-radius: 50%; color: var(--sub); font: 800 10px/1 Inter, sans-serif; }
 .fundinfo-scope .ranking-number.medal { color: #fff; }
-.fundinfo-scope .ranking-row-name { overflow: hidden; font-size: 9px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
-.fundinfo-scope .ranking-row strong { font: 800 9px/1.2 Inter, sans-serif; white-space: nowrap; }
-.fundinfo-scope .ranking-add { display: inline-flex; width: 16px; height: 16px; align-items: center; justify-content: center; border: 1px solid var(--line); border-radius: 5px; color: var(--sub); font: 800 11px/1 Inter, sans-serif; }
+.fundinfo-scope .ranking-row-name { overflow: hidden; font-size: 13px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.fundinfo-scope .ranking-row strong { font: 800 11px/1.2 Inter, sans-serif; white-space: nowrap; }
+.fundinfo-scope .ranking-add { display: inline-flex; width: 16px; height: 16px; align-items: center; justify-content: center; border: 1px solid var(--line); border-radius: 5px; color: var(--sub); font: 800 12px/1 Inter, sans-serif; }
 
-/* ==========================================
-   แถบสรุป Ranking ด้านล่าง
-   ========================================== */
+/* แถบสรุป Ranking ด้านล่าง */
 .fundinfo-scope .ranking-summary { 
   display: flex; 
   align-items: center; 
-  justify-content: space-between; /* ดันกลุ่มซ้ายและปุ่มขวาให้ออกจากกัน */
+  justify-content: space-between;
   gap: 16px; 
   flex-wrap: wrap; 
   margin-top: 13px; 
-  padding: 12px 10px 8px; /* ปรับ padding ให้ดูโปร่งขึ้นนิดหน่อย */
+  padding: 12px 10px 8px;
   color: var(--txt); 
-  font-size: 11px; /* ปรับขนาดให้ใกล้เคียงภาพ */
+  font-size: 12px; 
   font-weight: 700; 
 }
 
-/* เพิ่มกลุ่มฝั่งซ้าย (ต้องใช้คู่กับ <div> ที่ครอบข้อความและปุ่มล้างทั้งหมดใน HTML) */
 .fundinfo-scope .ranking-summary-left {
   display: flex;
   align-items: center;
@@ -645,75 +651,71 @@
 
 .fundinfo-scope .ranking-summary-note { 
   color: var(--sub); 
-  font-size: 10px; 
+  font-size: 11px; 
   font-weight: 500; 
 }
 
-/* ปุ่มทั่วไป (ปุ่ม "ล้างทั้งหมด") */
 .fundinfo-scope .ranking-summary button { 
   border: 1px solid var(--line); 
   border-radius: 6px; 
   padding: 4px 8px; 
   background: var(--surf); 
-  color: var(--txt); /* ปรับสีตัวหนังสือให้เข้มขึ้นตามภาพ */
+  color: var(--txt); 
   font-family: 'Prompt', sans-serif;
-  font-size: 10px; 
+  font-size: 12px; 
   font-weight: 700; 
   cursor: pointer;
 }
 
-/* ปุ่มสีฟ้า "ดูกราฟเปรียบเทียบ" ฝั่งขวา */
 .fundinfo-scope .ranking-summary .ranking-view-chart { 
-  margin-left: auto; /* ช่วยดันไปขวาสุด */
+  margin-left: auto;
   border-color: transparent; 
-  border-radius: 8px; /* ขอบมนขึ้นนิดหน่อยให้ปุ่มดูอวบอิ่ม */
+  border-radius: 8px; 
   padding: 6px 12px;
   color: #fff; 
-  box-shadow: 0 2px 4px rgba(0,0,0,.1); /* เพิ่มมิติให้ปุ่มเด่นขึ้น */
+  box-shadow: 0 2px 4px rgba(0,0,0,.1); 
+  font-size: 13px;
 }
 
-/* ==========================================
-   Responsive (Mobile)
-   ========================================== */
+/* Responsive (Mobile) - Ranking */
 @media (max-width: 767px) {
   .fundinfo-scope .ranking-heading { display: grid; }
   .fundinfo-scope .ranking-heading .industry-switcher { justify-self: start; margin-top: 3px; }
   
-  /* สำหรับมือถือ ให้ปุ่มขยายเต็มพื้นที่หรือจัดเรียงใหม่ */
   .fundinfo-scope .ranking-summary .ranking-view-chart { 
     margin-left: 0; 
-    width: 100%; /* แนะนำให้ขยายปุ่มดูกราฟเต็มความกว้างบนมือถือ เพื่อให้กดง่ายขึ้น */
+    width: 100%; 
     text-align: center;
   }
 }
 
-/* Bottom screener and comparison matrix. */
+/* Bottom screener and comparison matrix */
 .fundinfo-scope .screener-workspace { padding-top: 4px; }
 .fundinfo-scope .screener-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.fundinfo-scope .screener-heading h2 { color: var(--txt); font-size: 17px; font-weight: 800; }
-.fundinfo-scope .screener-compare-button { border: 0; border-radius: 6px; padding: 6px 10px; background: var(--brand); color: #fff; font-size: 10px; font-weight: 800; }
-.fundinfo-scope .screener-compare-button:disabled { cursor: not-allowed; opacity: .45; }
+.fundinfo-scope .screener-heading h2 { color: var(--txt); font-size: 22px; font-weight: 800; }
+.fundinfo-scope .screener-compare-button { border: 0; border-radius: 6px; padding: 6px 10px; background: var(--brand); color: #fff; font-size: 11px; font-weight: 800; }
+.fundinfo-scope .screener-compare-button:disabled { cursor: not-allowed; opacity: .45; font-size: 12px; }
 .fundinfo-scope .screener-search-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 7px; align-items: center; margin-top: 10px; }
 .fundinfo-scope .screener-search-input { display: flex; align-items: center; gap: 7px; min-width: 0; border-radius: 6px; padding: 0 9px; background: var(--surf2); color: var(--sub); }
 .fundinfo-scope .screener-search-input span { font: 800 15px/1 Inter, sans-serif; }
-.fundinfo-scope .screener-search-input input { width: 100%; min-height: 32px; border: 0; outline: 0; background: transparent; color: var(--txt); font: 11px 'Prompt', sans-serif; }
-.fundinfo-scope .screener-count { border-radius: 6px; padding: 8px 10px; background: var(--surf2); color: var(--brand); font: 800 10px/1 Inter, sans-serif; white-space: nowrap; }
-.fundinfo-scope .screener-filter-toggle, .fundinfo-scope .screener-reset { border: 0; border-radius: 6px; padding: 8px 10px; background: #0e7ac0; color: #fff; font-size: 10px; font-weight: 800; white-space: nowrap; }
+.fundinfo-scope .screener-search-input input { width: 100%; min-height: 32px; border: 0; outline: 0; background: transparent; color: var(--txt); font: 12px 'Prompt', sans-serif; }
+.fundinfo-scope .screener-count { border-radius: 6px; padding: 8px 10px; background: var(--surf2); color: var(--brand); font: 800 12px/1 Inter, sans-serif; white-space: nowrap; }
+.fundinfo-scope .screener-filter-toggle { border: 0; border-radius: 6px; padding: 8px 10px; background: #0e7ac0; color: #fff; font-size: 12px; font-weight: 800; white-space: nowrap; }
 .fundinfo-scope .screener-filter-toggle:not(.active) { background: var(--surf2); color: var(--sub); }
 
 .fundinfo-scope .screener-filter-block { margin-top: 9px; }
-.fundinfo-scope .screener-filter-title { color: var(--txt); font-size: 12px; font-weight: 800; }
-.fundinfo-scope .screener-filter-title span { margin-left: 6px; color: var(--sub); font-size: 8px; font-weight: 400; }
-.fundinfo-scope .screener-select-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) auto; gap: 7px; align-items: end; margin-top: 6px; border-bottom: 1px solid var(--line); padding: 12px;}
-.fundinfo-scope .screener-select-grid label { display: grid; gap: 3px; min-width: 0; color: var(--sub); font-size: 12px; font-weight: 700; }
-.fundinfo-scope .screener-select-grid .filter-select { width: 100%; min-width: 0; min-height: 29px; padding: 0.3rem .5rem; font-size: 9px; }
-.fundinfo-scope .screener-reset { min-height: 29px; padding: 0 9px; background: var(--surf2); color: var(--sub); }
-.fundinfo-scope .screener-metric-row { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; margin-top: 9px; color: var(--sub); font-size: 10px; font-weight: 700; }
-.fundinfo-scope .screener-metric-row button, .fundinfo-scope .screener-pills button { border: 1px solid var(--line); border-radius: 999px; padding: 7px 14px; background: var(--surf); color: var(--sub); font-size: 12px; font-weight: 700; }
+.fundinfo-scope .screener-filter-title { color: var(--txt); font-size: 14px; font-weight: 800; }
+.fundinfo-scope .screener-filter-title span { margin-left: 6px; color: var(--sub); font-size: 10px; font-weight: 400; }
+.fundinfo-scope .screener-select-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) auto; gap: 7px; align-items: end; margin-top: 6px; border-bottom: 1px solid var(--line); padding: 12px; }
+.fundinfo-scope .screener-select-grid label { display: grid; gap: 3px; min-width: 0; color: var(--sub); font-size: 14px; font-weight: 700; }
+.fundinfo-scope .screener-select-grid .filter-select { width: 100%; min-width: 0; min-height: 29px; padding: 0.3rem .5rem; font-size: 14px; }
+.fundinfo-scope .screener-reset { border: 0; border-radius: 6px; min-height: 29px; padding: 0 9px; background: var(--surf2); color: var(--sub); font-size: 12px; font-weight: 800; white-space: nowrap; }
+.fundinfo-scope .screener-metric-row { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; margin-top: 9px; color: var(--sub); font-size: 13px; font-weight: 700; }
+.fundinfo-scope .screener-metric-row button, .fundinfo-scope .screener-pills button { border: 1px solid var(--line); border-radius: 999px; padding: 7px 14px; background: var(--surf); color: var(--sub); font-size: 14px; font-weight: 700; }
 .fundinfo-scope .screener-metric-row button.active, .fundinfo-scope .screener-pills button.active { border-color: var(--brand); background: var(--brand); color: #fff; }
 .fundinfo-scope .screener-metric-inputs { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
-.fundinfo-scope .screener-metric-inputs label { display: flex; align-items: center; gap: 4px; color: var(--sub); font-size: 8px; }
-.fundinfo-scope .screener-metric-inputs .filter-select { width: 58px; min-height: 25px; padding: .15rem .35rem; font-size: 9px; }
+.fundinfo-scope .screener-metric-inputs label { display: flex; align-items: center; gap: 4px; color: var(--sub); font-size: 14px; }
+.fundinfo-scope .screener-metric-inputs .filter-select { width: 58px; min-height: 25px; padding: .15rem .35rem; font-size: 11px; }
 .fundinfo-scope .screener-metric-inputs small { color: var(--sub); }
 .fundinfo-scope .screener-advanced-panel { margin-top: 14px; border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; background: var(--surf2); }
 .fundinfo-scope .screener-advanced-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
@@ -726,38 +728,43 @@
 .fundinfo-scope .screener-pills { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 
 .fundinfo-scope .fund-results { margin-top: 22px; }
-.fundinfo-scope .fund-results-heading { display: flex; align-items: end; justify-content: space-between; gap: 10px; margin-bottom: 12px;}
-.fundinfo-scope .fund-results-heading h2 { color: var(--txt); font-size: 12px; font-weight: 800; }
-.fundinfo-scope .fund-results-heading p, .fundinfo-scope .fund-results-meta { margin-top: 2px; color: var(--sub); font-size: 8px; }
+.fundinfo-scope .fund-results-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.fundinfo-scope .fund-results-heading h2 { color: var(--txt); font-size: 14px; font-weight: 800; }
+.fundinfo-scope .fund-results-heading p, .fundinfo-scope .fund-results-meta { margin-top: 2px; color: var(--sub); font-size: 10px; }
 .fundinfo-scope .fund-results-meta { white-space: nowrap; }
-.fundinfo-scope .fund-sort-button { border: 0; border-radius: 12px; padding: 4px 9px; background: var(--surf2); color: var(--txt); font: 800 8px/1.2 'Prompt', sans-serif; white-space: nowrap; }
+.fundinfo-scope .fund-sort-button { border: 0; border-radius: 12px; padding: 4px 9px; background: var(--surf2); color: var(--txt); font: 800 12px/1.2 'Prompt', sans-serif; white-space: nowrap; }
 .fundinfo-scope .fund-sort-button:hover { color: var(--brand); }
 
-/* 1. เปิดแถบเลื่อนแนวนอน */
+/* Fund Results Table & Scrollbars */
 .fundinfo-scope .fund-results-table {
-  /* ซ่อน Scrollbar ของตารางสำหรับ Chrome, Safari และ Opera แต่ยัง scroll ได้ */
-  &::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-  &::-webkit-scrollbar-track {
-    background: transparent; 
-  }
-  &::-webkit-scrollbar-thumb {
-    background: #cbd5e1; 
-    border-radius: 4px;
-  }
-  &::-webkit-scrollbar-thumb:hover {
-    background: #94a3b8; 
-  }
+  max-width: 1400px;
+  margin: 0 auto;
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: 320px;
 }
 
-/* 2. ให้ตารางขยายตามเนื้อหาจริง */
+.fundinfo-scope .fund-results-table::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.fundinfo-scope .fund-results-table::-webkit-scrollbar-track {
+  background: transparent; 
+}
+.fundinfo-scope .fund-results-table::-webkit-scrollbar-thumb {
+  background: #cbd5e1; 
+  border-radius: 4px;
+}
+.fundinfo-scope .fund-results-table::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8; 
+}
+
 .fundinfo-scope .fund-results-table table { 
-  width: 100%; 
+  width: 90%;
   min-width: 1200px; 
   table-layout: auto; 
-  font-size: 9px; 
+  font-size: 11px;
+  margin: 0 auto; 
 }
 
 .fundinfo-scope .fund-results-table th { 
@@ -768,23 +775,22 @@
   font-weight: 500; 
   white-space: nowrap;
 }
-.fundinfo-scope .fund-results-table th.sortable { cursor: pointer; }
-.fundinfo-scope .fund-results-table th .sort-arrow { margin-left: 3px; font-size: 7px; color: var(--sub); opacity: .45; }
-.fundinfo-scope .fund-results-table th .sort-arrow.active { color: var(--brand); opacity: 1; }
-
+.fundinfo-scope .fund-results-table th.sortable,
 .fundinfo-scope th.sortable { cursor: pointer; }
-.fundinfo-scope th .sort-arrow { margin-left: 3px; font-size: 7px; color: var(--sub); opacity: .45; }
+
+.fundinfo-scope .fund-results-table th .sort-arrow,
+.fundinfo-scope th .sort-arrow { margin-left: 3px; font-size: 9px; color: var(--sub); opacity: .45; }
+
+.fundinfo-scope .fund-results-table th .sort-arrow.active,
 .fundinfo-scope th .sort-arrow.active { color: var(--brand); opacity: 1; }
-/* 3. ไม่ตัดคำ แสดงข้อความเต็มแถว */
+
 .fundinfo-scope .fund-results-table td { 
-  padding: 7px 6px; 
+  padding: 13px 14px; 
   color: var(--txt); 
   text-overflow: unset; 
   vertical-align: middle; 
-  white-space: nowrap; 
+  white-space: nowrap;
 }
-
-/* ลบ :nth-child ออกเพื่อให้คลาส text-right / text-center ใน Vue ทำงานถูกต้อง */
 
 .fundinfo-scope .fund-results-table tbody tr + tr td { border-top: 1px solid var(--line); }
 .fundinfo-scope .fund-results-table tbody tr:hover { background: var(--surf2); }
@@ -792,8 +798,8 @@
 .fundinfo-scope .fund-results-table .fund-result-row.selected { background: #f1f7ff; box-shadow: inset 3px 0 0 var(--brand); }
 .fundinfo-scope .fund-results-table .fund-result-row.wishlist-focus { scroll-margin-top: 96px; background: #fff7db; box-shadow: inset 3px 0 0 #f0b429; }
 .fundinfo-scope .fund-results-table .fund-result-row:focus-visible { box-shadow: inset 0 0 0 2px var(--brand); }
-.fundinfo-scope .fund-results-table .badge { padding: 2px 5px; font-size: 8px; }
-.fundinfo-scope .fund-results-table .fund-amc-mark { min-width: 22px; width: 22px; height: 22px; border-radius: 6px; font-size: 7px; }
+.fundinfo-scope .fund-results-table .badge { padding: 2px 5px; font-size: 10px; }
+.fundinfo-scope .fund-results-table .fund-amc-mark { min-width: 22px; width: 22px; height: 22px; border-radius: 6px; font-size: 9px; }
 .fundinfo-scope .fund-results-table .fund-amc-mark.kasikorn { background: #079ab4; }
 .fundinfo-scope .fund-results-table .fund-amc-mark.kkp { background: #1671ca; }
 .fundinfo-scope .fund-results-table .fund-amc-mark.scb { background: #e5a800; color: #fff; }
@@ -803,24 +809,35 @@
 .fundinfo-scope .fund-results-table .comparison-marker.active { background: var(--brand); box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand) 18%, transparent); }
 .fundinfo-scope .fund-results-table .text-brand { color: var(--brand); }
 .fundinfo-scope .fund-results-empty { padding: 18px !important; color: var(--sub) !important; text-align: center; }
-.fundinfo-scope .fund-results-footnote { margin: 17px 0 0; color: var(--sub); font-size: 8px; text-align: center; }
+.fundinfo-scope .fund-results-footnote { margin: 17px 0 0; color: var(--sub); font-size: 10px; text-align: center; }
 
-.fundinfo-scope .fund-matrix { margin-top: 15px; border: 1px solid var(--line); }
+.fundinfo-scope .fund-matrix { 
+  margin: 15px auto 0;
+  max-width: 1400px;
+  border: 1px solid var(--line); 
+}
 .fundinfo-scope .fund-matrix-heading { display: flex; align-items: center; justify-content: space-between; min-height: 27px; padding: 0 9px; background: #8491a8; color: #fff; }
-.fundinfo-scope .fund-matrix-title, .fundinfo-scope .fund-matrix-clear { border: 0; background: transparent; color: inherit; font-size: 9px; font-weight: 800; }
+.fundinfo-scope .fund-matrix-title, .fundinfo-scope .fund-matrix-clear { border: 0; background: transparent; color: inherit; font-size: 14px; font-weight: 800; }
 .fundinfo-scope .fund-matrix-title span { display: inline-block; margin-right: 3px; transition: transform .15s ease; }
 .fundinfo-scope .fund-matrix-title span.collapsed { transform: rotate(-90deg); }
-.fundinfo-scope .fund-matrix-clear { color: rgba(255,255,255,.86); font-size: 8px; }
-.fundinfo-scope .fund-matrix-table { width: 100%; min-width: 620px; border-collapse: collapse; background: var(--surf); font-size: 9px; }
+.fundinfo-scope .fund-matrix-clear { color: rgba(255,255,255,.86); font-size: 14px; }
+.fundinfo-scope .fund-matrix-table { 
+  width: 100%;
+  max-width: 100%; 
+  min-width: 620px; 
+  border-collapse: collapse; 
+  background: var(--surf); 
+  font-size: 14px; 
+}
 .fundinfo-scope .fund-matrix-table th, .fundinfo-scope .fund-matrix-table td { padding: 6px 9px; text-align: left; vertical-align: top; }
 .fundinfo-scope .fund-matrix-table thead { background: var(--surf2); }
-.fundinfo-scope .fund-matrix-table thead th { position: relative; min-width: 180px; color: var(--txt); font-size: 9px; }
+.fundinfo-scope .fund-matrix-table thead th { position: relative; min-width: 180px; color: var(--txt); font-size: 13px; }
 .fundinfo-scope .fund-matrix-table thead th:first-child { min-width: 125px; color: var(--sub); }
 .fundinfo-scope .fund-matrix-table thead b, .fundinfo-scope .fund-matrix-table thead small { display: block; }
-.fundinfo-scope .fund-matrix-table thead small { max-width: 150px; overflow: hidden; margin-top: 2px; color: var(--sub); font-size: 8px; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
+.fundinfo-scope .fund-matrix-table thead small { max-width: 150px; overflow: hidden; margin-top: 2px; color: var(--sub); font-size: 12px; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
 .fundinfo-scope .fund-matrix-table thead button { position: absolute; top: 4px; right: 5px; border: 0; background: transparent; color: var(--sub); font-size: 12px; }
 .fundinfo-scope .fund-matrix-table tbody tr + tr { border-top: 1px solid var(--line); }
-.fundinfo-scope .fund-matrix-table tbody th { width: 125px; background: color-mix(in srgb, var(--surf2) 65%, var(--surf)); color: var(--sub); font-size: 8px; font-weight: 700; }
+.fundinfo-scope .fund-matrix-table tbody th { width: 125px; background: color-mix(in srgb, var(--surf2) 65%, var(--surf)); color: var(--sub); font-size: 13px; font-weight: 700; }
 .fundinfo-scope .fund-matrix-table td { color: var(--txt); font-weight: 600; }
 .fundinfo-scope .fund-matrix-table .positive { color: var(--pos); }
 .fundinfo-scope .fund-matrix-table .negative { color: var(--neg); }
@@ -832,41 +849,38 @@
   .fundinfo-scope .screener-reset { min-height: 30px; }
   .fundinfo-scope .fund-results-heading { align-items: start; }
   .fundinfo-scope .fund-results-meta { display: none; }
-  .fundinfo-scope .fund-sort-button { font-size: 7px; }
-  .fundinfo-scope .fund-results-table { overflow-x: auto; margin-top: 24px;}
+  .fundinfo-scope .fund-sort-button { font-size: 9px; }
+  .fundinfo-scope .fund-results-table { overflow-x: auto; margin-top: 24px; }
   .fundinfo-scope .fund-results-table table { min-width: 720px; table-layout: auto; }
-}
-
-@media (max-width: 767px) {
   .fundinfo-scope .comparison-heading { display: grid; }
   .fundinfo-scope .comparison-grid { grid-template-columns: 1fr; }
   .fundinfo-scope .comparison-chart { height: 240px; }
   .fundinfo-scope .comparison-list { max-height: none; }
 }
 
-/* Offshore industry workspace (the second Offshore analysis mode). */
+/* Offshore industry workspace */
 .fundinfo-scope .industry-analysis { color: var(--txt); }
-.fundinfo-scope .industry-eyebrow { margin: 0 0 7px; color: var(--sub); font-size: 10px; font-weight: 800; }
+.fundinfo-scope .industry-eyebrow { margin: 0 0 7px; color: var(--sub); font-size: 11px; font-weight: 800; }
 .fundinfo-scope .industry-workspace { overflow: visible; border: 0; border-radius: 0; padding: 0; background: transparent; box-shadow: none; }
 .fundinfo-scope .industry-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  padding: 12px 20px; /* เพิ่ม Padding บน-ล่าง 16px และ ซ้าย-ขวา 20px */
+  padding: 12px 20px;
 }
 
 .fundinfo-scope .industry-header h2 {
   font-size: 16px;
   font-weight: 700;
   line-height: 1.3;
-  color: #64748b; /* สีน้ำเงินเทาเข้มสำหรับหัวข้อหลัก */
+  color: #64748b;
 }
 
 .fundinfo-scope .industry-header p {
   margin-top: 4px;
-  font-size: 12px; /* ขยายจาก 8px ให้ขนาดสมดุลกับหัวข้อแบบในรูป */
-  color: #6b7280; /* เปลี่ยนเป็นสีเทากลางสบายตา */
+  font-size: 12px;
+  color: #6b7280;
   line-height: 1.4;
   font-weight: 400;
 }
@@ -905,14 +919,14 @@
   box-shadow: 0 2px 8px rgba(2, 132, 199, 0.35);
 }
 
-/* 2) ปุ่ม "ล้างทั้งหมด" ใช้ดีไซน์เดียวกับ theme-clear-btn */
 .fundinfo-scope .industry-clear {
   border: 0;
   background: transparent;
   color: var(--txt);
   font-family: 'Prompt', sans-serif;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
+  padding: 4px 6px;
   cursor: pointer;
   margin-left: 4px;
   transition: color 0.2s;
@@ -920,6 +934,7 @@
 .fundinfo-scope .industry-clear:hover {
   color: var(--brand);
 }
+
 .fundinfo-scope .industry-kpis {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -935,21 +950,21 @@
   padding: 0 10px;
   background: transparent;
   color: var(--txt);
-  text-align: center; /* จัดให้อยู่กึ่งกลางตามภาพ */
+  text-align: center;
 }
 .fundinfo-scope .industry-kpis > * + * {
   border-left: 1px solid var(--line);
 }
 .fundinfo-scope .industry-kpis span {
   display: block;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--sub);
   margin-bottom: 8px;
 }
 .fundinfo-scope .industry-kpis strong {
   display: block;
-  font-size: 16px; /* ขยายขนาดตัวเลขให้เด่นขึ้น */
+  font-size: 22px;
   font-weight: 800;
   margin: 6px 0;
   overflow: hidden;
@@ -958,14 +973,14 @@
 }
 .fundinfo-scope .industry-kpis small {
   display: block;
-  font-size: 9px;
+  font-size: 12px;
   color: var(--sub);
 }
-.fundinfo-scope .industry-kpis .kpi-blue {color: #2456d8;}
-.fundinfo-scope .industry-kpis .kpi-green {color: #0e9f6e;}
+.fundinfo-scope .industry-kpis .kpi-blue { color: #2456d8; }
+.fundinfo-scope .industry-kpis .kpi-green { color: #0e9f6e; }
 .fundinfo-scope .industry-kpis .kpi-violet { color: #7557e8; }
 .fundinfo-scope .industry-kpis .kpi-amber { color: #d99d09; }
-.fundinfo-scope .industry-method { display: flex; gap: 7px; margin-top: 8px; padding: 0; background: transparent; color: var(--sub); font-size: 7px; line-height: 1.4; }
+.fundinfo-scope .industry-method { display: flex; gap: 7px; margin-top: 8px; padding: 0; background: transparent; color: var(--sub); font-size: 9px; line-height: 1.4; }
 .fundinfo-scope .industry-method b { flex: none; color: #1083bd; font-weight: 800; }
 .fundinfo-scope .industry-cards { display: none; }
 .fundinfo-scope .industry-card { min-width: 0; overflow: hidden; border: 1px solid #e1e8f2; border-radius: 10px; padding: 9px; background: #fff; color: var(--txt); text-align: left; transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease; }
@@ -974,73 +989,120 @@
 .fundinfo-scope .industry-card-title { display: flex; align-items: flex-start; gap: 7px; min-height: 35px; }
 .fundinfo-scope .industry-card-icon { display: inline-flex; width: 26px; height: 26px; align-items: center; justify-content: center; flex: none; border-radius: 8px; background: #f2f6fb; font-size: 13px; }
 .fundinfo-scope .industry-card-title > div { min-width: 0; }
-.fundinfo-scope .industry-card-title small, .fundinfo-scope .industry-card-title p { display: block; overflow: hidden; color: var(--sub); font-size: 7px; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
-.fundinfo-scope .industry-card-title h3 { overflow: hidden; margin: 1px 0 2px; font-size: 10px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
-.fundinfo-scope .industry-order { display: inline-flex; width: 17px; height: 17px; align-items: center; justify-content: center; flex: none; margin-left: auto; border-radius: 50%; background: var(--scope-color); color: #fff; font: 800 9px/1 Inter, sans-serif; }
+.fundinfo-scope .industry-card-title small, .fundinfo-scope .industry-card-title p { display: block; overflow: hidden; color: var(--sub); font-size: 9px; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
+.fundinfo-scope .industry-card-title h3 { overflow: hidden; margin: 1px 0 2px; font-size: 11px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+.fundinfo-scope .industry-order { display: inline-flex; width: 17px; height: 17px; align-items: center; justify-content: center; flex: none; margin-left: auto; border-radius: 50%; background: var(--scope-color); color: #fff; font: 800 11px/1 Inter, sans-serif; }
 .fundinfo-scope .industry-card-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
 .fundinfo-scope .industry-card-metrics div { border-radius: 6px; padding: 5px 6px; background: #f4f7fb; }
-.fundinfo-scope .industry-card-metrics small, .fundinfo-scope .industry-weight span { display: block; color: var(--sub); font-size: 7px; }
-.fundinfo-scope .industry-card-metrics b { display: block; margin-top: 1px; font: 800 10px/1.2 Inter, sans-serif; }
+.fundinfo-scope .industry-card-metrics small, .fundinfo-scope .industry-weight span { display: block; color: var(--sub); font-size: 9px; }
+.fundinfo-scope .industry-card-metrics b { display: block; margin-top: 1px; font: 800 11px/1.2 Inter, sans-serif; }
 .fundinfo-scope .is-positive { color: var(--pos) !important; }
 .fundinfo-scope .is-negative { color: var(--neg) !important; }
 .fundinfo-scope .industry-weight { display: flex; align-items: baseline; gap: 4px; margin-top: 8px; }
 .fundinfo-scope .industry-weight strong { font: 800 12px/1 Inter, sans-serif; }
-.fundinfo-scope .industry-weight em { margin-left: auto; color: var(--scope-color); font-size: 7px; font-style: normal; font-weight: 700; white-space: nowrap; }
+.fundinfo-scope .industry-weight em { margin-left: auto; color: var(--scope-color); font-size: 9px; font-style: normal; font-weight: 700; white-space: nowrap; }
 .fundinfo-scope .industry-card:not(.selected) .industry-weight em { display: none; }
 .fundinfo-scope .industry-progress { height: 4px; overflow: hidden; margin-top: 5px; border-radius: 999px; background: #e9eff7; }
 .fundinfo-scope .industry-progress i { display: block; height: 100%; border-radius: inherit; background: var(--scope-color); }
 .fundinfo-scope .industry-taxonomy-note { display: none; }
-.fundinfo-scope .industry-selection-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+.fundinfo-scope .industry-selection-row {
+  grid-column: 1 / -1;
+  width: 100%;
+  justify-content: flex-start;
+}
 .fundinfo-scope .industry-selection-row > span { margin-right: 2px; color: var(--sub); font-size: 12px; font-weight: 800; }
 .fundinfo-scope .industry-scope-options { display: flex; min-width: 0; flex: 1 1 470px; flex-wrap: wrap; gap: 5px; }
-.fundinfo-scope .industry-scope-toggle { display: inline-flex; align-items: center; gap: 4px; border: 1px solid #dfe6f0; border-radius: 999px; padding: 4px 8px; background: #f3f6fa; color: #8a98ad; font: 800 8px/1.2 'Prompt', sans-serif; transition: background-color .15s ease, border-color .15s ease, color .15s ease, transform .15s ease; }
-.fundinfo-scope .industry-scope-toggle i { display: inline-flex; width: 11px; height: 11px; align-items: center; justify-content: center; border: 1px solid #c6d1df; border-radius: 3px; color: transparent; font: 900 8px/1 Inter, sans-serif; }
+.fundinfo-scope .industry-scope-toggle { display: inline-flex; align-items: center; gap: 4px; border: 1px solid #dfe6f0; border-radius: 999px; padding: 4px 8px; background: #f3f6fa; color: #8a98ad; font: 800 12px/1.2 'Prompt', sans-serif; transition: background-color .15s ease, border-color .15s ease, color .15s ease, transform .15s ease; }
+.fundinfo-scope .industry-scope-toggle i { display: inline-flex; width: 11px; height: 11px; align-items: center; justify-content: center; border: 1px solid #c6d1df; border-radius: 3px; color: transparent; font: 900 10px/1 Inter, sans-serif; }
 .fundinfo-scope .industry-scope-toggle:hover:not(:disabled) { border-color: var(--scope-color); color: var(--scope-color); transform: translateY(-1px); }
 .fundinfo-scope .industry-scope-toggle.selected { border-color: var(--scope-color); background: var(--scope-color); color: #fff; box-shadow: 0 2px 5px color-mix(in srgb, var(--scope-color) 28%, transparent); }
 .fundinfo-scope .industry-scope-toggle.selected i { border-color: #fff; background: #fff; color: var(--scope-color); }
 .fundinfo-scope .industry-scope-toggle:disabled { cursor: not-allowed; opacity: .58; }
-.fundinfo-scope .industry-clear { border: 0; padding: 4px 6px; background: transparent; color: var(--sub); font-size: 8px; font-weight: 800; }
-.fundinfo-scope .industry-compare { display: grid; grid-template-columns: minmax(0, 3fr) minmax(220px, 1fr); align-items: start; gap: 28px; margin-top: 10px; }
+
+.fundinfo-scope .industry-compare {
+  display: block; /* เปลี่ยนจาก grid เป็น block เพื่อให้ Panel ด้านในยืดเต็มความกว้าง */
+  width: 100%;
+  max-width: 1850px; /* ยืดออกเป็น 1850px ตามที่ต้องการ */
+  margin: 10px auto 0;
+}
+.fundinfo-scope .industry-chart-with-list-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 16px; /* ระยะห่างระหว่างกราฟกับ list สามารถปรับเพิ่ม-ลดได้ */
+  width: 68%;
+  margin: 0 auto;
+}
 .fundinfo-scope .industry-chart-panel, .fundinfo-scope .industry-chart-list { border: 0; border-radius: 0; background: transparent; }
 .fundinfo-scope .industry-chart-panel { padding: 0; }
-.fundinfo-scope .industry-chart-title { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-.fundinfo-scope .industry-chart-title b { font-size: 10px; font-weight: 800; }
-/* แยก industry-chart-title span ไว้เหมือนเดิม */
-.fundinfo-scope .industry-chart-title span { color: var(--sub); font-size: 7px; }
+.fundinfo-scope .industry-chart-title { 
+  display: flex; 
+  justify-content: start;
+  align-items: baseline; 
+  gap: 8px; 
+}
+
+.fundinfo-scope .industry-chart-title b { 
+  font-size: 11px; 
+  font-weight: 800; 
+}
+
+.fundinfo-scope .industry-chart-title span { 
+  color: var(--sub); 
+  font-size: 9px; 
+}
 .fundinfo-scope .industry-main-title {
   font-weight: 800; 
   margin-top: 24px;
   margin-bottom: 24px;
+  font-size: 24px;
 }
-/* จัดกึ่งกลาง และปรับขนาดฟอนต์ให้ตรงกับดีไซน์ */
+
 .fundinfo-scope .industry-benchmark { 
   display: flex; 
   align-items: center; 
-  justify-content: center; /* จัดให้อยู่ตรงกลางตามรูป */
+  justify-content: center;
   gap: 6px; 
-  margin-bottom: 16px; /* ขยับเว้นระยะจากกราฟด้านล่าง */
+  margin-bottom: 16px;
   color: var(--sub); 
-  font-size: 11px; 
+  font-size: 12px; 
+  align-self: start;
 }
 
-/* เปลี่ยนจาก i เป็น .dashed-line ตามที่แก้ใน HTML */
 .fundinfo-scope .industry-benchmark .dashed-line { 
   color: #9aa9bd; 
   letter-spacing: 2px; 
   font-weight: 800; 
+  font-size: 14px;
 }
 
 .fundinfo-scope .industry-benchmark b { 
   color: var(--txt); 
-  font-weight: 800; 
+  font-weight: 800;
+  font-size: 14px; 
 }
-.fundinfo-scope .industry-chart { height: 218px; margin-top: 7px; }
-.fundinfo-scope .industry-chart-list { max-height: 350px; overflow: hidden; padding: 0; align-self: center; }
+.fundinfo-scope .industry-chart {
+  flex: 1; /* ให้กราฟยืดขยายเต็มพื้นที่ที่เหลือ */
+  width: 70%;
+  max-width: none; /* ยกเลิกการจำกัดความกว้าง 800px เดิม */
+  height: 360px;
+  max-height: none;
+  margin: 0 auto;
+}
+
+.fundinfo-scope .industry-chart-list {
+  width: 320px; /* กำหนดความกว้างของ List ฝั่งขวา */
+  flex: none;
+  max-height: 350px;
+  overflow: hidden;
+  padding: 0;
+  align-self: center;
+}
 .fundinfo-scope .industry-chart-list-toggle { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 8px; border: 0; padding: 0 0 7px; background: transparent; color: var(--txt); text-align: left; }
 .fundinfo-scope .industry-chart-list-toggle span { min-width: 0; }
 .fundinfo-scope .industry-chart-list-toggle b, .fundinfo-scope .industry-chart-list-toggle small { display: block; }
-.fundinfo-scope .industry-chart-list-toggle b { font-size: 14px; font-weight: 800; }
-.fundinfo-scope .industry-chart-list-toggle small { overflow: hidden; margin-top: 2px; color: var(--sub); font-size: 7px; text-overflow: ellipsis; white-space: nowrap; }
+.fundinfo-scope .industry-chart-list-toggle b { font-size: 16px; font-weight: 800; }
+.fundinfo-scope .industry-chart-list-toggle small { overflow: hidden; margin-top: 2px; color: var(--sub); font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
 .fundinfo-scope .industry-chart-list-toggle > i { display: inline-block; flex: none; color: var(--sub); font-size: 13px; font-style: normal; transition: transform .15s ease; }
 .fundinfo-scope .industry-chart-list-toggle > i.open { transform: rotate(180deg); }
 .fundinfo-scope .industry-chart-list-scroll { max-height: 243px; overflow-y: auto; padding: 0; scrollbar-color: #c4d2e4 transparent; scrollbar-width: thin; }
@@ -1048,11 +1110,18 @@
 .fundinfo-scope .industry-chart-list-scroll::-webkit-scrollbar-thumb { border-radius: 999px; background: #c4d2e4; }
 .fundinfo-scope .industry-chart-list article { margin: 0; border: 0; border-bottom: 1px solid var(--line); border-left: 3px solid var(--scope-color); border-radius: 0; padding: 8px 0 8px 8px; background: transparent; }
 .fundinfo-scope .industry-chart-list article:last-child { border-bottom-color: transparent; }
-.fundinfo-scope .industry-chart-list article > b { display: block; overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.fundinfo-scope .industry-chart-list article > b { display: block; overflow: hidden; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
 .fundinfo-scope .industry-chart-list article > b i { display: inline-block; width: 8px; margin-right: 4px; border-top: 2px solid var(--scope-color); vertical-align: middle; }
-.fundinfo-scope .industry-chart-list article > small { display: block; margin-top: 1px; color: var(--sub); font-size: 7px; }
-.fundinfo-scope .industry-chart-list article > div { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; margin-top: 5px; color: var(--sub); font-size: 6px; }
-.fundinfo-scope .industry-chart-list article strong { display: block; color: var(--txt); font: 800 7px/1.3 Inter, sans-serif; }
+.fundinfo-scope .industry-chart-list article > small { display: block; margin-top: 1px; color: var(--sub); font-size: 11px; }
+.fundinfo-scope .industry-chart-list article > div {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 5px;
+  color: var(--sub);
+  font-size: 11px;
+}
+.fundinfo-scope .industry-chart-list article strong { display: block; color: var(--txt); font: 800 9px/1.3 Inter, sans-serif; }
 
 @media (max-width: 767px) {
   .fundinfo-scope .industry-header { display: grid; }
@@ -1064,22 +1133,18 @@
   .fundinfo-scope .industry-chart-title { display: grid; }
 }
 
-/* --------------------------------------------------------------------------
-   Workspace refinement — mirrors the clean, compact Fundinfo reference board.
-   -------------------------------------------------------------------------- */
+/* Workspace refinement */
 .fundinfo-scope main { background: #fff; }
 .fundinfo-scope > main > header {
   min-height: 44px;
-  padding-top: 5px;
-  padding-bottom: 5px;
   background: rgba(255, 255, 255, .96);
 }
-.fundinfo-scope > main > header .max-w-\[1120px\] { max-width: 75%; }
+.fundinfo-scope > main > header .max-w-\[1120px\] { max-width: 100%; box-sizing: border-box; }
 .fundinfo-scope > main > header .w-7 { width: 25px; height: 25px; }
 .fundinfo-scope > main > header .h-10 { height: 30px; min-width: 30px; }
 .fundinfo-scope > main > header .w-9 { width: 30px; height: 30px; }
 .fundinfo-scope > main > header .px-3 { padding-left: 10px; padding-right: 10px; }
-.fundinfo-scope > main > header .py-1\.5 { padding-top: 5px; padding-bottom: 5px; }
+.fundinfo-scope > main > header .py-1\.5 { padding-top: 5px; padding-bottom: 5px; font-size: 16px; }
 .fundinfo-scope > main > div {
   width: 100%;
   max-width: 100%;
@@ -1087,28 +1152,16 @@
   padding-bottom: 48px;
   box-sizing: border-box;
 }
-.fundinfo-scope .fund-workspace { 
-  width: 100%;
-  max-width: 75%;
-  padding-top: 24px;
-  padding-bottom: 48px;
-  box-sizing: border-box; 
-}
-.fundinfo-scope .fund-workspace.space-y-9 > :not([hidden]) ~ :not([hidden]) { margin-top: 24px; }
-.fundinfo-scope .fund-page-title h1 { font-size: 31px; letter-spacing: -.04em; }
-.fundinfo-scope .fund-page-title p { font-size: 12px; }
 
 .fundinfo-scope .theme-analysis { border-top: 0; color: var(--txt); }
 
-/* Wrapper จัดตำแหน่งหัวข้อให้อยู่ซ้าย และ Summary Chips อยู่ขวา */
 .fundinfo-scope .theme-analysis-heading-wrapper {
   display: flex;
   justify-content: space-between;
-  align-items: flex-end; /* ให้ฐานตัวอักษรอยู่ระดับเดียวกัน */
+  align-items: flex-end;
   gap: 16px;
 }
 
-/* ส่วนที่ 1: หัวข้อหลัก */
 .fundinfo-scope .theme-analysis-heading { 
   display: flex; 
   flex-direction: column; 
@@ -1119,7 +1172,7 @@
 }
 .fundinfo-scope .theme-analysis-heading h2 { 
   margin: 0; 
-  font-size: 22px; 
+  font-size: 24px; 
   font-weight: 800; 
   color: var(--txt); 
   line-height: 1.2;
@@ -1127,10 +1180,9 @@
 .fundinfo-scope .theme-analysis-heading p { 
   margin: 0; 
   color: var(--sub); 
-  font-size: 11px; 
+  font-size: 12px; 
 }
 
-/* ปุ่มสรุป (ชิดขวา + เอาเส้นขอบเทาออก) */
 .fundinfo-scope .theme-summary { 
   display: flex; 
   gap: 6px; 
@@ -1143,7 +1195,7 @@
   padding: 5px 10px; 
   background: var(--surf2); 
   color: var(--sub); 
-  font-size: 10px; 
+  font-size: 11px; 
   white-space: nowrap; 
 }
 .fundinfo-scope .theme-summary b { 
@@ -1163,10 +1215,10 @@
   display: flex;
   flex-direction: column;
   gap: 3px;
-  padding-left: 24px;
+  padding-left: 0px;
 }
 .fundinfo-scope .theme-instruction-text h2 {
-  margin: 0;
+  margin-left: 23px;
   font-size: 16px;
   font-weight: 700;
   color: #64748b;
@@ -1175,7 +1227,7 @@
 .fundinfo-scope .theme-instruction-text p {
   margin: 0;
   color: #8a98ad;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.4;
 }
 .fundinfo-scope .theme-view-switch-container {
@@ -1187,7 +1239,7 @@
 
 .fundinfo-scope .theme-view-label {
   color: #8a98ad;
-  font-size: 13px; /* ปรับขนาดข้อความคำว่า "มุมมอง:" */
+  font-size: 13px;
   font-weight: 600;
 }
 
@@ -1201,11 +1253,11 @@
 .fundinfo-scope .theme-view-switch button {
   border: 0;
   border-radius: 10px;
-  padding: 8px 18px; /* เพิ่ม Padding บน-ล่างเป็น 8px เพื่อให้อวบเท่า Offshore */
+  padding: 8px 18px;
   background: transparent;
   color: #1e293b;
   font-family: 'Prompt', sans-serif;
-  font-size: 13px; /* ปรับขนาดตัวอักษรปุ่มเพิ่มเป็น 13px */
+  font-size: 13px;
   font-weight: 700;
   cursor: pointer;
   transition: all 0.2s ease-in-out;
@@ -1216,36 +1268,30 @@
   color: #ffffff;
   box-shadow: 0 2px 8px rgba(2, 132, 199, 0.35);
 }
-/* ==========================================
-   1. Theme Toolbar (รวมโค้ดที่ซ้ำกัน และเพิ่ม padding-left)
-   ========================================== */
+
 .fundinfo-scope .theme-toolbar { 
   display: flex; 
-  align-items: center; /* ใช้ center ตามบรรทัดที่สองของคุณ */
+  align-items: center; 
   justify-content: space-between; 
   gap: 16px; 
   margin-top: 15px; 
   padding-top: 10px; 
-  padding-left: 24px; /* <--- เพิ่มย่อหน้าขอบซ้ายให้ตรงกับด้านบน */
+  padding-left: 0px; 
   border-top: 1px solid var(--line); 
 }
 
-.fundinfo-scope .theme-toolbar b { display: block; font-size: 11px; font-weight: 800; color: #64748b;}
-.fundinfo-scope .theme-toolbar small { display: block; margin-top: 2px; color: var(--sub); font-size: 8px; }
+.fundinfo-scope .theme-toolbar b { display: block; font-size: 14px; font-weight: 800; color: #64748b; }
+.fundinfo-scope .theme-toolbar small { display: block; margin-top: 2px; color: var(--sub); font-size: 10px; }
 
-/* ==========================================
-   Theme Selector & Selection Wrapper
-   ========================================== */
 .fundinfo-scope .theme-selector { 
   display: flex; 
-  align-items: flex-start; /* ปรับให้เกาะขอบบน กรณี Search bar อยู่คู่กับกล่องฝั่งขวา */
+  align-items: flex-start; 
   gap: 12px; 
   margin-top: 10px; 
   min-height: 28px; 
-  padding-left: 24px; 
+  padding-left: 0px; 
 }
 
-/* Wrapper ครอบ Chips และ Text จุดอ้างอิง */
 .fundinfo-scope .theme-selection-wrapper {
   display: flex;
   flex-direction: column;
@@ -1253,7 +1299,6 @@
   width: 100%;
 }
 
-/* แถวบรรทัดที่แสดง Chips */
 .fundinfo-scope .theme-chips-container {
   display: flex;
   align-items: center;
@@ -1261,20 +1306,18 @@
   flex-wrap: wrap;
 }
 
-/* Label: ธีมที่เลือก x/5: */
 .fundinfo-scope .theme-selected-label {
   color: var(--sub);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
 }
 
-/* ปุ่มล้างทั้งหมด แบบใหม่ */
 .fundinfo-scope .theme-clear-btn {
   border: 0;
   background: transparent;
   color: var(--txt);
   font-family: 'Prompt', sans-serif;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   cursor: pointer;
   margin-left: 4px;
@@ -1285,19 +1328,21 @@
   color: var(--brand);
 }
 
-/* ข้อความจุดอ้างอิงด้านล่าง */
 .fundinfo-scope .theme-benchmark-text {
   color: var(--sub);
-  font-size: 10px;
+  font-size: 12px;
   font-family: 'Prompt', sans-serif;
   display: flex;
   align-items: center;
   gap: 6px;
+  margin: 0 auto;
+  margin-top: 10px;
 }
 
 .fundinfo-scope .theme-benchmark-text b {
   color: var(--txt);
   font-weight: 700;
+  font-size: 14px;
 }
 
 .fundinfo-scope .theme-benchmark-text .dashed-line {
@@ -1315,35 +1360,43 @@
   padding: 6px 9px;
   background: var(--surf2);
   color: var(--sub);
-  margin-left: auto; /* เพิ่มบรรทัดนี้เพื่อดันองค์ประกอบไปชิดขวาสุด */
+  margin-left: auto;
 }
-.fundinfo-scope .theme-search input { width: 100%; border: 0; outline: 0; background: transparent; color: var(--txt); font: 9px 'Prompt', sans-serif; }
+.fundinfo-scope .theme-search input { width: 100%; border: 0; outline: 0; background: transparent; color: var(--txt); font: 11px 'Prompt', sans-serif; }
 .fundinfo-scope .theme-search input::placeholder { color: #a0aec0; }
 .fundinfo-scope .theme-chips { display: flex; min-width: 0; flex-wrap: wrap; gap: 8px; }
 .fundinfo-scope .theme-chip { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px; background: var(--surf); color: var(--sub); font: 800 12px/1 'Prompt', sans-serif; }
 .fundinfo-scope .theme-chip:hover:not(:disabled) { border-color: var(--brand); color: var(--brand); }
 .fundinfo-scope .theme-chip.selected { border-color: var(--theme-color); background: var(--theme-color); color: #fff; }
-.fundinfo-scope .theme-chip i { display: inline-flex; width: 16px; height: 16px; align-items: center; justify-content: center; border-radius: 50%; background: rgba(255,255,255,.2); font: 800 11px/1 Inter, sans-serif; font-style: normal; }
+.fundinfo-scope .theme-chip i { display: inline-flex; width: 16px; height: 16px; align-items: center; justify-content: center; border-radius: 50%; background: rgba(255,255,255,.2); font: 800 12px/1 Inter, sans-serif; font-style: normal; }
 .fundinfo-scope .theme-chip:disabled { opacity: .45; cursor: not-allowed; }
 
-/* ==========================================
-   3. Theme Chart Grid (เพิ่ม padding-left)
-   ========================================== */
 .fundinfo-scope .theme-chart-grid { 
   display: grid; 
-  grid-template-columns: minmax(0, 3fr) minmax(230px, .9fr); 
-  gap: 20px; 
-  margin-top: 10px; 
-  padding-left: 24px; /* <--- เพิ่มย่อหน้าขอบซ้าย */
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 360px); 
+  align-items: stretch; 
+  gap: 10px; 
+  margin: 10px auto 0; 
+  max-width: 1300px;
+  padding-left: 0;
+  padding-right: 24px;
+  box-sizing: border-box;
 }
 
-.fundinfo-scope .theme-chart-panel { height: 260px; min-width: 0; }
+.fundinfo-scope .theme-chart-panel { 
+  height: 100%;
+  min-height: 360px;
+  max-height: none;
+  min-width: 0;
+   
+}
 
 .fundinfo-scope .theme-chart-list {
   padding-top: 4px;
   display: flex;
   flex-direction: column;
-  max-height: 260px;
+  height: 100%;
+  max-height: none;
   overflow: hidden;
 }
 
@@ -1353,16 +1406,15 @@
   color: var(--txt);
 }
 
-/* คำอธิบายใต้หัวข้อ "กลุ่มในกราฟ" */
 .fundinfo-scope .theme-chart-list > p {
   margin: 0 0 12px;
   color: var(--sub);
-  font: 400 11px/1.45 'Prompt', sans-serif;
+  font: 400 12px/1.45 'Prompt', sans-serif;
 }
 
-/* ส่วนที่เพิ่มใหม่สำหรับทำ Scrollbar */
 .fundinfo-scope .theme-chart-list-scroll {
-  max-height: 230px;
+  flex: 1;
+  max-height: none;
   overflow-y: auto;
   padding-right: 4px;
   scrollbar-color: var(--border-strong) transparent;
@@ -1383,7 +1435,6 @@
 .fundinfo-scope .theme-chart-list article:first-child { padding-top: 2px; }
 .fundinfo-scope .theme-chart-list article:last-child { border-bottom-color: transparent; }
 
-/* ชื่อกลุ่ม พร้อมจุดสีตามเส้นกราฟ (แทนเส้นขอบซ้ายแบบเดิม) */
 .fundinfo-scope .theme-chart-list b {
   display: flex;
   align-items: center;
@@ -1402,7 +1453,6 @@
   background: var(--theme-color);
 }
 
-/* หมวดหมู่ย่อย เช่น Healthcare & Biotech */
 .fundinfo-scope .theme-chart-list small {
   display: block;
   margin: 3px 0 0 21px;
@@ -1410,7 +1460,6 @@
   font: 500 12px/1.35 'Prompt', sans-serif;
 }
 
-/* แถวตัวเลข 1Y / vs Global / น้ำหนัก */
 .fundinfo-scope .theme-chart-list-metrics {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1421,7 +1470,7 @@
   display: block;
   margin-bottom: 3px;
   color: var(--sub);
-  font: 600 10px/1.2 'Prompt', sans-serif;
+  font: 600 11px/1.2 'Prompt', sans-serif;
   font-style: normal;
   white-space: nowrap;
 }
@@ -1429,12 +1478,11 @@
   display: block;
   font: 800 15px/1.2 'Inter', sans-serif;
   font-feature-settings: 'tnum';
-  /* ไม่กำหนด color ที่นี่ เพื่อให้ .text-pos / .text-neg ทับสีได้ */
 }
 
 .fundinfo-scope .theme-chart-list strong { color: var(--pos); font-family: 'Inter', sans-serif; }
 
-.fundinfo-scope .theme-clear { float: right; margin-top: 4px; border: 0; background: transparent; color: var(--sub); font: 800 8px 'Prompt', sans-serif; }
+.fundinfo-scope .theme-clear { float: right; margin-top: 4px; border: 0; background: transparent; color: var(--sub); font: 800 10px 'Prompt', sans-serif; }
 
 @media (max-width: 767px) {
   .fundinfo-scope > main > div { padding-top: 18px; }
@@ -1450,7 +1498,7 @@
   .fundinfo-scope .theme-chart-list-scroll { max-height: 320px; }
 }
 
-/* Expandable fund-result rows ------------------------------------------------ */
+/* Expandable fund-result rows */
 .fundinfo-scope .fund-row-plus {
   display: inline-flex;
   width: 22px;
@@ -1477,25 +1525,25 @@
 .fundinfo-scope .fund-results-table .fund-result-row.expanded { background: #f7faff; box-shadow: inset 3px 0 0 var(--brand); }
 .fundinfo-scope .fund-detail-row > td { padding: 0 !important; white-space: normal !important; }
 .fundinfo-scope .fund-detail-row { background: #f7faff; }
-.fundinfo-scope .fund-detail-grid { display: grid; grid-template-columns: minmax(180px, .9fr) minmax(230px, 1fr) minmax(230px, 1fr); gap: 20px; padding: 14px 16px 16px 48px; border-top: 1px solid var(--line);align-items: stretch; }
+.fundinfo-scope .fund-detail-grid { display: grid; grid-template-columns: minmax(180px, .9fr) minmax(230px, 1fr) minmax(230px, 1fr); gap: 20px; padding: 14px 16px 16px 48px; border-top: 1px solid var(--line); align-items: stretch; }
 .fundinfo-scope .fund-detail-panel { min-width: 0; }
-.fundinfo-scope .fund-detail-panel h3 { margin: 0 0 7px; color: var(--txt); font-size: 9px; font-weight: 800; }
-.fundinfo-scope .fund-detail-panel h3 small { color: var(--sub); font-size: 8px; font-weight: 400; }
-.fundinfo-scope .fund-detail-chart { height: 112px; }
+.fundinfo-scope .fund-detail-panel h3 { margin: 0 0 7px; color: var(--txt); font-size: 13px; font-weight: 800; }
+.fundinfo-scope .fund-detail-panel h3 small { color: var(--sub); font-size: 12px; font-weight: 400; }
+.fundinfo-scope .fund-detail-chart { height: 173px; }
 .fundinfo-scope .fund-detail-bars { display: grid; gap: 6px; padding-top: 3px; }
-.fundinfo-scope .fund-detail-bar { display: grid; grid-template-columns: minmax(58px, .72fr) minmax(70px, 1.25fr) 30px; align-items: center; gap: 7px; color: var(--sub); font-size: 8px; line-height: 1.15; }
+.fundinfo-scope .fund-detail-bar { display: grid; grid-template-columns: minmax(58px, .72fr) minmax(70px, 1.25fr) 30px; align-items: center; gap: 7px; color: var(--sub); font-size: 13px; line-height: 1.15; }
 .fundinfo-scope .fund-detail-bar span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fundinfo-scope .fund-detail-bar i { display: block; height: 6px; overflow: hidden; border-radius: 999px; background: #e8eef7; }
 .fundinfo-scope .fund-detail-bar i b { display: block; height: 100%; border-radius: inherit; background: var(--brand); }
-.fundinfo-scope .fund-detail-bar strong { color: var(--txt); font: 800 8px/1 Inter, sans-serif; text-align: right; }
+.fundinfo-scope .fund-detail-bar strong { color: var(--txt); font: 800 11px/1 Inter, sans-serif; text-align: right; }
 .fundinfo-scope .fund-detail-holdings .fund-detail-bar i b { background: var(--pos); }
-.fundinfo-scope .fund-detail-actions { display: grid; grid-template-columns: 1fr 1.15fr; gap: 6px; margin-top: 11px; }
-.fundinfo-scope .fund-detail-actions button { min-height: 26px; border-radius: 5px; padding: 0 8px; font: 800 8px/1 'Prompt', sans-serif; }
+.fundinfo-scope .fund-detail-actions { display: grid; grid-template-columns: 1fr 1.15fr; gap: 6px; margin-top: 24px; }
+.fundinfo-scope .fund-detail-actions button { min-height: 26px; border-radius: 5px; padding: 0 8px; font: 800 13px/1 'Prompt', sans-serif; }
 .fundinfo-scope .fund-detail-compare { border: 1px solid color-mix(in srgb, var(--brand) 35%, var(--line)); background: #fff; color: var(--brand); }
 .fundinfo-scope .fund-detail-compare.active { background: var(--brand); border-color: var(--brand); color: #fff; }
 .fundinfo-scope .fund-detail-more { border: 1px solid var(--brand); background: var(--brand); color: #fff; }
 
-/* Collapsible ranking cards -------------------------------------------------- */
+/* Collapsible ranking cards */
 .fundinfo-scope .ranking-card-title-button { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 8px; border: 0; padding: 0; background: transparent; color: var(--txt); text-align: left; }
 .fundinfo-scope .ranking-card-title-button:hover .ranking-card-title { color: var(--brand); }
 .fundinfo-scope .ranking-card-title-button.is-static { cursor: default; }
@@ -1510,39 +1558,11 @@
   .fundinfo-scope .fund-detail-chart { height: 145px; }
 }
 
-/* Mixed Fund market lens ---------------------------------------------------- */
-
+/* Mixed Fund market lens */
 .fundinfo-scope .market-lens {
   color: var(--txt);
 }
 
-.fundinfo-scope .market-lens-eyebrow {
-  margin-bottom: 8px;
-  color: var(--sub);
-  font-size: 10px;
-  font-weight: 800;
-}
-
-.fundinfo-scope .market-lens-heading {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 14px;
-}
-
-.fundinfo-scope .market-lens-heading h2 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 800;
-}
-
-.fundinfo-scope .market-lens-heading p {
-  margin: 3px 0 0;
-  color: var(--sub);
-  font-size: 9px;
-}
-
-/* === จุดที่แก้: กำหนดสไตล์ Badge ตรงนี้เพื่อให้ใช้ได้ทุกขนาดหน้าจอ === */
 .fundinfo-scope .market-lens-scope-badge {
   display: inline-flex;
   align-items: center;
@@ -1550,161 +1570,17 @@
   border-radius: 999px;
   background-color: #eff3f8;
   color: #1e293b;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   white-space: nowrap;
   flex: none;
 }
 
-/* KPIs section (ปรับสไตล์ตามตัวอย่าง) */
-.fundinfo-scope .market-lens-kpis {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 0;
-  margin-top: 24px;
-  padding-bottom: 24px;
-  border-bottom: 1px solid var(--line);
-}
-
-.fundinfo-scope .market-lens-kpis > * {
-  min-width: 0;
-  border: 0;
-  border-radius: 0;
-  padding: 0 10px;
-  background: transparent;
-  color: var(--txt);
-  text-align: center;
-}
-
-.fundinfo-scope .market-lens-kpis > * + * {
-  border-left: 1px solid var(--line);
-}
-
-.fundinfo-scope .market-lens-kpis button {
-  cursor: pointer;
-}
-
-.fundinfo-scope .market-lens-kpis span,
-.fundinfo-scope .market-lens-kpis em {
-  display: block;
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--sub);
-  margin-bottom: 8px;
-  font-style: normal;
-}
-
-.fundinfo-scope .market-lens-kpis strong {
-  display: block;
-  font-size: 16px;
-  font-weight: 800;
-  margin: 6px 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--brand);
-}
-
-.fundinfo-scope .market-lens-kpis small {
-  display: block;
-  font-size: 9px;
-  color: var(--sub);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Color Modifiers */
-.fundinfo-scope .market-lens-kpis .kpi-blue { color: #2456d8; }
-.fundinfo-scope .market-lens-kpis .kpi-green,
-.fundinfo-scope .market-lens-kpis strong.positive { color: #0e9f6e; }
-.fundinfo-scope .market-lens-kpis .kpi-violet,
-.fundinfo-scope .market-lens-kpis strong.violet { color: #7557e8; }
-.fundinfo-scope .market-lens-kpis .kpi-amber { color: #d99d09; }
-.fundinfo-scope .market-lens-kpis strong.negative { color: var(--neg); }
-
-/* Chart & Scope Details */
-.fundinfo-scope .market-lens-chart-title {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  margin-top: 10px;
-}
-
-.fundinfo-scope .market-lens-chart-title b {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  white-space: normal;
-}
-
-.fundinfo-scope .market-lens-chart-title span {
-  color: var(--sub);
-  font-size: 7px;
-}
-
-.fundinfo-scope .market-lens-chart-title i {
-  display: inline-block;
-  width: 17px;
-  margin-right: 4px;
-  border-top: 1px dashed #9aa9bd;
-  vertical-align: middle;
-}
-
-.fundinfo-scope .market-lens-chart {
-  height: 224px;
-  margin-top: 7px;
-}
-
-.fundinfo-scope .market-lens-bottom {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 5px;
-  color: var(--sub);
-  font-size: 8px;
-}
-
-.fundinfo-scope .market-lens-bottom button {
-  border: 0;
-  background: transparent;
-  color: var(--brand);
-  font-size: 8px;
-  font-weight: 800;
-}
-
-.fundinfo-scope .market-lens-scopes {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-  margin-top: 7px;
-}
-
-.fundinfo-scope .market-lens-scopes button {
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 4px 9px;
-  background: var(--surf);
-  color: var(--sub);
-  font: 800 8px/1.2 'Prompt', sans-serif;
-}
-
-.fundinfo-scope .market-lens-scopes button.active {
-  border-color: var(--brand);
-  background: var(--brand);
-  color: #fff;
-}
-
-/* === Responsive (Mobile) === */
 @media (max-width: 767px) {
   .fundinfo-scope .market-lens .industry-header {
     display: grid;
   }
 
-  /* === จุดที่แก้: ดึง .market-lens-scope-badge ออกไปด้านนอกแล้ว เหลือเพียงเฉพาะสไตล์ของ industry-header === */
   .fundinfo-scope .market-lens .industry-header > span {
     display: inline-flex;
     align-items: center;
@@ -1712,18 +1588,10 @@
     border-radius: 999px;
     background-color: #eff3f8;
     color: #1e293b;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 700;
     white-space: nowrap;
     flex: none;
-  }
-
-  .fundinfo-scope .market-lens-kpis {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .fundinfo-scope .market-lens-kpis > *:nth-child(3) {
-    border-left: 0;
   }
 
   .fundinfo-scope .market-lens .industry-chart-title {
@@ -1736,6 +1604,7 @@
     height: 230px;
   }
 }
+
 /* Row & Table Utilities */
 .fundinfo-scope .fund-row-chevron {
   display: inline-flex;
@@ -1752,48 +1621,59 @@
   color: var(--brand);
 }
 
-.fundinfo-scope .comparison-chart-full { height: 320px; margin-bottom: 20px; width: 85%; margin: 0 auto 20px;}
-.fundinfo-scope .compare-table-wrap { margin: 8px auto 0; width: 95%; overflow-x: auto;}
-.fundinfo-scope .compare-table-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; border-top: 1px solid var(--line); padding-top: 10px; }
-.fundinfo-scope .compare-table-heading h3 { font-size: 13px; font-weight: 700; color: var(--txt); margin: 0; }
-.fundinfo-scope .compare-sort-btn { font-size: 11px; font-weight: 600; color: var(--brand); background: var(--surf2); border: 1px solid var(--line); border-radius: 8px; padding: 5px 10px; cursor: pointer; }
+.fundinfo-scope .comparison-chart-full { 
+  height: 360px; 
+  max-height: none;
+  width: 92%; 
+  max-width: 1180px; 
+  margin: 0 auto 20px; 
+}
 
-/* ==========================================================================
-   Table Alignment & Column Width Fix
-   ========================================================================== */
-.fundinfo-scope .compare-fund-table { 
+.fundinfo-scope .compare-table-wrap { 
+  margin: 8px auto 0; 
   width: 100%; 
+  max-width: 1400px;
+  overflow-x: auto;
+}
+.fundinfo-scope .compare-table-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; border-top: 1px solid var(--line); padding-top: 10px; }
+.fundinfo-scope .compare-table-heading h3 { font-size: 15px; font-weight: 700; color: var(--txt); margin: 0; }
+.fundinfo-scope .compare-sort-btn { font-size: 12px; font-weight: 600; color: var(--brand); background: var(--surf2); border: 1px solid var(--line); border-radius: 8px; padding: 5px 10px; cursor: pointer; }
+
+.fundinfo-scope .compare-fund-table { 
+  width: 90%; 
   border-collapse: collapse; 
-  font-size: 12px; 
+  table-layout: fixed;
+  font-size: 14px;
+  margin: 0 auto; 
 }
 
-/* 1. คอลัมน์แรก (ชื่อกองทุน): ให้จัดชิดซ้าย และขยายรับพื้นที่ส่วนที่เหลือทั้งหมด */
-.fundinfo-scope .compare-fund-table th:first-child,
-.fundinfo-scope .compare-fund-table td:first-child { 
+.fundinfo-scope .compare-fund-table th:first-child { 
   text-align: left; 
-  width: auto; 
+  width: 22%;
+  font-size: 14px; 
 }
 
-/* 2. คอลัมน์ตัวเลข (1W, 1M, 3M...): จัดชิดขวา และล็อกความกว้างให้เท่ากันเป๊ะทุกช่อง */
-.fundinfo-scope .compare-fund-table th:not(:first-child),
-.fundinfo-scope .compare-fund-table td:not(:first-child) { 
-  text-align: center; 
-  white-space: nowrap; 
-  width: 7.5%; 
-  min-width: 60px; 
+.fundinfo-scope .compare-fund-table th:not(:first-child) {
+  text-align: center;
+  white-space: nowrap;
+  min-width: 90px;
+  font-size: 14px;
 }
 
-.fundinfo-scope .compare-fund-table th { 
-  padding: 10px 12px; 
-  color: var(--sub); 
-  font-weight: 600; 
-  border-bottom: 1px solid var(--line); 
+.fundinfo-scope .compare-fund-table td:not(:first-child) {
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 90px;
 }
 
-.fundinfo-scope .compare-fund-table td { 
-  padding: 10px 12px; 
-  border-bottom: 1px solid var(--line); 
-  vertical-align: middle; 
+@media (max-width: 767px) {
+  .fundinfo-scope .compare-fund-table { table-layout: auto; min-width: 960px; }
+  .fundinfo-scope .compare-fund-table th:first-child,
+  .fundinfo-scope .compare-fund-table td:first-child { width: auto; }
+  .fundinfo-scope .compare-fund-table th:not(:first-child),
+  .fundinfo-scope .compare-fund-table td:not(:first-child) { width: auto; min-width: 90px; }
 }
 
 .fundinfo-scope .compare-fund-name { 
@@ -1808,7 +1688,7 @@
   height: 26px; 
   border-radius: 8px; 
   color: #fff; 
-  font-size: 10px; 
+  font-size: 11px; 
   font-weight: 700; 
   display: flex; 
   align-items: center; 
@@ -1819,6 +1699,7 @@
 .fundinfo-scope .compare-fund-text small { 
   display: block; 
   color: var(--sub); 
-  font-size: 10.5px; 
-  margin-top: 1px; 
+  font-size: 12px; 
+  margin-top: 1px;
+  text-align: left;
 }

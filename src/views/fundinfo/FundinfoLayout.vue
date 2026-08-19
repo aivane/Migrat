@@ -1,5 +1,6 @@
+<!-- FundinfoLayout.vue -->
 <script setup>
-import { computed, nextTick, ref, onMounted, onUnmounted } from 'vue'
+import { computed, nextTick, ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { FUND_TYPES } from '../../data/fundinfoData'
 import { useFundinfoTheme } from '../../composables/useFundinfoTheme'
@@ -17,6 +18,13 @@ const { count, watchedFunds, removeWatch } = useFundinfoWatchlist()
 const route = useRoute()
 const router = useRouter()
 const activeTab = computed(() => tabs.find((tab) => route.path.startsWith(tab.to)))
+
+watch(
+  () => route.fullPath,
+  () => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  },
+)
 
 const watchPanelOpen = ref(false)
 const watchPanelRef = ref(null)
@@ -68,12 +76,10 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
         <div class="max-w-[1120px] mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4 h-full">
 
           <!-- Branding: FI mark + Fundinfo / Investment Exposure Workspace -->
-          <div class="flex items-center gap-3">
-            <!-- ปรับขนาดโลโก้: w-9 h-9, text-xs -->
-            <div class="w-9 h-9 rounded-md bg-[var(--brand)] text-white font-extrabold flex items-center justify-center text-xs shrink-0">FI</div>
+          <div class="flex items-center gap-3">           
             <div>
               <!-- ปรับขนาดชื่อ: text-base -->
-              <div class="text-base font-extrabold txt leading-tight">Fundinfo</div>
+              <div class="text-4xl font-extrabold txt leading-tight">Fundinfo</div>
               <!-- ปรับขนาดซับไตเติ้ล: text-[10px] -->
               <div class="text-[10px] font-bold uppercase tracking-wider sub leading-tight">Investment Exposure Workspace</div>
             </div>

@@ -135,7 +135,7 @@ function handleToggleCompare(fundId) {
                   <span class="fund-amc-mark" :class="badgeTone(fund)">{{ badgeLabel(fund) }}</span>
                   <div class="min-w-0">
                     <strong class="txt block truncate max-w-[190px]">{{ fund.name }}</strong>
-                    <span class="block sub font-['Inter']" style="text-align: left;">
+                    <span class="block sub font-['Inter']" style="text-align: left; font-size:11px;">
                       {{ fund.id }}
                       <template v-if="type === 'feeder' && fund.masterFund"> · {{ fund.masterFund }}</template>
                     </span>

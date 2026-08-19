@@ -71,7 +71,7 @@ function buildDetailChart() {
       maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
       plugins: {
-        legend: { position: 'bottom', labels: { usePointStyle: true, pointStyle: 'line', boxWidth: 16, padding: 9, font: { size: 8, weight: '600' } } },
+        legend: { position: 'bottom', labels: { usePointStyle: true, pointStyle: 'line', boxWidth: 28, padding: 9, font: { size:12, weight: '600' } } },
         tooltip: { callbacks: { label: (c) => ` ${c.dataset.label}: ${(c.parsed.y - 100).toFixed(1)}%` } },
       },
       scales: {

@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref, onMounted, watch, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import Chart from 'chart.js/auto'
 
 const props = defineProps({
@@ -8,6 +9,7 @@ const props = defineProps({
   inCompare: { type: Boolean, default: false },
 })
 const emit = defineEmits(['compare'])
+const router = useRouter()
 const cyChartRef = ref(null)
 let cyChartInstance = null
 
@@ -15,6 +17,10 @@ const allocation = computed(() => props.fund.sectorMix || props.fund.mix || prop
 const allocationMax = computed(() => Math.max(...allocation.value.map((item) => Number(item.percent) || 0), 1))
 const topHoldings = computed(() => (props.fund.top5 || []).slice(0, 5))
 const holdingMax = computed(() => Math.max(...topHoldings.value.map((item) => Number(item.percent) || 0), 1))
+
+function goToDetail() {
+  router.push({ name: 'fundinfo-detail', params: { id: props.fund.id } })
+}
 
 function renderChart() {
   cyChartInstance?.destroy()
@@ -29,8 +35,8 @@ function renderChart() {
       maintainAspectRatio: false,
       plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => ` ${ctx.raw >= 0 ? '+' : ''}${ctx.raw}%` } } },
       scales: {
-        x: { grid: { display: false }, ticks: { color: '#7c8da5', font: { size: 8 } } },
-        y: { grid: { color: 'rgba(148, 163, 184, .16)' }, ticks: { color: '#7c8da5', font: { size: 8 }, callback: (value) => `${value}%` } },
+        x: { grid: { display: false }, ticks: { color: '#7c8da5', font: { size: 11 } } },
+        y: { grid: { color: 'rgba(148, 163, 184, .16)' }, ticks: { color: '#7c8da5', font: { size: 11 }, callback: (value) => `${value}%` } },
       },
     },
   })
@@ -62,7 +68,7 @@ onUnmounted(() => cyChartInstance?.destroy())
           </div>
           <div class="fund-detail-actions">
   <button type="button" class="fund-detail-compare" :class="{ active: inCompare }" @click="emit('compare')">{{ inCompare ? '✓ อยู่ในเปรียบเทียบ' : '+ เพิ่มเปรียบเทียบ' }}</button>
-  <button type="button" class="fund-detail-more">ดูข้อมูลเพิ่มเติม</button>
+  <button type="button" class="fund-detail-more" @click="goToDetail">ดูข้อมูลเพิ่มเติม</button>
 </div>
         </section>
       </div>

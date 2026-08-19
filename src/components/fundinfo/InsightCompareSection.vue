@@ -142,7 +142,7 @@ function createChart(canvas, entries) {
       plugins: {
         legend: {
           position: 'bottom',
-          labels: { boxWidth: 20, usePointStyle: true, pointStyle: 'line', padding: 12, font: { size: 9 } },
+          labels: { boxWidth: 28, usePointStyle: true, pointStyle: 'line', padding: 12, font: { size: 12 } },
         },
         tooltip: {
           callbacks: { label: (context) => ` ${context.dataset.label}: ${(context.parsed.y - 100).toFixed(1)}%` },
@@ -239,7 +239,7 @@ onUnmounted(destroyChart)
                 <tr v-for="(card, index) in sortedCardsData" :key="card.id">
                   <td class="compare-fund-name">
                     <span class="compare-fund-avatar" :style="{ background: COMPARE_COLORS[index % COMPARE_COLORS.length] }">{{ (card.title || '').slice(0, 2).toUpperCase() }}</span>
-                    <span class="compare-fund-text"><strong>{{ card.title }}</strong><small>{{ card.subtitle }}</small></span>
+                    <span class="compare-fund-text min-w-0"><strong class="block truncate" :title="card.title">{{ card.title }}</strong><small>{{ card.subtitle }}</small></span>
                   </td>
                   <td class="text-right" :class="card.perf >= 0 ? 'text-pos' : 'text-neg'">{{ formatPercent(card.perf, 1) }}</td>
                   <td class="text-right">{{ formatAum(card.aum ?? card.cap) }}</td>

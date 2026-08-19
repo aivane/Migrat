@@ -1,6 +1,7 @@
 <!-- FundDetailCard.vue -->
 <script setup>
 import { computed, ref, onMounted, watch, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import Chart from 'chart.js/auto'
 
 const props = defineProps({
@@ -9,6 +10,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['toggle-compare', 'toggle-star'])
+const router = useRouter()
 
 const cyChartRef = ref(null)
 const assetChartRef = ref(null)
@@ -42,6 +44,10 @@ function amcMeta(fund) {
 
 const accent = computed(() => amcMeta(props.fund).color)
 const badgeText = computed(() => props.fund.amcShort || amcMeta(props.fund).label || 'FI')
+
+function goToDetail() {
+  router.push({ name: 'fundinfo-detail', params: { id: props.fund.id } })
+}
 
 function renderCharts() {
   if (cyChartInstance) cyChartInstance.destroy()
@@ -245,7 +251,7 @@ onUnmounted(() => {
             <span v-if="isSelected">✓ อยู่ในเปรียบเทียบ</span>
             <span v-else>+ เพิ่มไปเปรียบเทียบ</span>
           </button>
-          <button class="flex-1 py-2 px-3 text-white rounded-xl text-xs font-bold shadow-sm transition-colors bg-[var(--fund-accent)] hover:brightness-90">
+          <button class="flex-1 py-2 px-3 text-white rounded-xl text-xs font-bold shadow-sm transition-colors bg-[var(--fund-accent)] hover:brightness-90" @click="goToDetail">
             ข้อมูลเพิ่มเติม
           </button>
         </div>

@@ -33,7 +33,6 @@ const detailCanvas = ref(null)
 const chartGroupsOpen = ref(true)
 let detailChart = null
 
-// เรียงลำดับ Scopes ให้กลุ่มที่ถูกเลือกขึ้นก่อนตามลำดับ 1, 2, 3... และตามด้วยกลุ่มที่ยังไม่ถูกเลือก
 const sortedScopes = computed(() => {
   return [...scopes.value].sort((a, b) => {
     const orderA = orderOf(a.id)
@@ -103,8 +102,9 @@ function buildDetailChart() {
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: {
+          display: true,
           position: 'bottom',
-          labels: { usePointStyle: true, pointStyle: 'line', boxWidth: 17, padding: 10, font: { size: 8, weight: '600' } },
+          labels: { usePointStyle: true, pointStyle: 'line', boxWidth: 28, padding: 16, font: { size: 12, weight: '600' } },
         },
         tooltip: {
           callbacks: { label: (item) => ` ${item.dataset.label}: ${(item.parsed.y - 100).toFixed(1)}%` },
@@ -153,24 +153,22 @@ onUnmounted(() => detailChart?.destroy())
 
     <div class="industry-workspace">
       <header class="industry-header">
-  <div>
-    <h2>เปรียบเทียบ {{ label }} ก่อนเจาะดูหุ้นที่กองทุนถือ <InfoTooltip :text="`เลือกได้สูงสุด ${maxSelected} กลุ่มเพื่อดู Performance บนกราฟเดียวกัน และเรียงผลการจัดอันดับด้านล่าง`" /></h2>
-  </div>
+        <div>
+          <h2>เปรียบเทียบ {{ label }} ก่อนเจาะดูหุ้นที่กองทุนถือ <InfoTooltip :text="`เลือกได้สูงสุด ${maxSelected} กลุ่มเพื่อดู Performance บนกราฟเดียวกัน และเรียงผลการจัดอันดับด้านล่าง`" /></h2>
+        </div>
 
-  <!-- แสดง ปุ่มสลับมุมมอง กรณี Offshore/Foreign -->
-  <div v-if="foreign" class="theme-view-switch-container" aria-label="มุมมองการวิเคราะห์">
-    <span class="theme-view-label">มุมมอง:</span>
-    <div class="theme-view-switch">
-      <button type="button" :class="{ active: state.scopeMode === 'region' }" @click="setScopeMode('region')">ภูมิภาคและประเทศ</button>
-      <button type="button" :class="{ active: state.scopeMode === 'theme' }" @click="setScopeMode('theme')">เทรนด์และอุตสาหกรรม</button>
-    </div>
-  </div>
+        <div v-if="foreign" class="theme-view-switch-container" aria-label="มุมมองการวิเคราะห์">
+          <span class="theme-view-label">มุมมอง:</span>
+          <div class="theme-view-switch">
+            <button type="button" :class="{ active: state.scopeMode === 'region' }" @click="setScopeMode('region')">ภูมิภาคและประเทศ</button>
+            <button type="button" :class="{ active: state.scopeMode === 'theme' }" @click="setScopeMode('theme')">เทรนด์และอุตสาหกรรม</button>
+          </div>
+        </div>
 
-  <!-- แสดง Badge มาตรฐาน SET กรณี Thai Fund -->
-  <span v-else class="market-lens-scope-badge">
-    มาตรฐาน SET · {{ scopes.length }} Industry Groups
-  </span>
-</header>
+        <span v-else class="market-lens-scope-badge">
+          มาตรฐาน SET · {{ scopes.length }} Industry Groups
+        </span>
+      </header>
 
       <div class="industry-kpis">
         <button type="button" :disabled="!leaderPerf" @click="leaderPerf && toggle(leaderPerf.id)">
@@ -225,87 +223,92 @@ onUnmounted(() => detailChart?.destroy())
 
       <div class="industry-taxonomy-note">⌄ หมวดใน taxonomy ที่ยังไม่มีข้อมูลจะไม่แสดงในรายการนี้</div>
 
-      <!-- ส่วนแสดงผล Panel กราฟเปรียบเทียบ (แสดงตลอดเวลาเพื่อเลือก Chip ได้เสมอ) -->
+      <!-- ส่วนแสดงผล Panel กราฟเปรียบเทียบ -->
       <div class="industry-compare">
-        <div class="industry-chart-panel">
-          <!-- 1. หัวข้อกราฟและ Subtitle -->
-          <div class="industry-chart-title" style="display: flex; flex-direction: column; gap: 6px; align-items: flex-start;">
-            <div style="display: flex; align-items: center; gap: 6px;">
-              <b style="font-size: 13px; font-weight: 800; color: #64748b;">เปรียบเทียบ Performance บนกราฟเดียวกัน</b>
+        
+        <div class="industry-chart-panel" style="display: flex; flex-direction: column; align-items: flex-start; width: 100%;">
+          
+          <!-- 1. หัวข้อกราฟ (ชิดซ้ายสุด) -->
+          <div class="industry-chart-title" style="width: 100%; text-align: left; margin-bottom: 12px;">
+            <div style="display: inline-flex; align-items: center; gap: 6px;">
+              <b style="font-size: 14px; font-weight: 800; color: #64748b;">เปรียบเทียบ Performance บนกราฟเดียวกัน</b>
               <InfoTooltip :text="`ผลตอบแทนแบบฐาน 100 ย้อนหลัง 12 เดือน · เส้นประคือ ${bench.name}`" />
             </div>
           </div>
 
-          <!-- 2. แถบเลือกกลุ่ม Chips (จัด Layout แนวยาว รองรับการเลือก/ไม่เลือกได้อย่างเป็นระเบียบ) -->
-          <div class="industry-selection-row" style="margin-top: 20px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;">
-            <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; flex: 1;">
-              <span style="font-size: 12px; font-weight: 700; color: var(--sub); white-space: nowrap;">กลุ่มที่เลือก {{ selectedStats.length }}/{{ maxSelected }}:</span>
-              
-              <div class="theme-chips" aria-label="เลือกกลุ่มเพื่อเปรียบเทียบ" style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
-                <button
-                  v-for="scope in sortedScopes"
-                  :key="`${state.scopeMode}-opt-${scope.id}`"
-                  type="button"
-                  class="theme-chip"
-                  :class="{ selected: orderOf(scope.id) > -1 }"
-                  :style="orderOf(scope.id) > -1 ? { '--theme-color': scopeColor(orderOf(scope.id)) } : {}"
-                  :aria-pressed="orderOf(scope.id) > -1"
-                  :disabled="orderOf(scope.id) === -1 && selectedStats.length >= maxSelected"
-                  :title="orderOf(scope.id) > -1 ? 'เอาออกจากกราฟ' : selectedStats.length < maxSelected ? 'เพิ่มในกราฟ' : `เลือกได้สูงสุด ${maxSelected} กลุ่ม`"
-                  @click="toggle(scope.id)"
-                >
-                  <i v-if="orderOf(scope.id) > -1">{{ orderOf(scope.id) + 1 }}. </i>
-                  {{ scope.title }}
-                  <span v-if="orderOf(scope.id) > -1" style="margin-left: 4px;">✕</span>
-                </button>
+          <!-- 2. แถบเลือกกลุ่ม Chips (ชิดซ้ายสุด เรียงบรรทัดเดียวกันแบบภาพ 2) -->
+          <div class="industry-selection-row" style="width: 100%; display: flex; align-items: center; justify-content: flex-start; flex-wrap: wrap; gap: 12px; margin-bottom: 20px;">
+            <span style="font-size: 12px; font-weight: 700; color: var(--sub); white-space: nowrap;">กลุ่มที่เลือก {{ selectedStats.length }}/{{ maxSelected }}:</span>
+            
+            <div class="theme-chips" style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
+              <button
+                v-for="scope in sortedScopes"
+                :key="`${state.scopeMode}-opt-${scope.id}`"
+                type="button"
+                class="theme-chip"
+                :class="{ selected: orderOf(scope.id) > -1 }"
+                :style="orderOf(scope.id) > -1 ? { '--theme-color': scopeColor(orderOf(scope.id)) } : {}"
+                :aria-pressed="orderOf(scope.id) > -1"
+                :disabled="orderOf(scope.id) === -1 && selectedStats.length >= maxSelected"
+                :title="orderOf(scope.id) > -1 ? 'เอาออกจากกราฟ' : selectedStats.length < maxSelected ? 'เพิ่มในกราฟ' : `เลือกได้สูงสุด ${maxSelected} กลุ่ม`"
+                @click="toggle(scope.id)"
+              >
+                <i v-if="orderOf(scope.id) > -1">{{ orderOf(scope.id) + 1 }}. </i>
+                {{ scope.title }}
+                <span v-if="orderOf(scope.id) > -1" style="margin-left: 4px;">✕</span>
+              </button>
 
-                <button
-                  v-if="selectedStats.length"
-                  type="button"
-                  class="industry-clear"
-                  @click="clear"
-                  style="font-size: 12px; font-weight: 700; color: var(--txt); cursor: pointer; background: none; border: none; white-space: nowrap;"
-                  >
-                  ล้างทั้งหมด
-                </button>
-              </div>
+              <button
+                v-if="selectedStats.length"
+                type="button"
+                class="industry-clear"
+                @click="clear"
+                style="font-size: 12px; font-weight: 700; color: var(--txt); cursor: pointer; background: none; border: none; white-space: nowrap;"
+                >
+                ล้างทั้งหมด
+              </button>
             </div>
           </div>
 
-          <!-- 3. แถบจุดอ้างอิง (Benchmark) -->
-          <div class="industry-benchmark" style="display: flex; align-items: center; gap: 8px; margin-bottom: 24px; font-size: 12px;">
+          <!-- 3. แถบจุดอ้างอิง Benchmark (ชิดซ้ายสุด) -->
+          <div class="industry-benchmark" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 10px; font-size: 12px; text-align: center;">
             <span class="dashed-line" style="color: #9aa9bd; font-weight: bold;">------</span>
             <b>จุดอ้างอิง: {{ bench.name }}</b>
             <span style="color: var(--sub);">Performance คำนวณจากตะกร้าหุ้นที่พบใน Top Holdings ไม่ใช่ดัชนีหมวดอย่างเป็นทางการ</span>
           </div>
 
-          <!-- 4. พื้นที่วาดกราฟ -->
-          <div class="industry-chart" style="position: relative; min-height: 280px;">
-            <canvas ref="detailCanvas" v-show="selectedStats.length"></canvas>
-            <div v-if="!selectedStats.length" style="display: flex; align-items: center; justify-content: center; height: 280px; color: var(--sub); font-size: 13px; font-weight: 600;">
-              กรุณาเลือกกลุ่มด้านบนอย่างน้อย 1 กลุ่มเพื่อแสดงกราฟเปรียบเทียบ
+          <!-- 4. ส่วนกราฟ + รายชื่อกลุ่ม (วางขนานกันในบรรทัดนี้เพื่อให้อยู่ชิดกัน) -->
+          <div class="industry-chart-with-list-wrapper">
+            <!-- พื้นที่วาดกราฟ -->
+            <div class="industry-chart" style="width: 100%; position: relative; min-height: 300px;">
+              <canvas ref="detailCanvas" v-show="selectedStats.length"></canvas>
+              <div v-if="!selectedStats.length" style="display: flex; align-items: center; justify-content: center; height: 190px; color: var(--sub); font-size: 13px; font-weight: 600;">
+                กรุณาเลือกกลุ่มด้านบนอย่างน้อย 1 กลุ่มเพื่อแสดงกราฟเปรียบเทียบ
+              </div>
             </div>
+
+            <!-- ฝั่งขวา: Sidebar รายชื่อกลุ่มในกราฟ -->
+            <aside v-if="selectedStats.length" class="industry-chart-list" :class="{ collapsed: !chartGroupsOpen }">
+              <button type="button" class="industry-chart-list-toggle" :aria-expanded="chartGroupsOpen" @click="chartGroupsOpen = !chartGroupsOpen">
+                <span><b>กลุ่มในกราฟ</b><small>เลือกเฉพาะกลุ่มที่สนใจก่อนเจาะดูหุ้นและกองทุน</small></span>
+                <i :class="{ open: chartGroupsOpen }">⌄</i>
+              </button>
+              <div v-show="chartGroupsOpen" class="industry-chart-list-scroll">
+                <article v-for="(scope, index) in selectedStats" :key="scope.id" :style="{ '--scope-color': scopeColor(index) }">
+                  <b><i></i>{{ index + 1 }}. {{ scope.title }}</b>
+                  <small>{{ scope.subtitle }}</small>
+                  <div>
+                    <span>1Y <strong :class="performanceClass(scope.perf)">{{ signed(scope.perf) }}</strong></span>
+                    <span>vs Global <strong :class="performanceClass(scope.perf - bench.ret)">{{ signed(scope.perf - bench.ret) }}</strong></span>
+                    <span>น้ำหนัก <strong>{{ scope.exposure.toFixed(1) }}%</strong></span>
+                  </div>
+                </article>
+              </div>
+            </aside>
           </div>
+
         </div>
 
-        <!-- Sidebar รายชื่อกลุ่มในกราฟ (แสดงเมื่อมีการเลือกกลุ่ม) -->
-        <aside v-if="selectedStats.length" class="industry-chart-list" :class="{ collapsed: !chartGroupsOpen }">
-          <button type="button" class="industry-chart-list-toggle" :aria-expanded="chartGroupsOpen" @click="chartGroupsOpen = !chartGroupsOpen">
-            <span><b>กลุ่มในกราฟ</b><small>เลือกเฉพาะกลุ่มที่สนใจก่อนเจาะดูหุ้นและกองทุน</small></span>
-            <i :class="{ open: chartGroupsOpen }">⌄</i>
-          </button>
-          <div v-show="chartGroupsOpen" class="industry-chart-list-scroll">
-            <article v-for="(scope, index) in selectedStats" :key="scope.id" :style="{ '--scope-color': scopeColor(index) }">
-              <b><i></i>{{ index + 1 }}. {{ scope.title }}</b>
-              <small>{{ scope.subtitle }}</small>
-              <div>
-                <span>1Y <strong :class="performanceClass(scope.perf)">{{ signed(scope.perf) }}</strong></span>
-                <span>vs Global <strong :class="performanceClass(scope.perf - bench.ret)">{{ signed(scope.perf - bench.ret) }}</strong></span>
-                <span>น้ำหนัก <strong>{{ scope.exposure.toFixed(1) }}%</strong></span>
-              </div>
-            </article>
-          </div>
-        </aside>
       </div>
     </div>
   </section>

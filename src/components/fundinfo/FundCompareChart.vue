@@ -79,11 +79,11 @@ function renderChart() {
       },
       scales: {
         y: {
-          ticks: { callback: (v) => `${v}%`, font: { family: 'Prompt', size: 10 } },
+          ticks: { callback: (v) => `${v}%`, font: { family: 'Prompt', size: 12 } },
           grid: { color: 'rgba(150, 150, 150, 0.1)' },
         },
         x: {
-          ticks: { font: { family: 'Prompt', size: 10 } },
+          ticks: { font: { family: 'Prompt', size: 12 } },
           grid: { display: false },
         },
       },

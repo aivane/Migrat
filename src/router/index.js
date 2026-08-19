@@ -78,6 +78,12 @@ const routes = [
       { path: 'mixed', name: 'fundinfo-mixed', component: MixedFundView },
     ],
   },
+  {
+    path: '/fundinfo/detail/:id',
+    name: 'fundinfo-detail',
+    component: () => import('../views/fundinfo/FundInfoDetailView.vue'),
+    props: true,
+  },
 ]
 
 export const router = createRouter({

@@ -78,7 +78,7 @@ function scrollToInsight() { document.getElementById(`insight-${props.type}`)?.s
 
     <div class="ranking-section">
       
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-3 ml-4 md:ml-4">
+      <div class="ranking-card-grid">
         <article v-for="(card, cardIndex) in activeSection.cards" :key="card.key" class="ranking-card">
           <div class="ranking-card-header">
             <div class="ranking-card-title-button is-static">

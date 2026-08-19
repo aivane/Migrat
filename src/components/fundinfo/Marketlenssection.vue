@@ -73,7 +73,7 @@ function buildChart() {
       plugins: {
         legend: {
           position: 'bottom',
-          labels: { usePointStyle: true, pointStyle: 'line', boxWidth: 17, padding: 9, font: { size: 8, weight: '600' } },
+          labels: { usePointStyle: true, pointStyle: 'line', boxWidth: 28, padding: 9, font: { size: 12, weight: '600' } },
         },
         tooltip: { callbacks: { label: (ctx) => ` ${ctx.dataset.label}: ${(ctx.parsed.y - 100).toFixed(1)}%` } },
       },
@@ -134,12 +134,12 @@ onUnmounted(() => chartInstance?.destroy())
 
       <div class="industry-chart-title" style="display: flex; flex-direction: column; gap: 6px; align-items: flex-start; margin-top: 20px;">
         <div style="display: flex; align-items: center; gap: 6px;">
-          <b style="font-size: 13px; font-weight: 800; color: #64748b;">เปรียบเทียบ Performance บนกราฟเดียวกัน</b>
+          <b style="font-size: 14px; font-weight: 800; color: #64748b;">เปรียบเทียบ Performance บนกราฟเดียวกัน</b>
           <InfoTooltip :text="`ผลตอบแทนแบบฐาน 100 ย้อนหลัง 12 เดือน · เส้นประคือ ${bench.name}`" />
         </div>
       </div>
 
-      <div class="industry-benchmark" style="justify-content: flex-start; margin-top: 12px;">
+      <div class="industry-benchmark" style="width: 100%; max-width: 800px; display: flex; justify-content: center; margin: 12px auto 0 auto; margin-bottom: 12px;">
         <span class="dashed-line">------</span>
         <b>จุดอ้างอิง: {{ bench.name }}</b>
         <span>Performance คำนวณจากตะกร้าหุ้นที่พบใน Top Holdings ไม่ได้อ้างอิงดัชนีอย่างเป็นทางการ</span>
@@ -149,7 +149,7 @@ onUnmounted(() => chartInstance?.destroy())
         <canvas ref="chartCanvas" :aria-label="`กราฟ ${chartTitle} เทียบ ${bench.name}`"></canvas>
       </div>
 
-      <span style="font-size: 11px; color: var(--sub);">เลือกสินทรัพย์เพื่อดูเฉพาะกลุ่ม</span>
+      <span style="font-size: 13px; color: var(--sub);">เลือกสินทรัพย์เพื่อดูเฉพาะกลุ่ม</span>
       <div class="industry-scope-options market-lens-scope-row">
         <button
           type="button"
