@@ -5,7 +5,7 @@
    ========================================================================== */
 .fundinfo-scope {
   /* Tokens หลัก */
-  --bg: #eef2f9;
+  --bg: #ffffff;
   --surf: #ffffff;
   --surf2: #f5f8fd;
   --txt: #0f1e37;
@@ -17,7 +17,7 @@
 
   /* Dashboard Tokens (Light Mode) */
   --font-main: 'Prompt', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  --bg-main: #eef2f9;
+  --bg-main: #ffffff;
   --surface: #ffffff;
   --surface-soft: #f5f8fd;
   --border: #e6ecf5;
@@ -752,11 +752,11 @@
   background: transparent; 
 }
 .fundinfo-scope .fund-results-table::-webkit-scrollbar-thumb {
-  background: #cbd5e1; 
+  background: var(--border-strong);
   border-radius: 4px;
 }
 .fundinfo-scope .fund-results-table::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8; 
+  background: var(--sub);
 }
 
 .fundinfo-scope .fund-results-table table { 
@@ -767,10 +767,10 @@
   margin: 0 auto; 
 }
 
-.fundinfo-scope .fund-results-table th { 
-  padding: 7px 6px; 
-  background: #f1f5fb; 
-  color: var(--sub); 
+.fundinfo-scope .fund-results-table th {
+  padding: 7px 6px;
+  background: var(--table-header-bg);
+  color: var(--sub);
   font-size: 14px; 
   font-weight: 500; 
   white-space: nowrap;
@@ -795,8 +795,8 @@
 .fundinfo-scope .fund-results-table tbody tr + tr td { border-top: 1px solid var(--line); }
 .fundinfo-scope .fund-results-table tbody tr:hover { background: var(--surf2); }
 .fundinfo-scope .fund-results-table .fund-result-row { cursor: pointer; outline: 0; }
-.fundinfo-scope .fund-results-table .fund-result-row.selected { background: #f1f7ff; box-shadow: inset 3px 0 0 var(--brand); }
-.fundinfo-scope .fund-results-table .fund-result-row.wishlist-focus { scroll-margin-top: 96px; background: #fff7db; box-shadow: inset 3px 0 0 #f0b429; }
+.fundinfo-scope .fund-results-table .fund-result-row.selected { background: color-mix(in srgb, var(--brand) 10%, var(--surf)); box-shadow: inset 3px 0 0 var(--brand); }
+.fundinfo-scope .fund-results-table .fund-result-row.wishlist-focus { scroll-margin-top: 96px; background: color-mix(in srgb, #f0b429 18%, var(--surf)); box-shadow: inset 3px 0 0 #f0b429; }
 .fundinfo-scope .fund-results-table .fund-result-row:focus-visible { box-shadow: inset 0 0 0 2px var(--brand); }
 .fundinfo-scope .fund-results-table .badge { padding: 2px 5px; font-size: 10px; }
 .fundinfo-scope .fund-results-table .fund-amc-mark { min-width: 22px; width: 22px; height: 22px; border-radius: 6px; font-size: 9px; }
@@ -890,7 +890,7 @@
   gap: 3px;
   flex: none;
   border-radius: 12px;
-  background: #eff3f8;
+  background: var(--surf2);
   color: var(--sub);
 }
 .fundinfo-scope .industry-switcher > span {
@@ -905,7 +905,7 @@
   border-radius: 10px;
   padding: 8px 18px;
   background: transparent;
-  color: #1e293b;
+  color: var(--txt);
   font-family: 'Prompt', sans-serif;
   font-size: 13px;
   font-weight: 700;
@@ -983,17 +983,17 @@
 .fundinfo-scope .industry-method { display: flex; gap: 7px; margin-top: 8px; padding: 0; background: transparent; color: var(--sub); font-size: 9px; line-height: 1.4; }
 .fundinfo-scope .industry-method b { flex: none; color: #1083bd; font-weight: 800; }
 .fundinfo-scope .industry-cards { display: none; }
-.fundinfo-scope .industry-card { min-width: 0; overflow: hidden; border: 1px solid #e1e8f2; border-radius: 10px; padding: 9px; background: #fff; color: var(--txt); text-align: left; transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease; }
+.fundinfo-scope .industry-card { min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 10px; padding: 9px; background: var(--surf); color: var(--txt); text-align: left; transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease; }
 .fundinfo-scope .industry-card:hover { border-color: var(--scope-color); transform: translateY(-1px); }
 .fundinfo-scope .industry-card.selected { border-color: var(--scope-color); box-shadow: inset 0 0 0 1px var(--scope-color); }
 .fundinfo-scope .industry-card-title { display: flex; align-items: flex-start; gap: 7px; min-height: 35px; }
-.fundinfo-scope .industry-card-icon { display: inline-flex; width: 26px; height: 26px; align-items: center; justify-content: center; flex: none; border-radius: 8px; background: #f2f6fb; font-size: 13px; }
+.fundinfo-scope .industry-card-icon { display: inline-flex; width: 26px; height: 26px; align-items: center; justify-content: center; flex: none; border-radius: 8px; background: var(--surf2); font-size: 13px; }
 .fundinfo-scope .industry-card-title > div { min-width: 0; }
 .fundinfo-scope .industry-card-title small, .fundinfo-scope .industry-card-title p { display: block; overflow: hidden; color: var(--sub); font-size: 9px; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
 .fundinfo-scope .industry-card-title h3 { overflow: hidden; margin: 1px 0 2px; font-size: 11px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
 .fundinfo-scope .industry-order { display: inline-flex; width: 17px; height: 17px; align-items: center; justify-content: center; flex: none; margin-left: auto; border-radius: 50%; background: var(--scope-color); color: #fff; font: 800 11px/1 Inter, sans-serif; }
 .fundinfo-scope .industry-card-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
-.fundinfo-scope .industry-card-metrics div { border-radius: 6px; padding: 5px 6px; background: #f4f7fb; }
+.fundinfo-scope .industry-card-metrics div { border-radius: 6px; padding: 5px 6px; background: var(--surf2); }
 .fundinfo-scope .industry-card-metrics small, .fundinfo-scope .industry-weight span { display: block; color: var(--sub); font-size: 9px; }
 .fundinfo-scope .industry-card-metrics b { display: block; margin-top: 1px; font: 800 11px/1.2 Inter, sans-serif; }
 .fundinfo-scope .is-positive { color: var(--pos) !important; }
@@ -1002,7 +1002,7 @@
 .fundinfo-scope .industry-weight strong { font: 800 12px/1 Inter, sans-serif; }
 .fundinfo-scope .industry-weight em { margin-left: auto; color: var(--scope-color); font-size: 9px; font-style: normal; font-weight: 700; white-space: nowrap; }
 .fundinfo-scope .industry-card:not(.selected) .industry-weight em { display: none; }
-.fundinfo-scope .industry-progress { height: 4px; overflow: hidden; margin-top: 5px; border-radius: 999px; background: #e9eff7; }
+.fundinfo-scope .industry-progress { height: 4px; overflow: hidden; margin-top: 5px; border-radius: 999px; background: var(--line); }
 .fundinfo-scope .industry-progress i { display: block; height: 100%; border-radius: inherit; background: var(--scope-color); }
 .fundinfo-scope .industry-taxonomy-note { display: none; }
 .fundinfo-scope .industry-selection-row {
@@ -1012,7 +1012,7 @@
 }
 .fundinfo-scope .industry-selection-row > span { margin-right: 2px; color: var(--sub); font-size: 12px; font-weight: 800; }
 .fundinfo-scope .industry-scope-options { display: flex; min-width: 0; flex: 1 1 470px; flex-wrap: wrap; gap: 5px; }
-.fundinfo-scope .industry-scope-toggle { display: inline-flex; align-items: center; gap: 4px; border: 1px solid #dfe6f0; border-radius: 999px; padding: 4px 8px; background: #f3f6fa; color: #8a98ad; font: 800 12px/1.2 'Prompt', sans-serif; transition: background-color .15s ease, border-color .15s ease, color .15s ease, transform .15s ease; }
+.fundinfo-scope .industry-scope-toggle { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--line); border-radius: 999px; padding: 4px 8px; background: var(--surf2); color: var(--sub); font: 800 12px/1.2 'Prompt', sans-serif; transition: background-color .15s ease, border-color .15s ease, color .15s ease, transform .15s ease; }
 .fundinfo-scope .industry-scope-toggle i { display: inline-flex; width: 11px; height: 11px; align-items: center; justify-content: center; border: 1px solid #c6d1df; border-radius: 3px; color: transparent; font: 900 10px/1 Inter, sans-serif; }
 .fundinfo-scope .industry-scope-toggle:hover:not(:disabled) { border-color: var(--scope-color); color: var(--scope-color); transform: translateY(-1px); }
 .fundinfo-scope .industry-scope-toggle.selected { border-color: var(--scope-color); background: var(--scope-color); color: #fff; box-shadow: 0 2px 5px color-mix(in srgb, var(--scope-color) 28%, transparent); }
@@ -1134,7 +1134,12 @@
 }
 
 /* Workspace refinement */
-.fundinfo-scope main { background: #fff; }
+/* BUG FIX: this hardcoded #fff had (1 class + 1 element) specificity,
+   which beats Tailwind's `bg-[var(--bg)]` utility (1 class) on <main> —
+   pinning every fundinfo list page to a white background in dark mode
+   while var(--txt)-colored headings/text switched to their light,
+   dark-mode value on top of it (unreadable, pale-on-white). */
+.fundinfo-scope main { background: var(--bg); }
 .fundinfo-scope > main > header {
   min-height: 44px;
   background: rgba(255, 255, 255, .96);
@@ -1247,7 +1252,7 @@
   display: inline-flex;
   align-items: center;
   border-radius: 12px;
-  background: #eff3f8;
+  background: var(--surf2);
 }
 
 .fundinfo-scope .theme-view-switch button {
@@ -1255,7 +1260,7 @@
   border-radius: 10px;
   padding: 8px 18px;
   background: transparent;
-  color: #1e293b;
+  color: var(--txt);
   font-family: 'Prompt', sans-serif;
   font-size: 13px;
   font-weight: 700;
@@ -1522,9 +1527,9 @@
 }
 
 .fundinfo-scope .fund-results-table .comparison-marker { border: 0; cursor: pointer; }
-.fundinfo-scope .fund-results-table .fund-result-row.expanded { background: #f7faff; box-shadow: inset 3px 0 0 var(--brand); }
+.fundinfo-scope .fund-results-table .fund-result-row.expanded { background: var(--surf2); box-shadow: inset 3px 0 0 var(--brand); }
 .fundinfo-scope .fund-detail-row > td { padding: 0 !important; white-space: normal !important; }
-.fundinfo-scope .fund-detail-row { background: #f7faff; }
+.fundinfo-scope .fund-detail-row { background: var(--surf2); }
 .fundinfo-scope .fund-detail-grid { display: grid; grid-template-columns: minmax(180px, .9fr) minmax(230px, 1fr) minmax(230px, 1fr); gap: 20px; padding: 14px 16px 16px 48px; border-top: 1px solid var(--line); align-items: stretch; }
 .fundinfo-scope .fund-detail-panel { min-width: 0; }
 .fundinfo-scope .fund-detail-panel h3 { margin: 0 0 7px; color: var(--txt); font-size: 13px; font-weight: 800; }
@@ -1533,13 +1538,13 @@
 .fundinfo-scope .fund-detail-bars { display: grid; gap: 6px; padding-top: 3px; }
 .fundinfo-scope .fund-detail-bar { display: grid; grid-template-columns: minmax(58px, .72fr) minmax(70px, 1.25fr) 30px; align-items: center; gap: 7px; color: var(--sub); font-size: 13px; line-height: 1.15; }
 .fundinfo-scope .fund-detail-bar span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.fundinfo-scope .fund-detail-bar i { display: block; height: 6px; overflow: hidden; border-radius: 999px; background: #e8eef7; }
+.fundinfo-scope .fund-detail-bar i { display: block; height: 6px; overflow: hidden; border-radius: 999px; background: var(--line); }
 .fundinfo-scope .fund-detail-bar i b { display: block; height: 100%; border-radius: inherit; background: var(--brand); }
 .fundinfo-scope .fund-detail-bar strong { color: var(--txt); font: 800 11px/1 Inter, sans-serif; text-align: right; }
 .fundinfo-scope .fund-detail-holdings .fund-detail-bar i b { background: var(--pos); }
 .fundinfo-scope .fund-detail-actions { display: grid; grid-template-columns: 1fr 1.15fr; gap: 6px; margin-top: 24px; }
 .fundinfo-scope .fund-detail-actions button { min-height: 26px; border-radius: 5px; padding: 0 8px; font: 800 13px/1 'Prompt', sans-serif; }
-.fundinfo-scope .fund-detail-compare { border: 1px solid color-mix(in srgb, var(--brand) 35%, var(--line)); background: #fff; color: var(--brand); }
+.fundinfo-scope .fund-detail-compare { border: 1px solid color-mix(in srgb, var(--brand) 35%, var(--line)); background: var(--surf); color: var(--brand); }
 .fundinfo-scope .fund-detail-compare.active { background: var(--brand); border-color: var(--brand); color: #fff; }
 .fundinfo-scope .fund-detail-more { border: 1px solid var(--brand); background: var(--brand); color: #fff; }
 
@@ -1568,8 +1573,8 @@
   align-items: center;
   padding: 4px 12px;
   border-radius: 999px;
-  background-color: #eff3f8;
-  color: #1e293b;
+  background-color: var(--surf2);
+  color: var(--txt);
   font-size: 12px;
   font-weight: 700;
   white-space: nowrap;
@@ -1586,8 +1591,8 @@
     align-items: center;
     padding: 4px 12px;
     border-radius: 999px;
-    background-color: #eff3f8;
-    color: #1e293b;
+    background-color: var(--surf2);
+    color: var(--txt);
     font-size: 12px;
     font-weight: 700;
     white-space: nowrap;

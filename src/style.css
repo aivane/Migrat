@@ -1,5 +1,5 @@
 :root {
-  --bg: #f3f6f9;
+  --bg: #ffffff;
   --surface: #ffffff;
   --surface-soft: #f8fafc;
   --text: #152033;
@@ -24,6 +24,26 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Night mode: driven by the "dark" class on <html>, toggled globally
+   from App.vue via the Pinia theme store. Every element below that
+   already consumes var(--bg)/var(--text)/etc. repaints automatically —
+   no per-page wiring required. */
+:root.dark {
+  --bg: #0b1220;
+  --surface: #121a2b;
+  --surface-soft: #16213a;
+  --text: #e7edf8;
+  --muted: #94a3c4;
+  --border: #263252;
+  --accent: #5b8cff;
+  --accent-soft: #1c2c52;
+  --positive: #34d399;
+  --negative: #f87171;
+  --warning: #fbbf24;
+  --shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+  color-scheme: dark;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -33,6 +53,12 @@ body {
   min-width: 320px;
   overflow-x: hidden;
   background: var(--bg);
+  color: var(--text);
+  /* Perf: only paint-affecting props transition, not "all", to avoid
+     layout-thrashing on toggle across large pages. */
+  transition:
+    background-color 0.18s ease,
+    color 0.18s ease;
 }
 
 button,
@@ -1176,14 +1202,14 @@ table {
 th,
 td {
   padding: 13px 14px;
-  border-bottom: 1px solid #eef2f6;
+  border-bottom: 1px solid var(--border);
   text-align: center;
   white-space: nowrap;
 }
 
 th {
   background: var(--surface-soft);
-  color: #475569;
+  color: var(--muted);
   font-size: 13px;
   user-select: none;
 }
@@ -1192,8 +1218,14 @@ th:not(:last-child) {
   cursor: pointer;
 }
 
+/* BUG FIX: this was hardcoded #1f2937 (near-black), which — because it's a
+   bare element selector targeting <td> directly — always overrides any
+   color a themed ancestor inherits down (e.g. .fundinfo-scope .txt on a
+   parent <tr>; a direct rule on the element always beats an inherited
+   value, regardless of the ancestor rule's specificity). On a dark
+   background this rendered as near-invisible dark-on-dark text. */
 td {
-  color: #1f2937;
+  color: var(--text);
   font-size: 14px;
 }
 

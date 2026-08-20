@@ -1,38 +1,19 @@
-import { ref } from 'vue'
+import { storeToRefs } from 'pinia'
+import { useThemeStore } from '../stores/themeStore'
 
-const STORAGE_KEY = 'fi32-theme'
-const isDark = ref(false)
-let initialized = false
-
-function readInitialPreference() {
-  try {
-    if (localStorage.getItem(STORAGE_KEY) === 'dark') return true
-    if (localStorage.getItem(STORAGE_KEY) === 'light') return false
-  } catch (e) {}
-  return typeof window !== 'undefined' && window.matchMedia
-    ? window.matchMedia('(prefers-color-scheme: dark)').matches
-    : false
-}
-
-function persist(dark) {
-  try {
-    localStorage.setItem(STORAGE_KEY, dark ? 'dark' : 'light')
-  } catch (e) {}
-}
-
+// Thin compatibility wrapper: FundinfoLayout.vue (and anything else
+// still importing this) now reads/writes the SAME global store as
+// App.vue and AppHeader.vue, instead of a second, disconnected
+// module-level ref. This is what kept fundinfo dark mode from
+// following the rest of the app: two independent sources of truth.
 export function useFundinfoTheme() {
-  if (!initialized) {
-    isDark.value = readInitialPreference()
-    initialized = true
-  }
+  const store = useThemeStore()
+  store.init() // idempotent — safe even if called before App.vue mounts
 
-  function toggleTheme() {
-    isDark.value = !isDark.value
-    persist(isDark.value)
-  }
+  const { isDark } = storeToRefs(store) // preserves reactivity for callers
 
   return {
     isDark,
-    toggleTheme,
+    toggleTheme: store.toggleTheme,
   }
 }
