@@ -1,509 +1,233 @@
-<!-- FundInfoDetailView.vue -->
+<!-- src/views/fundinfo/FundInfoDetailView.vue -->
 <script setup>
-import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
+// Orchestrator for the fund-detail page.
+//
+// IMPORTANT: reverses the earlier "no tab-switch" spec — target design
+// (confirmed by screenshot) IS a tabbed layout, matching the v3.2.1 HTML
+// prototype's visual structure. The difference from the prototype is HOW
+// the tabs work: the prototype toggled `.hidden` via raw DOM classList
+// (`switchTab()` walking `document.getElementById(...)`) and rebuilt panel
+// markup with `innerHTML` template literals — both avoided here. Tab state
+// is a plain Vue `ref`; only the active panel is mounted at all (`v-if`,
+// not `v-show`), so inactive panels don't hold live Chart.js instances or
+// unnecessary DOM in memory, and each panel's own onMounted chart-render
+// logic (already in FundOverviewPanel/FundPerformancePanel/etc.) fires
+// against a fully visible canvas every time — no 0-size-canvas issue from
+// initializing Chart.js on a `display:none` element.
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import Chart from 'chart.js/auto'
-import { FUNDS, INSIGHT, FUND_TYPES } from '../../data/fundinfoData'
+import { FUNDS, FUND_TYPES } from '../../data/fundinfoData'
 import { useFundinfoTheme } from '../../composables/useFundinfoTheme'
+import { useFundAnalytics } from '../../composables/useFundAnalytics'
+
+import FundDetailHeader from '../../components/fundinfo/detail/FundDetailHeader.vue'
+import FundOverviewPanel from '../../components/fundinfo/detail/FundOverviewPanel.vue'
+import FundPerformancePanel from '../../components/fundinfo/detail/FundPerformancePanel.vue'
+import FundPortfolioPanel from '../../components/fundinfo/detail/FundPortfolioPanel.vue'
+import FundFeesPanel from '../../components/fundinfo/detail/FundFeesPanel.vue'
+import FundDocumentsPanel from '../../components/fundinfo/detail/FundDocumentsPanel.vue'
 
 const route = useRoute()
 const router = useRouter()
+
+// Theme state is UI-preference only (light/dark), never sensitive/PII, and
+// is owned entirely by useFundinfoTheme (out of scope for this file).
 const { isDark, toggleTheme } = useFundinfoTheme()
 
-const fund = computed(() => FUNDS.find((f) => f.id === route.params.id))
+// ---------- Route param validation / access control ----------
+// Public, read-only page — no PII, no mutation, no auth token involved.
+// `route.params.id` is untrusted input: never used to build a path/query,
+// never reflected anywhere unescaped, only ever used as a FUNDS lookup key.
+// Extra defensive check before even attempting the lookup.
+const VALID_ID_PATTERN = /^[A-Za-z0-9-]{1,32}$/
+const requestedId = computed(() => {
+  const raw = route.params.id
+  return typeof raw === 'string' && VALID_ID_PATTERN.test(raw) ? raw : null
+})
+
+const fund = computed(() => (requestedId.value ? FUNDS.find((f) => f.id === requestedId.value) : undefined))
 const typeMeta = computed(() => (fund.value ? FUND_TYPES[fund.value.type] : null))
-const insight = computed(() => (fund.value?.master ? INSIGHT[fund.value.master] : null))
 const accent = computed(() => typeMeta.value?.accent || '#2456d8')
 
-function hashId(id) {
-  return [...String(id)].reduce((sum, ch) => sum + ch.charCodeAt(0), 0)
-}
-const h = computed(() => (fund.value ? hashId(fund.value.id) : 1))
-function jitter(seed, scale) {
-  return (((h.value * seed) % 11) / 11 - 0.5) * scale
-}
-
 function goBack() {
-  if (fund.value) router.push({ name: `fundinfo-${fund.value.type}` })
-  else router.push('/fundinfo/feeder')
-}
-
-// ---------- ภาพรวมกองทุน ----------
-const dividendPolicy = computed(() => {
-  if (!fund.value) return { text: '-', sub: '' }
-  if (!fund.value.div) return { text: 'ไม่มีนโยบายจ่ายเงินปันผล', sub: '(เป็นแบบสะสมมูลค่า)' }
-  return { text: 'มีนโยบายจ่ายเงินปันผล', sub: `(เฉลี่ยประมาณ ${fund.value.div}% ต่อปี)` }
-})
-const inceptionDate = computed(() => insight.value?.master?.incep || '-')
-const aumText = computed(() => (fund.value ? `${fund.value.aum.toLocaleString('th-TH')} ล้านบาท` : '-'))
-
-// ---------- ผลการดำเนินงานและความเสี่ยง ----------
-const timeRanges = ['1M', '3M', '1Y', '3Y', '5Y', 'MAX']
-const selectedRange = ref('1Y')
-const rangePoints = { '1M': 4, '3M': 13, '1Y': 52, '3Y': 60, '5Y': 60, MAX: 60 }
-
-function buildNavHistory(f) {
-  const points = 60
-  const growthY = (f.perf || 0) / 100
-  const weeklyDrift = growthY / 52
-  let val = f.nav
-  const vals = [val]
-  for (let i = 1; i < points; i++) {
-    const seed = ((hashId(f.id) * (i + 5)) % 97) / 97 - 0.5
-    const noise = seed * f.nav * 0.012
-    val = val / (1 + weeklyDrift) - noise
-    vals.unshift(+val.toFixed(4))
+  // Guard: only navigate using an already-validated, known fund.type key
+  // (one of FUND_TYPES' own keys) — never using unvalidated route input.
+  if (fund.value && FUND_TYPES[fund.value.type]) {
+    router.push({ name: `fundinfo-${fund.value.type}` })
+  } else {
+    router.push({ name: 'fundinfo-feeder' })
   }
-  return vals
 }
-const navHistoryFull = computed(() => (fund.value ? buildNavHistory(fund.value) : []))
-const navHistorySlice = computed(() => {
-  const n = rangePoints[selectedRange.value] || 52
-  return navHistoryFull.value.slice(-n)
-})
 
-const periods = [
-  { key: 'm1', label: '1 เดือน (1M)' },
-  { key: 'q1', label: '3 เดือน (3M)' },
-  { key: 'y1', label: '1 ปี (1Y)' },
-  { key: 'y3', label: '3 ปี (3Y)' },
-  { key: 'y5', label: '5 ปี (5Y)' },
+// ---------- Tabs ----------
+const TABS = [
+  { key: 'overview', label: 'กราฟภาพรวม' },
+  { key: 'performance', label: 'ผลการดำเนินงานและปันผล' },
+  { key: 'portfolio', label: 'สัดส่วนการลงทุน' },
+  { key: 'fees', label: 'ค่าธรรมเนียม' },
+  { key: 'documents', label: 'เอกสารเพิ่มเติม' },
 ]
-function fundReturn(key) { return fund.value?.retP?.[key] }
-function benchReturn(key, idx) {
-  const fv = fundReturn(key)
-  if (fv === undefined) return null
-  const offset = (((h.value * (idx + 4)) % 7) - 3) / 30
-  return +(fv - offset).toFixed(1)
-}
-function diffReturn(key, idx) {
-  const fv = fundReturn(key)
-  const bv = benchReturn(key, idx)
-  if (fv === undefined || bv === null) return null
-  return +(fv - bv).toFixed(1)
-}
-function fmtPct(v) {
-  if (v === undefined || v === null) return '-'
-  return `${v > 0 ? '+' : ''}${v}%`
-}
+const activeTab = ref('overview')
+// Reset to the first tab whenever the user navigates to a different fund
+// (mirrors the prototype's own init() calling switchTab('overview')).
+watch(() => fund.value?.id, () => { activeTab.value = 'overview' })
 
-// ---------- สัดส่วนการลงทุน ----------
-const assetAllocation = computed(() => fund.value?.asset || fund.value?.mix || [])
-const sectorAllocation = computed(() => fund.value?.sectorMix || fund.value?.mix || [])
-const topHoldings = computed(() => (fund.value?.top5 || []).slice(0, 5))
-const holdingMax = computed(() => Math.max(...topHoldings.value.map((i) => Number(i.percent) || 0), 1))
+// ---------- Analytics wiring ----------
+// Single source of truth for every derived number/string on this page.
+const analytics = useFundAnalytics(fund)
 
-const countryAllocation = computed(() => {
-  if (!fund.value) return []
-  if (fund.value.type === 'mixed') return []
-  if (fund.value.type === 'thai') return [{ name: 'ไทย', percent: 100 }]
-  if (!fund.value.country) return []
-  const main = +(90 + Math.abs(jitter(17, 8))).toFixed(0)
-  return [
-    { name: fund.value.country, percent: main },
-    { name: 'อื่นๆ', percent: 100 - main },
-  ]
-})
-
-// ---------- ค่าธรรมเนียมและเงื่อนไขการซื้อขาย ----------
-const feeBreakdown = computed(() => {
-  if (!fund.value) return null
-  const ter = fund.value.fee || 0
-  return {
-    management: +(ter * 0.75).toFixed(2),
-    trustee: +(ter * 0.1).toFixed(2),
-    registrar: +(ter * 0.15).toFixed(2),
-    ter: ter.toFixed(2),
-  }
-})
-const minInvestmentText = computed(() => (fund.value ? `${Number(fund.value.minInvest).toLocaleString('en-US')} บาท / 1 บาท` : '-'))
-
-// ---------- Charts ----------
-const navChartRef = ref(null)
-const cyrChartRef = ref(null)
-const assetChartRef = ref(null)
-let navChartInstance = null
-let cyrChartInstance = null
-let assetChartInstance = null
-
-function renderNavChart() {
-  navChartInstance?.destroy()
-  if (!navChartRef.value || !fund.value) return
-  const data = navHistorySlice.value
-  navChartInstance = new Chart(navChartRef.value, {
-    type: 'line',
-    data: {
-      labels: data.map((_, i) => i),
-      datasets: [{
-        data,
-        borderColor: accent.value,
-        backgroundColor: `${accent.value}22`,
-        fill: true,
-        pointRadius: 0,
-        tension: 0.35,
-        borderWidth: 2,
-      }],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
-      scales: {
-        x: { display: false },
-        y: { ticks: { font: { size: 10 } }, grid: { color: 'rgba(226,232,240,.6)' } },
-      },
-    },
-  })
-}
-
-function renderCyrChart() {
-  cyrChartInstance?.destroy()
-  if (!cyrChartRef.value || !fund.value) return
-  const cyr = fund.value.cyr || {}
-  const values = Object.values(cyr)
-  cyrChartInstance = new Chart(cyrChartRef.value, {
-    type: 'bar',
-    data: {
-      labels: Object.keys(cyr),
-      datasets: [{ data: values, backgroundColor: values.map((v) => (v >= 0 ? '#10b981' : '#f43f5e')), borderRadius: 4 }],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
-      scales: {
-        y: { ticks: { font: { size: 10 } }, grid: { color: 'rgba(226,232,240,.6)' } },
-        x: { ticks: { font: { size: 10 } }, grid: { display: false } },
-      },
-    },
-  })
-}
-
-function renderAssetChart() {
-  assetChartInstance?.destroy()
-  if (!assetChartRef.value || !fund.value) return
-  const data = assetAllocation.value
-  assetChartInstance = new Chart(assetChartRef.value, {
-    type: 'doughnut',
-    data: {
-      labels: data.map((i) => i.name),
-      datasets: [{ data: data.map((i) => i.percent), backgroundColor: [accent.value, '#64748b', '#94a3b8', '#cbd5e1'], borderWidth: 0 }],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { position: 'right', labels: { boxWidth: 8, font: { size: 10 } } } },
-      cutout: '68%',
-    },
-  })
-}
-
-function renderAll() {
-  renderNavChart()
-  renderCyrChart()
-  renderAssetChart()
-}
-
-onMounted(renderAll)
-watch(fund, renderAll)
-watch(selectedRange, renderNavChart)
-onUnmounted(() => {
-  navChartInstance?.destroy()
-  cyrChartInstance?.destroy()
-  assetChartInstance?.destroy()
+// Daily NAV change (diffBaht / diffPct), ported 1:1 from the prototype's
+// init() (prevNav = second-to-last point of the 1Y series).
+const dailyChange = computed(() => {
+  if (!fund.value) return { diffBaht: 0, diffPct: 0 }
+  const nav = analytics.navHistory('1Y')?.navData || []
+  const last = nav.length - 1
+  if (last < 1) return { diffBaht: 0, diffPct: 0 } // Robustness: not enough points yet
+  const prevNav = nav[last - 1] || fund.value.nav
+  const diffBaht = fund.value.nav - prevNav
+  return { diffBaht, diffPct: prevNav ? (diffBaht / prevNav) * 100 : 0 }
 })
 </script>
 
 <template>
   <div class="fundinfo-scope min-h-screen" :class="{ dark: isDark }">
-    <main class="min-h-screen bg-[var(--bg)] text-[var(--txt)] font-['Prompt'] antialiased">
-
-      <header class="sticky top-0 z-30 surf brdb px-4 py-4">
-        <div class="max-w-[1120px] mx-auto flex items-center justify-between">
-          <button type="button" class="flex items-center gap-2 text-sm font-semibold sub hover:txt" @click="goBack">
-            <span>‹</span>
-            <span class="txt font-bold">Fundinfo</span>
-            <span class="sub">/ ข้อมูลรายละเอียดกองทุน</span>
-          </button>
-          <button type="button" class="surf brd w-9 h-9 rounded-lg flex items-center justify-center" title="สลับโหมด" @click="toggleTheme">
+    <div class="min-h-screen" style="background: var(--bg); color: var(--txt)">
+      <!-- Sticky top bar: back navigation + theme toggle -->
+      <header class="surf border-b border-[var(--line)] cs sticky top-0 z-30">
+        <!-- Layout Fix: dropped max-w-[1280px] mx-auto — that centered container was
+             the "ขอบด้านข้าง" (side margins) on wide screens; w-full + small px keeps
+             breathing room without capping content width. -->
+        <div class="w-full px-4 flex items-center justify-between h-14">
+          <div class="flex items-center gap-3 min-w-0">
+            <button
+              type="button"
+              class="flex items-center gap-2 group text-sm font-bold txt hover:opacity-80 transition"
+              @click="goBack"
+            >
+              <span class="text-base font-extrabold" aria-hidden="true">&lt;</span>
+              <!-- Anti-XSS: typeMeta.label is app-owned static copy (FUND_TYPES), never user input -->
+              <span class="hover:underline truncate">{{ typeMeta ? typeMeta.label : 'Fundinfo' }}</span>
+            </button>
+            <span class="sub text-xs" aria-hidden="true">/</span>
+            <span class="text-xs font-semibold sub truncate">ข้อมูลรายละเอียดกองทุน</span>
+          </div>
+          <button
+            type="button"
+            class="w-8 h-8 rounded-full border border-[var(--line)] flex items-center justify-center text-sm hover:opacity-80 transition shrink-0"
+            title="สลับโหมด"
+            :aria-pressed="isDark"
+            aria-label="สลับโหมดสว่าง/มืด"
+            @click="toggleTheme"
+          >
             {{ isDark ? '☀️' : '🌙' }}
           </button>
         </div>
       </header>
 
-      <div v-if="!fund" class="max-w-[1120px] mx-auto px-4 py-16 text-center sub">
-        ไม่พบข้อมูลกองทุน
-      </div>
+      <main class="w-full px-4 md:px-8 py-6">
+        <!-- Not-found state: unknown/invalid id, no data leaked, no route param reflected.
+             Kept as a bordered card intentionally — this is a one-off alert/empty-state,
+             not page content, so it stays visually distinct from --bg. Say the word if
+             you want this flattened too. -->
+        <div v-if="!fund" class="surf brd rounded-xl cs p-10 text-center max-w-lg mx-auto mt-10">
+          <div class="text-5xl mb-4" aria-hidden="true">⚠️</div>
+          <h2 class="text-xl font-bold txt mb-2">ไม่พบข้อมูลกองทุน</h2>
+          <p class="text-base sub mb-6">ขออภัย ไม่พบกองทุนที่คุณร้องขอในฐานข้อมูลของเรา</p>
+          <button
+            type="button"
+            class="px-5 py-2.5 text-white rounded-lg text-base font-bold transition hover:opacity-90"
+            :style="{ background: accent }"
+            @click="goBack"
+          >
+            กลับสู่หน้าหลัก
+          </button>
+        </div>
 
-      <div v-else class="max-w-[1120px] mx-auto px-4 py-7 md:py-8 space-y-6">
-
-        <!-- Fund Title Bar -->
-        <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div class="flex items-center gap-3">
-            <div class="w-12 h-12 rounded-xl text-white font-extrabold flex items-center justify-center text-sm shrink-0 shadow-sm" :style="{ backgroundColor: accent }">
-              {{ fund.amcCode }}
-            </div>
-            <div>
-              <div class="flex items-center gap-2 flex-wrap mb-1">
-                <span class="px-2 py-0.5 rounded text-[10px] font-bold text-white" :style="{ backgroundColor: accent }">{{ typeMeta?.label }}</span>
-                <span class="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-[10px] font-semibold">ความเสี่ยงระดับ {{ fund.risk }}</span>
-                <span class="text-[11px] font-bold text-slate-400 font-['Inter']">{{ fund.id }}</span>
-              </div>
-              <h1 class="text-lg font-bold text-slate-900">{{ fund.name }}</h1>
-              <p class="text-[11px] text-slate-500">
-                {{ fund.amc }}
-                <template v-if="fund.master"> · Master: {{ fund.master }}</template>
-              </p>
-            </div>
+        <div v-else class="flex flex-col gap-6">
+          <!-- Fund summary header (always visible above the tabs) -->
+          <!-- Layout Fix: dropped surf (white card bg) + brd (border) + rounded-xl —
+               header now sits directly on --bg, blending into the page instead of
+               popping as a separate white card. Internal section dividers inside
+               FundDetailHeader.vue (border-b/border-l) already provide the visual
+               structure, so nothing else needs to change. -->
+          <div class="p-5 md:p-6">
+            <FundDetailHeader
+              :fund="fund"
+              :type-meta="typeMeta"
+              :accent="accent"
+              :is-dark="isDark"
+              :daily-change="dailyChange"
+              :registration-date="analytics.registrationDate.value"
+              :turnover-ratio="analytics.turnoverRatio.value"
+              :bid-price="analytics.feeSchedule.value.bid"
+              :offer-price="analytics.feeSchedule.value.offer"
+              :policy-bullets="analytics.policyBullets.value"
+            />
           </div>
 
-          <div class="flex items-center gap-5 flex-wrap">
-            <div>
-              <span class="text-[10px] text-slate-400 uppercase block">NAV</span>
-              <strong class="text-sm font-extrabold font-['Inter'] text-slate-900">{{ fund.nav.toFixed(4) }}</strong>
+          <!-- Tab bar -->
+          <div role="tablist" aria-label="รายละเอียดกองทุน" class="flex border-b border-[var(--line)] gap-6 text-sm md:text-base font-bold overflow-x-auto whitespace-nowrap">
+            <button
+              v-for="tab in TABS"
+              :key="tab.key"
+              type="button"
+              role="tab"
+              :id="`tab-${tab.key}`"
+              :aria-selected="activeTab === tab.key"
+              :aria-controls="`panel-${tab.key}`"
+              class="pb-3 border-b-2 transition shrink-0"
+              :class="activeTab === tab.key ? 'border-current' : 'border-transparent sub hover:opacity-80'"
+              :style="activeTab === tab.key ? { color: accent } : {}"
+              @click="activeTab = tab.key"
+            >{{ tab.label }}</button>
+          </div>
+
+          <!-- Tab panel: only the active tab is mounted (v-if), so Chart.js
+               canvases in the other 4 panels never exist until selected.
+               Layout Fix: dropped surf (white/dark card bg) + brd (border) + rounded-xl + cs
+               (box-shadow) — same treatment as the header above. Panel content now sits
+               directly on --bg instead of floating as a separate card under the tab bar.
+               The tab bar's own border-b already separates it from panel content, so no
+               structural cue is lost. -->
+          <div class="p-5 md:p-6">
+            <div v-if="activeTab === 'overview'" id="panel-overview" role="tabpanel" aria-labelledby="tab-overview">
+              <FundOverviewPanel :fund="fund" :accent="accent" :is-dark="isDark" :nav-history="analytics.navHistory" />
             </div>
-            <div>
-              <span class="text-[10px] text-slate-400 uppercase block">1Y Return</span>
-              <strong class="text-sm font-extrabold font-['Inter']" :class="fund.perf >= 0 ? 'text-emerald-500' : 'text-rose-500'">{{ fmtPct(fund.perf) }}</strong>
+
+            <div v-else-if="activeTab === 'performance'" id="panel-performance" role="tabpanel" aria-labelledby="tab-performance">
+              <FundPerformancePanel
+                :fund="fund"
+                :is-dark="isDark"
+                :group-average="analytics.groupAverage"
+                :dividend-history="analytics.dividendHistory.value"
+              />
             </div>
-            <div>
-              <span class="text-[10px] text-slate-400 uppercase block">ขนาดกองทุน (AUM)</span>
-              <strong class="text-sm font-extrabold font-['Inter'] text-slate-900">{{ fund.aum.toLocaleString('th-TH') }} ล้านบาท</strong>
+
+            <div v-else-if="activeTab === 'portfolio'" id="panel-portfolio" role="tabpanel" aria-labelledby="tab-portfolio">
+              <FundPortfolioPanel
+                :fund="fund"
+                :is-dark="isDark"
+                :country-allocation="analytics.countryAllocation.value"
+                :top-holdings="analytics.topHoldings.value"
+              />
             </div>
-            <div>
-              <span class="text-[10px] text-slate-400 uppercase block">จดทะเบียน</span>
-              <strong class="text-sm font-extrabold font-['Inter'] text-slate-900">{{ inceptionDate }}</strong>
+
+            <div v-else-if="activeTab === 'fees'" id="panel-fees" role="tabpanel" aria-labelledby="tab-fees">
+              <FundFeesPanel :fund="fund" :accent="accent" :is-dark="isDark" :fee-schedule="analytics.feeSchedule.value" />
+            </div>
+
+            <div v-else-if="activeTab === 'documents'" id="panel-documents" role="tabpanel" aria-labelledby="tab-documents">
+              <FundDocumentsPanel
+                :fund="fund"
+                :accent="accent"
+                :is-dark="isDark"
+                :alpha-beta-recover="analytics.alphaBetaRecover.value"
+                :recovering-period-text="analytics.recoveringPeriodText.value"
+              />
             </div>
           </div>
         </div>
-
-        <!-- Main 2-column grid -->
-        <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
-
-          <!-- Left column -->
-          <div class="lg:col-span-3 space-y-6">
-
-            <!-- ภาพรวมกองทุน -->
-            <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
-              <h2 class="text-base font-bold text-slate-900">ภาพรวมกองทุน</h2>
-
-              <div>
-                <span class="text-[11px] font-bold text-slate-500 uppercase block mb-1">นโยบายการลงทุน</span>
-                <p class="text-sm text-slate-700 leading-relaxed">{{ insight?.narr || 'ไม่มีข้อมูลนโยบายการลงทุน' }}</p>
-                <div class="flex flex-wrap gap-1.5 pt-2">
-                  <span v-for="tag in (fund.themes || [])" :key="tag" class="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-[10px] font-semibold">#{{ tag }}</span>
-                </div>
-              </div>
-
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-100">
-                <div>
-                  <span class="text-[11px] font-bold text-slate-500 uppercase block mb-1">นโยบายการจ่ายปันผล</span>
-                  <p class="text-sm font-semibold" :class="fund.div ? 'text-emerald-600' : 'text-rose-500'">{{ dividendPolicy.text }}</p>
-                  <p class="text-[11px] text-slate-500">{{ dividendPolicy.sub }}</p>
-                </div>
-                <div>
-                  <span class="text-[11px] font-bold text-slate-500 uppercase block mb-1">การป้องกันความเสี่ยงอัตราแลกเปลี่ยน (FX Hedging)</span>
-                  <p class="text-sm font-semibold text-slate-700">{{ fund.fx || '-' }}</p>
-                </div>
-                <div>
-                  <span class="text-[11px] font-bold text-slate-500 uppercase block mb-1">วันที่จดทะเบียนจัดตั้งกองทุน</span>
-                  <p class="text-sm font-semibold text-slate-700">{{ inceptionDate }}</p>
-                </div>
-                <div>
-                  <span class="text-[11px] font-bold text-slate-500 uppercase block mb-1">มูลค่าทรัพย์สินสุทธิ (AUM)</span>
-                  <p class="text-sm font-semibold text-slate-700">{{ aumText }}</p>
-                </div>
-              </div>
-            </div>
-
-            <!-- ผลการดำเนินงานและความเสี่ยง -->
-            <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
-              <h2 class="text-base font-bold text-slate-900">ผลการดำเนินงานและความเสี่ยง</h2>
-
-              <div>
-                <div class="flex items-center justify-between mb-2">
-                  <span class="text-[11px] font-bold text-slate-500 uppercase">กราฟ NAV ย้อนหลัง</span>
-                  <div class="flex items-center gap-1">
-                    <button
-                      v-for="r in timeRanges" :key="r" type="button"
-                      class="px-2 py-1 rounded-md text-[11px] font-bold"
-                      :class="selectedRange === r ? 'text-white' : 'text-slate-500 hover:bg-slate-100'"
-                      :style="selectedRange === r ? { backgroundColor: accent } : {}"
-                      @click="selectedRange = r"
-                    >{{ r }}</button>
-                  </div>
-                </div>
-                <div class="h-52 relative"><canvas ref="navChartRef"></canvas></div>
-              </div>
-
-              <div class="overflow-x-auto pt-2 border-t border-slate-100">
-                <span class="text-[11px] font-bold text-slate-500 uppercase block mb-2">ตารางเปรียบเทียบผลตอบแทนย้อนหลัง</span>
-                <table class="w-full text-left text-sm">
-                  <thead>
-                    <tr class="text-[11px] text-slate-400">
-                      <th class="py-1 font-semibold">ช่วงเวลา</th>
-                      <th class="py-1 font-semibold text-right">กองทุน</th>
-                      <th class="py-1 font-semibold text-right">เกณฑ์มาตรฐาน</th>
-                      <th class="py-1 font-semibold text-right">ส่วนต่าง</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="(p, idx) in periods" :key="p.key" class="border-t border-slate-100">
-                      <td class="py-1.5 text-slate-600">{{ p.label }}</td>
-                      <td class="py-1.5 text-right font-bold font-['Inter']" :class="fundReturn(p.key) >= 0 ? 'text-emerald-600' : 'text-rose-500'">{{ fmtPct(fundReturn(p.key)) }}</td>
-                      <td class="py-1.5 text-right font-['Inter'] text-slate-500">{{ fmtPct(benchReturn(p.key, idx)) }}</td>
-                      <td class="py-1.5 text-right font-['Inter'] font-semibold" :class="diffReturn(p.key, idx) >= 0 ? 'text-emerald-600' : 'text-rose-500'">{{ fmtPct(diffReturn(p.key, idx)) }}</td>
-                    </tr>
-                  </tbody>
-                </table>
-                <p class="text-[10px] text-slate-400 pt-1">เกณฑ์มาตรฐานอ้างอิง: {{ insight?.bench || '-' }}</p>
-              </div>
-
-              <div class="pt-2 border-t border-slate-100">
-                <span class="text-[11px] font-bold text-slate-500 uppercase block mb-2">ผลตอบแทนรายปี (Calendar Year Returns)</span>
-                <div class="h-40 relative"><canvas ref="cyrChartRef"></canvas></div>
-              </div>
-
-              <div class="grid grid-cols-2 md:grid-cols-5 gap-2 pt-2 border-t border-slate-100">
-                <div class="bg-slate-50 p-2.5 rounded-xl text-center">
-                  <span class="text-[10px] text-slate-400 block">Sharpe Ratio</span>
-                  <strong class="text-sm font-bold text-slate-800 font-['Inter']">{{ fund.sharpe }}</strong>
-                </div>
-                <div class="bg-slate-50 p-2.5 rounded-xl text-center">
-                  <span class="text-[10px] text-slate-400 block">Max Drawdown</span>
-                  <strong class="text-sm font-bold text-rose-500 font-['Inter']">{{ fund.drawdown }}</strong>
-                </div>
-                <div class="bg-slate-50 p-2.5 rounded-xl text-center">
-                  <span class="text-[10px] text-slate-400 block">Recovery Period</span>
-                  <strong class="text-sm font-bold text-slate-800 font-['Inter']">{{ fund.stats.recover }} เดือน</strong>
-                </div>
-                <div class="bg-slate-50 p-2.5 rounded-xl text-center">
-                  <span class="text-[10px] text-slate-400 block">Standard Deviation</span>
-                  <strong class="text-sm font-bold text-slate-800 font-['Inter']">{{ fund.stats.sd }}%</strong>
-                </div>
-                <div class="bg-slate-50 p-2.5 rounded-xl text-center">
-                  <span class="text-[10px] text-slate-400 block">Beta</span>
-                  <strong class="text-sm font-bold text-slate-800 font-['Inter']">{{ fund.stats.beta }}</strong>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Right column -->
-          <div class="lg:col-span-2 space-y-6">
-
-            <!-- สัดส่วนการลงทุน -->
-            <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
-              <h2 class="text-base font-bold text-slate-900">สัดส่วนการลงทุน</h2>
-
-              <div>
-                <span class="text-[11px] font-bold text-slate-500 uppercase block mb-1">สัดส่วนประเภทสินทรัพย์ (Asset Allocation)</span>
-                <div class="h-40 relative"><canvas ref="assetChartRef"></canvas></div>
-              </div>
-
-              <div v-if="sectorAllocation.length" class="pt-2 border-t border-slate-100 space-y-1.5">
-                <span class="text-[11px] font-bold text-slate-500 uppercase block">สัดส่วนกลุ่มอุตสาหกรรม (Sector Allocation)</span>
-                <div v-for="sec in sectorAllocation" :key="sec.name" class="flex items-center justify-between text-[12px]">
-                  <span class="text-slate-600 truncate max-w-[120px]">{{ sec.name }}</span>
-                  <div class="flex items-center gap-2 flex-1 ml-3">
-                    <div class="flex-1 bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                      <div class="h-full rounded-full" :style="{ width: `${sec.percent}%`, backgroundColor: accent }"></div>
-                    </div>
-                    <span class="font-bold text-slate-700 w-9 text-right font-['Inter']">{{ sec.percent }}%</span>
-                  </div>
-                </div>
-              </div>
-
-              <div v-if="countryAllocation.length" class="pt-2 border-t border-slate-100 space-y-1.5">
-                <span class="text-[11px] font-bold text-slate-500 uppercase block">สัดส่วนประเทศที่ลงทุน (Country Allocation)</span>
-                <div v-for="c in countryAllocation" :key="c.name" class="flex items-center justify-between text-[12px]">
-                  <span class="text-slate-600 truncate max-w-[120px]">{{ c.name }}</span>
-                  <div class="flex items-center gap-2 flex-1 ml-3">
-                    <div class="flex-1 bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                      <div class="h-full rounded-full" :style="{ width: `${c.percent}%`, backgroundColor: accent }"></div>
-                    </div>
-                    <span class="font-bold text-slate-700 w-9 text-right font-['Inter']">{{ c.percent }}%</span>
-                  </div>
-                </div>
-              </div>
-
-              <div class="pt-2 border-t border-slate-100 space-y-1.5">
-                <span class="text-[11px] font-bold text-slate-500 uppercase block">หลักทรัพย์ที่ถือครองสูงสุด</span>
-                <div v-for="hold in topHoldings" :key="hold.name" class="flex items-center justify-between text-[12px]">
-                  <span class="text-slate-700 font-medium truncate max-w-[130px]">{{ hold.name }}</span>
-                  <div class="flex items-center gap-2 flex-1 ml-3">
-                    <div class="flex-1 bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                      <div class="h-full rounded-full" :style="{ width: `${(hold.percent / holdingMax) * 100}%`, backgroundColor: accent }"></div>
-                    </div>
-                    <span class="font-bold text-slate-800 w-10 text-right font-['Inter']">{{ hold.percent }}%</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- ค่าธรรมเนียมและเงื่อนไขการซื้อขาย -->
-            <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
-              <h2 class="text-base font-bold text-slate-900">ค่าธรรมเนียมและเงื่อนไขการซื้อขาย</h2>
-
-              <div class="grid grid-cols-2 gap-2">
-                <div class="bg-slate-50 p-2.5 rounded-xl">
-                  <span class="text-[10px] text-slate-400 block">Front-end Fee (ซื้อ)</span>
-                  <strong class="text-sm font-bold text-slate-800 font-['Inter']">1.00%</strong>
-                </div>
-                <div class="bg-slate-50 p-2.5 rounded-xl">
-                  <span class="text-[10px] text-slate-400 block">Back-end Fee (ขาย)</span>
-                  <strong class="text-sm font-bold text-slate-800">ไม่มีเรียกเก็บ</strong>
-                </div>
-              </div>
-
-              <div class="space-y-1.5 text-sm pt-2 border-t border-slate-100">
-                <div class="flex items-center justify-between">
-                  <span class="text-slate-500">Management Fee (ค่าการจัดการ)</span>
-                  <strong class="font-['Inter'] text-slate-800">{{ feeBreakdown.management }}%</strong>
-                </div>
-                <div class="flex items-center justify-between">
-                  <span class="text-slate-500">Trustee / Custody</span>
-                  <strong class="font-['Inter'] text-slate-800">{{ feeBreakdown.trustee }}%</strong>
-                </div>
-                <div class="flex items-center justify-between">
-                  <span class="text-slate-500">Registrar Fee</span>
-                  <strong class="font-['Inter'] text-slate-800">{{ feeBreakdown.registrar }}%</strong>
-                </div>
-                <div class="flex items-center justify-between pt-1 border-t border-slate-100">
-                  <span class="text-slate-700 font-bold">Total Expense Ratio (TER)</span>
-                  <strong class="font-['Inter']" :style="{ color: accent }">{{ feeBreakdown.ter }}%</strong>
-                </div>
-              </div>
-
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-2 pt-2 border-t border-slate-100">
-                <div class="bg-slate-50 p-2.5 rounded-xl">
-                  <span class="text-[10px] text-slate-400 block">มูลค่าขั้นต่ำในการซื้อ / ครั้งถัดไป</span>
-                  <strong class="text-sm font-bold text-slate-800 font-['Inter']">{{ minInvestmentText }}</strong>
-                </div>
-                <div class="bg-slate-50 p-2.5 rounded-xl">
-                  <span class="text-[10px] text-slate-400 block">ระยะเวลารับเงินค่าขายคืน (Settlement)</span>
-                  <strong class="text-sm font-bold text-slate-800 font-['Inter']">T+4 วันทำการ</strong>
-                </div>
-              </div>
-            </div>
-
-            <!-- เอกสารดาวน์โหลดเพิ่มเติม -->
-            <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-2">
-              <h2 class="text-base font-bold text-slate-900 mb-1">เอกสารดาวน์โหลดเพิ่มเติม</h2>
-              <a href="#" class="flex items-center justify-between text-sm font-medium py-1.5" :style="{ color: accent }">
-                <span>📄 รายงานข้อมูลสำคัญ (Fund Factsheet)</span><span class="text-[10px] font-bold sub">PDF</span>
-              </a>
-              <a href="#" class="flex items-center justify-between text-sm font-medium py-1.5" :style="{ color: accent }">
-                <span>📘 หนังสือชี้ชวนเสนอขายหน่วยลงทุน</span><span class="text-[10px] font-bold sub">PDF</span>
-              </a>
-              <a href="#" class="flex items-center justify-between text-sm font-medium py-1.5" :style="{ color: accent }">
-                <span>📊 รายงานประจำปี / รายงานครึ่งปี</span><span class="text-[10px] font-bold sub">PDF</span>
-              </a>
-            </div>
-
-          </div>
-        </div>
-      </div>
-    </main>
+      </main>
+    </div>
   </div>
 </template>

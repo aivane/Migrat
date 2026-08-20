@@ -99,28 +99,31 @@ function handleToggleCompare(fundId) {
 
     <!-- เพิ่ม max-h-[300px] และ overflow-y-auto เพื่อให้แสดงประมาณ 3 กองแล้วที่เหลือให้เลื่อน -->
     <div class="fund-results-table overflow-x-auto max-h-[250px] overflow-y-auto relative ">
-      <table class="w-full text-left">
+      <!-- Layout Fix: table-fixed กันคอลัมน์ "สั่น"/ไม่ตรงกับ sticky thead ทุกครั้งที่ sort/filter
+           เปลี่ยน displayFunds (เดิม auto width คำนวณจากความยาว content ทุกแถว ทำให้ truncate
+           max-w ใน <td> "กองทุน" ทำงานไม่ตรงกับความกว้างจริงของคอลัมน์) -->
+      <table class="w-full text-left table-fixed">
         <!-- เพิ่ม sticky top-0 และพื้นหลังสีขาว (bg-white หรือสีที่ใช้) เพื่อให้หัวตารางติดขอบเวลาเลื่อน -->
         <thead class="sticky top-0 bg-[#f8fafc] z-10 shadow-sm">
           <tr>
-            <th>กองทุน</th>
+            <th class="w-[260px]">กองทุน</th>
             
             <!-- แสดงทั้ง Thai Fund และ Offshore Fund -->
-            <th v-if="type === 'offshore' || type === 'thai'">หุ้นที่ถือเยอะ</th>
-            <th v-if="type === 'offshore' || type === 'thai'" class="text-right">น้ำหนักรวม</th>
+            <th v-if="type === 'offshore' || type === 'thai'" class="w-[170px]">หุ้นที่ถือเยอะ</th>
+            <th v-if="type === 'offshore' || type === 'thai'" class="text-right w-[90px]">น้ำหนักรวม</th>
             
             <!-- นำ <th>บลจ.</th> ออกไปแล้ว -->
             
-            <th>สิทธิภาษี</th>
-            <th class="text-center sortable" @click="setSortLocal('minInvestment')">ขั้นต่ำ <span class="sort-arrow" :class="{ active: localSortKey === 'minInvestment' }">{{ sortIcon('minInvestment') }}</span></th>
-            <th class="text-center sortable" @click="setSortLocal('nav')">NAV/หน่วย <span class="sort-arrow" :class="{ active: localSortKey === 'nav' }">{{ sortIcon('nav') }}</span></th>
+            <th class="w-[90px]">สิทธิภาษี</th>
+            <th class="text-center sortable w-[100px]" @click="setSortLocal('minInvestment')">ขั้นต่ำ <span class="sort-arrow" :class="{ active: localSortKey === 'minInvestment' }">{{ sortIcon('minInvestment') }}</span></th>
+            <th class="text-center sortable w-[100px]" @click="setSortLocal('nav')">NAV/หน่วย <span class="sort-arrow" :class="{ active: localSortKey === 'nav' }">{{ sortIcon('nav') }}</span></th>
 
-            <th class="text-center sortable" @click="setSortLocal('risk')">ความเสี่ยง <span class="sort-arrow" :class="{ active: localSortKey === 'risk' }">{{ sortIcon('risk') }}</span></th>
-            <th class="text-center sortable" @click="setSortLocal('perf')">ผลตอบแทน 1 ปี <span class="sort-arrow" :class="{ active: localSortKey === 'perf' }">{{ sortIcon('perf') }}</span></th>
-            <th class="text-center sortable" @click="setSortLocal('sd')">SD <span class="sort-arrow" :class="{ active: localSortKey === 'sd' }">{{ sortIcon('sd') }}</span></th>
-            <th class="text-right sortable" @click="setSortLocal('sharpe')">Sharpe <span class="sort-arrow" :class="{ active: localSortKey === 'sharpe' }">{{ sortIcon('sharpe') }}</span></th>
-            <th class="text-center font-['Inter'] sub sortable" @click="setSortLocal('fee')">TER <span class="sort-arrow" :class="{ active: localSortKey === 'fee' }">{{ sortIcon('fee') }}</span></th>
-            <th class="text-center"></th>
+            <th class="text-center sortable w-[90px]" @click="setSortLocal('risk')">ความเสี่ยง <span class="sort-arrow" :class="{ active: localSortKey === 'risk' }">{{ sortIcon('risk') }}</span></th>
+            <th class="text-center sortable w-[110px]" @click="setSortLocal('perf')">ผลตอบแทน 1 ปี <span class="sort-arrow" :class="{ active: localSortKey === 'perf' }">{{ sortIcon('perf') }}</span></th>
+            <th class="text-center sortable w-[80px]" @click="setSortLocal('sd')">SD <span class="sort-arrow" :class="{ active: localSortKey === 'sd' }">{{ sortIcon('sd') }}</span></th>
+            <th class="text-right sortable w-[80px]" @click="setSortLocal('sharpe')">Sharpe <span class="sort-arrow" :class="{ active: localSortKey === 'sharpe' }">{{ sortIcon('sharpe') }}</span></th>
+            <th class="text-center font-['Inter'] sub sortable w-[80px]" @click="setSortLocal('fee')">TER <span class="sort-arrow" :class="{ active: localSortKey === 'fee' }">{{ sortIcon('fee') }}</span></th>
+            <th class="text-center w-[50px]"></th>
           </tr>
         </thead>
         <tbody>
