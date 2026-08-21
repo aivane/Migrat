@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { isValidFundId } from '../services/fundinfoApi'
 import ArticleDetailView from '../views/ArticleDetailView.vue'
 import ArticlesView from '../views/ArticlesView.vue'
 import DashboardView from '../views/DashboardView.vue'
@@ -68,8 +69,11 @@ const routes = [
     component: FaqView,
   },
   {
+    // Auth Guard scaffold — meta.public marks routes exempt from the future
+    // requiresAuth check below; fundinfo is read-only public data today.
     path: '/fundinfo',
     component: FundinfoLayout,
+    meta: { public: true },
     children: [
       { path: '', redirect: { name: 'fundinfo-feeder' } },
       { path: 'feeder', name: 'fundinfo-feeder', component: FeederFundView },
@@ -83,10 +87,37 @@ const routes = [
     name: 'fundinfo-detail',
     component: () => import('../views/fundinfo/FundInfoDetailView.vue'),
     props: true,
+    meta: { public: true },
+    // Input Validation — reject malformed/malicious :id before the view ever
+    // mounts or triggers a store/API call (defense-in-depth with the view's
+    // own check and with fundinfoApi's isValidFundId on every request).
+    beforeEnter: (to, _from, next) => {
+      if (isValidFundId(to.params.id)) {
+        next()
+      } else {
+        next({ name: 'fundinfo-feeder' })
+      }
+    },
   },
 ]
 
 export const router = createRouter({
   history: createWebHistory(),
   routes,
+})
+
+// Auth Guard — currently a no-op passthrough (no route sets requiresAuth yet),
+// wired up now so gating a future authenticated route only means adding
+// `meta: { requiresAuth: true }` to it, no router-wide changes.
+router.beforeEach((to) => {
+  const requiresAuth = to.matched.some((record) => record.meta?.requiresAuth)
+  if (!requiresAuth) return true
+
+  // Lazy import avoids a hard dependency from the router module on Pinia's
+  // active-instance lifecycle at router-creation time.
+  return import('../stores/authStore').then(({ useAuthStore }) => {
+    const authStore = useAuthStore()
+    if (authStore.isAuthenticated) return true
+    return { name: 'login', query: { redirect: to.fullPath } }
+  })
 })

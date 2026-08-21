@@ -16,7 +16,9 @@
 // initializing Chart.js on a `display:none` element.
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { FUNDS, FUND_TYPES } from '../../data/fundinfoData'
+import { FUND_TYPES } from '../../data/fundinfoData'
+import { isValidFundId } from '../../services/fundinfoApi'
+import { useFundinfoStore } from '../../stores/fundinfoStore'
 import { useFundinfoTheme } from '../../composables/useFundinfoTheme'
 import { useFundAnalytics } from '../../composables/useFundAnalytics'
 
@@ -37,15 +39,31 @@ const { isDark, toggleTheme } = useFundinfoTheme()
 // ---------- Route param validation / access control ----------
 // Public, read-only page — no PII, no mutation, no auth token involved.
 // `route.params.id` is untrusted input: never used to build a path/query,
-// never reflected anywhere unescaped, only ever used as a FUNDS lookup key.
-// Extra defensive check before even attempting the lookup.
-const VALID_ID_PATTERN = /^[A-Za-z0-9-]{1,32}$/
+// never reflected anywhere unescaped, only ever used as a fundinfoStore lookup
+// key. The router's own beforeEnter guard (router/index.js) already rejects
+// malformed ids before this view mounts — this is defense-in-depth in case
+// the component is ever reached another way (e.g. programmatic push).
 const requestedId = computed(() => {
   const raw = route.params.id
-  return typeof raw === 'string' && VALID_ID_PATTERN.test(raw) ? raw : null
+  return isValidFundId(raw) ? raw : null
 })
 
-const fund = computed(() => (requestedId.value ? FUNDS.find((f) => f.id === requestedId.value) : undefined))
+// ---------- Data (store-backed — ready for the API-mode switch) ----------
+// fundinfoStore delegates to fundinfoApi.js, which today reads the local
+// mock/CSV dataset and later (VITE_FUNDINFO_API_MODE) calls the real backend
+// — this view never needs to change when that switch flips.
+const fundinfoStore = useFundinfoStore()
+
+watch(
+  requestedId,
+  (id) => {
+    if (id) fundinfoStore.loadFundById(id)
+  },
+  { immediate: true },
+)
+
+const fund = computed(() => (requestedId.value ? fundinfoStore.getFundById(requestedId.value) : undefined))
+const isLoading = computed(() => (requestedId.value ? fundinfoStore.isLoading(requestedId.value) : false))
 const typeMeta = computed(() => (fund.value ? FUND_TYPES[fund.value.type] : null))
 const accent = computed(() => typeMeta.value?.accent || '#2456d8')
 
@@ -125,11 +143,17 @@ const dailyChange = computed(() => {
       </header>
 
       <main class="w-full px-4 md:px-8 py-6">
+        <!-- Loading state: store fetch in flight (relevant once the API-mode
+             switch flips to a real network call; resolves near-instantly in mock mode). -->
+        <div v-if="isLoading" class="surf brd rounded-xl cs p-10 text-center max-w-lg mx-auto mt-10">
+          <p class="text-base sub">กำลังโหลดข้อมูลกองทุน...</p>
+        </div>
+
         <!-- Not-found state: unknown/invalid id, no data leaked, no route param reflected.
              Kept as a bordered card intentionally — this is a one-off alert/empty-state,
              not page content, so it stays visually distinct from --bg. Say the word if
              you want this flattened too. -->
-        <div v-if="!fund" class="surf brd rounded-xl cs p-10 text-center max-w-lg mx-auto mt-10">
+        <div v-else-if="!fund" class="surf brd rounded-xl cs p-10 text-center max-w-lg mx-auto mt-10">
           <div class="text-5xl mb-4" aria-hidden="true">⚠️</div>
           <h2 class="text-xl font-bold txt mb-2">ไม่พบข้อมูลกองทุน</h2>
           <p class="text-base sub mb-6">ขออภัย ไม่พบกองทุนที่คุณร้องขอในฐานข้อมูลของเรา</p>

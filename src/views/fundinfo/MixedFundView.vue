@@ -3,7 +3,7 @@ import { FUND_TYPES } from '../../data/fundinfoData'
 import MarketLensSection from '../../components/fundinfo/MarketLensSection.vue'
 import RankingCardsSection from '../../components/fundinfo/RankingCardsSection.vue'
 import InsightCompareSection from '../../components/fundinfo/InsightCompareSection.vue'
-import SearchfilterSection from '../../components/fundinfo/SearchfilterSection.vue'
+import SearchFilterSection from '../../components/fundinfo/SearchFilterSection.vue'
 import FundTableWithCompare from '../../components/fundinfo/FundTableWithCompare.vue'
 
 const meta = FUND_TYPES.mixed
@@ -26,7 +26,7 @@ const meta = FUND_TYPES.mixed
     <InsightCompareSection type="mixed" />
 
     <!-- ④ Search & Filter Section -->
-    <SearchfilterSection type="mixed" />
+    <SearchFilterSection type="mixed" />
 
     <!-- ⑤ ตารางหลักพร้อมคอลัมน์เลือกเปรียบเทียบ, ตารางเปรียบเทียบ Matrix, และการ์ดรายละเอียดกองทุน -->
     <FundTableWithCompare type="mixed" />

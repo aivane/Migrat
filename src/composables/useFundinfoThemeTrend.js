@@ -1,5 +1,6 @@
-import { computed, reactive } from 'vue'
-import { fundsByType, INSIGHT } from '../data/fundinfoData'
+import { computed, reactive, watch } from 'vue'
+import { INSIGHT } from '../data/fundinfoData'
+import { useFundinfoStore } from '../stores/fundinfoStore'
 
 // ==========================================================================
 // Section ① Theme / Sector Trend — "Theme Pulse" (Feeder Fund)
@@ -96,29 +97,47 @@ export function formatFlow(value) {
 }
 
 export function useFundinfoThemeTrend(type = 'feeder') {
-  const funds = fundsByType(type)
-  const scopes = computeThemeScopes(funds)
-  const stats = scopes.map(themePulseStats)
+  // Store-backed (fundinfoStore.js -> fundinfoApi.js): reads local mock data
+  // today, will read the real backend once VITE_FUNDINFO_API_MODE flips.
+  const fundinfoStore = useFundinfoStore()
+  fundinfoStore.loadFundsByType(type)
+  const funds = computed(() => fundinfoStore.getFundsByType(type))
+
+  const scopes = computed(() => computeThemeScopes(funds.value))
+  const stats = computed(() => scopes.value.map(themePulseStats))
 
   const state = reactive({
     view: 'interesting', // 'interesting' (top 3 by momentum) | 'all' (searchable)
     search: '',
-    // Open with the strongest themes already selected, so the comparison
-    // workspace provides useful information at first glance.
-    selected: [...stats]
-      .sort((a, b) => b.q1 - a.q1 || b.flow - a.flow)
-      .slice(0, 3)
-      .map((s) => s.scope.id),
+    selected: [],
   })
 
-  const positiveCount = stats.filter((s) => s.scope.perf > 0).length
-  const acceleratingCount = stats.filter((s) => s.accel > 1).length
-  const outperformCount = stats.filter((s) => s.vsGlobal > 0).length
+  // Open with the strongest themes already selected, so the comparison
+  // workspace provides useful information at first glance. Seeded once, the
+  // first time stats has data — a later store refresh must not clobber
+  // whatever the person has since selected.
+  let selectionSeeded = false
+  watch(
+    stats,
+    (value) => {
+      if (selectionSeeded || !value.length) return
+      selectionSeeded = true
+      state.selected = [...value]
+        .sort((a, b) => b.q1 - a.q1 || b.flow - a.flow)
+        .slice(0, 3)
+        .map((s) => s.scope.id)
+    },
+    { immediate: true },
+  )
 
-  const interesting = [...stats].sort((a, b) => b.q1 - a.q1 || b.flow - a.flow).slice(0, 3)
+  const positiveCount = computed(() => stats.value.filter((s) => s.scope.perf > 0).length)
+  const acceleratingCount = computed(() => stats.value.filter((s) => s.accel > 1).length)
+  const outperformCount = computed(() => stats.value.filter((s) => s.vsGlobal > 0).length)
+
+  const interesting = computed(() => [...stats.value].sort((a, b) => b.q1 - a.q1 || b.flow - a.flow).slice(0, 3))
 
   const visibleStats = computed(() => {
-    const base = state.view === 'interesting' ? interesting : stats
+    const base = state.view === 'interesting' ? interesting.value : stats.value
     const q = state.search.trim().toLowerCase()
     if (!q) return base
     return base.filter((s) =>
@@ -129,7 +148,7 @@ export function useFundinfoThemeTrend(type = 'feeder') {
   })
 
   const selectedStats = computed(() =>
-    state.selected.map((id) => stats.find((s) => s.scope.id === id)).filter(Boolean),
+    state.selected.map((id) => stats.value.find((s) => s.scope.id === id)).filter(Boolean),
   )
 
   const maxReached = computed(() => state.selected.length >= MAX_SELECTED)

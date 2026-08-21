@@ -2,7 +2,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { useFundinfoScreener } from '../../composables/useFundinfoScreener'
-import { useFundinfoWatchlist } from '../../composables/useFundinfoWatchlist'
+import { useFundinfoWishlist } from '../../composables/useFundinfoWishlist'
 import { STOCK_META } from '../../data/fundinfoData'
 import { formatPercent } from '../../utils/fundinfoFormat'
 import FundCompareTable from './FundCompareTable.vue'
@@ -12,7 +12,7 @@ import InfoTooltip from '../common/InfoTooltip.vue'
 const props = defineProps({ type: { type: String, default: 'offshore' } })
 
 const { screenedFunds, toggleCompare, compareFunds, compareOrderOf } = useFundinfoScreener(props.type)
-const { isWatched, toggleWatch } = useFundinfoWatchlist()
+const { isWished, toggleWish } = useFundinfoWishlist()
 const expandedFundId = ref(null)
 const selectedFundsList = computed(() => compareFunds.value)
 
@@ -60,6 +60,22 @@ const displayFunds = computed(() => {
   const dir = localSortDir.value === 'asc' ? 1 : -1
   return funds.sort((a, b) => (sortValue(a, localSortKey.value) - sortValue(b, localSortKey.value)) * dir)
 })
+
+// Perf: badge/ticker/weight/tax-label are pure functions of `fund` alone, so
+// derive them once per displayFunds change instead of re-running them for
+// every visible row on every render (expand toggle, star toggle, compare
+// toggle previously re-evaluated all of these for all rows every click).
+const tableRows = computed(() =>
+  displayFunds.value.map((fund) => ({
+    fund,
+    badge: badgeLabel(fund),
+    badgeCls: badgeTone(fund),
+    tickers: holdingTickers(fund),
+    weight: totalHoldingWeight(fund),
+    taxBenefit: taxBenefitLabel(fund.taxBenefit),
+    minInvestment: formattedInvestment(fund.minInvestment ?? fund.minInvest),
+  })),
+)
 
 function taxBenefitLabel(value) {
   if (!value) return '-'
@@ -127,7 +143,7 @@ function handleToggleCompare(fundId) {
           </tr>
         </thead>
         <tbody>
-          <template v-for="fund in displayFunds" :key="fund.id">
+          <template v-for="{ fund, badge, badgeCls, tickers, weight, taxBenefit, minInvestment } in tableRows" :key="fund.id">
             <tr :id="`fund-row-${fund.id}`" class="fund-result-row" :class="{ selected: compareOrderOf(fund.id) > -1, expanded: expandedFundId === fund.id }" role="button" tabindex="0" :aria-expanded="expandedFundId === fund.id" @click="toggleDetails(fund.id)" @keydown.enter.prevent="toggleDetails(fund.id)" @keydown.space.prevent="toggleDetails(fund.id)">
               
               <!-- 1. กองทุน -->
@@ -135,7 +151,7 @@ function handleToggleCompare(fundId) {
                 <div class="flex items-center gap-2 min-w-0">
                   <!-- เปลี่ยนจาก toggleCompare เป็น handleToggleCompare -->
                   <button type="button" class="fund-row-plus" :class="{ active: compareOrderOf(fund.id) > -1 }" :aria-label="compareOrderOf(fund.id) > -1 ? `นำ ${fund.name} ออกจากการเปรียบเทียบ` : `เพิ่ม ${fund.name} เพื่อเปรียบเทียบ`" @click.stop="handleToggleCompare(fund.id)">{{ compareOrderOf(fund.id) > -1 ? '✓' : '+' }}</button>
-                  <span class="fund-amc-mark" :class="badgeTone(fund)">{{ badgeLabel(fund) }}</span>
+                  <span class="fund-amc-mark" :class="badgeCls">{{ badge }}</span>
                   <div class="min-w-0">
                     <strong class="txt block truncate max-w-[190px]">{{ fund.name }}</strong>
                     <span class="block sub font-['Inter']" style="text-align: left; font-size:11px;">
@@ -143,23 +159,23 @@ function handleToggleCompare(fundId) {
                       <template v-if="type === 'feeder' && fund.masterFund"> · {{ fund.masterFund }}</template>
                     </span>
                   </div>
-                  <button type="button" class="star ml-auto" :class="{ on: isWatched(fund.id) }" :aria-label="isWatched(fund.id) ? `นำ ${fund.name} ออกจาก wishlist` : `เพิ่ม ${fund.name} ไปยัง wishlist`" :aria-pressed="isWatched(fund.id)" @click.stop="toggleWatch(fund.id)">{{ isWatched(fund.id) ? '★' : '☆' }}</button>
+                  <button type="button" class="star ml-auto" :class="{ on: isWished(fund.id) }" :aria-label="isWished(fund.id) ? `นำ ${fund.name} ออกจาก wishlist` : `เพิ่ม ${fund.name} ไปยัง wishlist`" :aria-pressed="isWished(fund.id)" @click.stop="toggleWish(fund.id)">{{ isWished(fund.id) ? '★' : '☆' }}</button>
                 </div>
               </td>
               
               <!-- 2. หุ้นที่ถือเยอะ (แสดงสำหรับ Thai และ Offshore) -->
-              <td v-if="type === 'offshore' || type === 'thai'" class="sub max-w-[170px] truncate font-['Inter']" :title="holdingTickers(fund)">{{ holdingTickers(fund) }}</td>
-              
+              <td v-if="type === 'offshore' || type === 'thai'" class="sub max-w-[170px] truncate font-['Inter']" :title="tickers">{{ tickers }}</td>
+
               <!-- 3. น้ำหนักรวม (แสดงสำหรับ Thai และ Offshore) -->
-              <td v-if="type === 'offshore' || type === 'thai'" class="text-right font-['Inter'] sub">{{ totalHoldingWeight(fund) }}</td>
-              
+              <td v-if="type === 'offshore' || type === 'thai'" class="text-right font-['Inter'] sub">{{ weight }}</td>
+
               <!-- นำ <td> ของ บลจ. ออกไปแล้ว -->
-              
+
               <!-- 4. สิทธิภาษี -->
-              <td class="sub">{{ taxBenefitLabel(fund.taxBenefit) }}</td>
-              
+              <td class="sub">{{ taxBenefit }}</td>
+
               <!-- 5. ขั้นต่ำ -->
-              <td class="text-center sub">{{ formattedInvestment(fund.minInvestment ?? fund.minInvest) }}</td>
+              <td class="text-center sub">{{ minInvestment }}</td>
               
               <!-- 6. NAV/หน่วย -->
               <td class="text-right font-['Inter'] sub">{{ fund.nav ? fund.nav.toFixed(4) : '-' }}</td>

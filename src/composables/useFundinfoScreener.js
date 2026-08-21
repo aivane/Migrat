@@ -192,7 +192,9 @@ function createFundinfoScreener(type) {
   const resultCount = computed(() => screenedFunds.value.length)
 
   const compareFunds = computed(() =>
-    screener.compareSelected.map((id) => screenedFunds.value.find((f) => f.id === id) || base.funds.find((f) => f.id === id)).filter(Boolean),
+    screener.compareSelected
+      .map((id) => screenedFunds.value.find((f) => f.id === id) || base.funds.value.find((f) => f.id === id))
+      .filter(Boolean),
   )
 
   function toggleAdvanced() {

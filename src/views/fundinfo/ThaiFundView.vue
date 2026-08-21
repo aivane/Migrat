@@ -3,7 +3,7 @@ import { FUND_TYPES } from '../../data/fundinfoData'
 import ExposureTrendSection from '../../components/fundinfo/ExposureTrendSection.vue'
 import RankingCardsSection from '../../components/fundinfo/RankingCardsSection.vue'
 import InsightCompareSection from '../../components/fundinfo/InsightCompareSection.vue'
-import SearchfilterSection from '../../components/fundinfo/SearchfilterSection.vue'
+import SearchFilterSection from '../../components/fundinfo/SearchFilterSection.vue'
 import FundTableWithCompare from '../../components/fundinfo/FundTableWithCompare.vue'
 
 const meta = FUND_TYPES.thai
@@ -21,7 +21,7 @@ const meta = FUND_TYPES.thai
     <InsightCompareSection type="thai" />
 
     <div class="fund-screener-anchor">
-      <SearchfilterSection type="thai" />
+      <SearchFilterSection type="thai" />
       <FundTableWithCompare type="thai" />
     </div>
   </div>

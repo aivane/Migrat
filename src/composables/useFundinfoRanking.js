@@ -1,5 +1,6 @@
-import { computed, reactive } from 'vue'
-import { fundsByType, FUND_TYPES, STOCK_META } from '../data/fundinfoData'
+import { computed, reactive, watch } from 'vue'
+import { FUND_TYPES, STOCK_META } from '../data/fundinfoData'
+import { useFundinfoStore } from '../stores/fundinfoStore'
 
 // ==========================================================================
 // Section ② Ranking Cards
@@ -140,16 +141,16 @@ function buildMixedFundEntities(funds) {
   }))
 }
 
-function buildEntities(type) {
+function buildEntities(type, allFunds) {
   if (isStockTab(type)) {
-    const funds = fundsByType(type).filter(isDirectEquityFund)
+    const funds = allFunds.filter(isDirectEquityFund)
     // รวมหุ้นรายตัว (kind: 'stock') กับกองทุนไทยที่ถือหุ้นเหล่านั้นโดยตรง (kind: 'holder') ไว้ใน pool
     // เดียวกัน ให้ทั้งสองแบบ "เท่าเทียมกัน" ตามที่ heading ด้านล่างสื่อไว้อยู่แล้ว
     // ("หุ้น...และกองทุนไทยที่ถือหุ้น...ในกลุ่มที่เลือก")
     return [...buildStockRankEntities(funds), ...buildFundHolderEntities(funds)]
   }
-  if (type === 'mixed') return buildMixedFundEntities(fundsByType(type))
-  return buildMasterFundEntities(fundsByType(type)) // feeder
+  if (type === 'mixed') return buildMixedFundEntities(allFunds)
+  return buildMasterFundEntities(allFunds) // feeder
 }
 
 // Section 3 (Master Fund / Stock Comparison) reads the same "selected" group
@@ -166,7 +167,13 @@ export function useFundinfoRanking(type = 'feeder') {
 }
 
 function createFundinfoRanking(type) {
-  const entities = buildEntities(type)
+  // Store-backed (fundinfoStore.js -> fundinfoApi.js): reads local mock data
+  // today, will read the real backend once VITE_FUNDINFO_API_MODE flips.
+  const fundinfoStore = useFundinfoStore()
+  fundinfoStore.loadFundsByType(type)
+  const funds = computed(() => fundinfoStore.getFundsByType(type))
+
+  const entities = computed(() => buildEntities(type, funds.value))
   const stock = isStockTab(type)
   const accent = FUND_TYPES[type]?.accent || '#2456d8'
 
@@ -181,12 +188,23 @@ function createFundinfoRanking(type) {
   // โดยตรง (kind: 'holder') ไว้ในลิสต์เดียวกัน คละกันตามอันดับจริง — ไม่ได้แยกเป็นสอง block ซ้ำแบบใน
   // ภาพต้นแบบ ซึ่งดูเหมือนเป็นการ paste ซ้ำ ไม่ใช่ของสองชุดที่ตั้งใจ (เพราะตัวเลขในทั้งสอง block ของภาพ
   // เหมือนกันทุกตัว)
-  if (stock) {
-    state.selected.push(
-      ...entities.filter((entity) => entity.kind === 'stock').slice(0, 2).map((entity) => entity.id),
-      ...entities.filter((entity) => entity.kind === 'holder').slice(0, 2).map((entity) => entity.id),
-    )
-  }
+  // Seeded once, the first time entities has data — a later store refresh
+  // must not clobber whatever the person has since selected.
+  let selectionSeeded = false
+  watch(
+    entities,
+    (value) => {
+      if (selectionSeeded || !value.length) return
+      selectionSeeded = true
+      if (stock) {
+        state.selected.push(
+          ...value.filter((entity) => entity.kind === 'stock').slice(0, 2).map((entity) => entity.id),
+          ...value.filter((entity) => entity.kind === 'holder').slice(0, 2).map((entity) => entity.id),
+        )
+      }
+    },
+    { immediate: true },
+  )
 
   const heading = computed(() => {
     if (type === 'offshore') return 'หุ้นต่างประเทศและกองทุนไทยที่ถือหุ้นต่างประเทศในกลุ่มที่เลือก'
@@ -202,11 +220,11 @@ function createFundinfoRanking(type) {
     return 'กองทุนผสม'
   })
 
-  const byFundCount = computed(() => [...entities].sort((a, b) => b.fundCount - a.fundCount || b.totalWeight - a.totalWeight))
-  const byTotalWeight = computed(() => [...entities].sort((a, b) => b.totalWeight - a.totalWeight))
-  const byFlow = computed(() => [...entities].sort((a, b) => b.flowP[state.rk.flow] - a.flowP[state.rk.flow]))
-  const byReturn = computed(() => [...entities].sort((a, b) => b.retP[state.rk.ret] - a.retP[state.rk.ret]))
-  const byDividend = computed(() => [...entities].sort((a, b) => b.div - a.div))
+  const byFundCount = computed(() => [...entities.value].sort((a, b) => b.fundCount - a.fundCount || b.totalWeight - a.totalWeight))
+  const byTotalWeight = computed(() => [...entities.value].sort((a, b) => b.totalWeight - a.totalWeight))
+  const byFlow = computed(() => [...entities.value].sort((a, b) => b.flowP[state.rk.flow] - a.flowP[state.rk.flow]))
+  const byReturn = computed(() => [...entities.value].sort((a, b) => b.retP[state.rk.ret] - a.retP[state.rk.ret]))
+  const byDividend = computed(() => [...entities.value].sort((a, b) => b.div - a.div))
 
   const legacyCards = computed(() => {
     if (stock) {
@@ -288,8 +306,8 @@ function createFundinfoRanking(type) {
     ]
   })
 
-  const stockRankEntities = computed(() => entities.filter((entity) => entity.kind === 'stock'))
-  const fundRankEntities = computed(() => entities.filter((entity) => entity.kind !== 'stock'))
+  const stockRankEntities = computed(() => entities.value.filter((entity) => entity.kind === 'stock'))
+  const fundRankEntities = computed(() => entities.value.filter((entity) => entity.kind !== 'stock'))
 
   function sortRanked(list, compare) {
     return [...list].sort(compare)
@@ -366,7 +384,7 @@ function createFundinfoRanking(type) {
   })
 
   const cards = computed(() => (stock ? stockCards.value : legacyCards.value))
-  const selectedEntities = computed(() => state.selected.map((id) => entities.find((e) => e.id === id)).filter(Boolean))
+  const selectedEntities = computed(() => state.selected.map((id) => entities.value.find((e) => e.id === id)).filter(Boolean))
 
   function orderOf(id) {
     return state.selected.indexOf(id)

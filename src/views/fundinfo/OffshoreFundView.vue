@@ -3,7 +3,7 @@ import { FUND_TYPES } from '../../data/fundinfoData'
 import ExposureTrendSection from '../../components/fundinfo/ExposureTrendSection.vue'
 import RankingCardsSection from '../../components/fundinfo/RankingCardsSection.vue'
 import InsightCompareSection from '../../components/fundinfo/InsightCompareSection.vue'
-import SearchfilterSection from '../../components/fundinfo/SearchfilterSection.vue'
+import SearchFilterSection from '../../components/fundinfo/SearchFilterSection.vue'
 import FundTableWithCompare from '../../components/fundinfo/FundTableWithCompare.vue'
 
 const meta = FUND_TYPES.offshore
@@ -25,7 +25,7 @@ const meta = FUND_TYPES.offshore
     <InsightCompareSection type="offshore" />
 
     <!-- Section ③ — Search/Filter + Fund Table Compare (Image 5) -->
-    <SearchfilterSection type="offshore" />
+    <SearchFilterSection type="offshore" />
     <FundTableWithCompare type="offshore" />
   </div>
 </template>

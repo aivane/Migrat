@@ -15,18 +15,25 @@ import {
 
 const STORAGE_KEY = 'migrat.auth.v1'
 
-function readStoredAuth() {
+// Secure State — localStorage is JS-readable by any script on the page, so an
+// XSS anywhere in the app can exfiltrate anything stored here. We can't avoid
+// persisting *something* across reloads without an httpOnly cookie from the
+// backend, so we minimize the blast radius: only the bearer token is kept,
+// never `user`/`account` (PII — display name, email, etc.). Callers must
+// re-fetch profile data via loadProfile() after restore() instead of trusting
+// a stale cached copy.
+function readStoredToken() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    return raw ? JSON.parse(raw) : {}
+    return raw ? JSON.parse(raw).token || '' : ''
   } catch {
-    return {}
+    return ''
   }
 }
 
-function writeStoredAuth(payload) {
+function writeStoredToken(token) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ token }))
   } catch {
     // Runtime auth state is still available even if localStorage is blocked.
   }
@@ -60,18 +67,13 @@ export const useAuthStore = defineStore('auth', {
   },
   actions: {
     restore() {
-      const stored = readStoredAuth()
-      this.token = stored.token || ''
-      this.user = stored.user || null
-      this.account = stored.account || null
+      // Only the token survives a reload — user/account are re-fetched fresh
+      // via loadProfile() by the caller, never trusted from storage.
+      this.token = readStoredToken()
       this.restored = true
     },
     persist() {
-      writeStoredAuth({
-        token: this.token,
-        user: this.user,
-        account: this.account,
-      })
+      writeStoredToken(this.token)
     },
     async loginWithPassword(credentials) {
       this.loading = true
@@ -151,7 +153,8 @@ export const useAuthStore = defineStore('auth', {
         ])
         this.user = profilePayload.user || profilePayload.profile || profilePayload
         this.account = accountPayload.account || accountPayload
-        this.persist()
+        // No persist() here — user/account are intentionally memory-only (PII),
+        // token in storage is unchanged by a profile fetch.
         return this.user
       } catch (error) {
         this.error = error?.message || error?.error || 'โหลดข้อมูลบัญชีไม่สำเร็จ'
@@ -176,7 +179,7 @@ export const useAuthStore = defineStore('auth', {
 
       const payload = await updateProfile({ token: this.token, displayName })
       this.user = { ...(this.user || {}), display_name: displayName }
-      this.persist()
+      // No persist() — display_name is PII, kept in memory only (see restore()).
       return payload
     },
     async requestPasswordReset(email) {

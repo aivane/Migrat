@@ -1,5 +1,5 @@
 import { computed, reactive } from 'vue'
-import { fundsByType } from '../data/fundinfoData'
+import { useFundinfoStore } from '../stores/fundinfoStore'
 import { performanceSeries, CMP_LABELS } from './useFundinfoThemeTrend'
 
 // ==========================================================================
@@ -55,25 +55,31 @@ function trendStats(scope) {
 }
 
 export function useFundinfoMarketLens(type = 'mixed') {
-  const funds = fundsByType(type)
-  const scopes = computeScopes(funds)
-  const stats = scopes.map(trendStats)
+  // Store-backed (fundinfoStore.js -> fundinfoApi.js): reads local mock data
+  // today, will read the real backend once VITE_FUNDINFO_API_MODE flips —
+  // scopes/stats recompute automatically once the store's data arrives.
+  const fundinfoStore = useFundinfoStore()
+  fundinfoStore.loadFundsByType(type)
+  const funds = computed(() => fundinfoStore.getFundsByType(type))
+
+  const scopes = computed(() => computeScopes(funds.value))
+  const stats = computed(() => scopes.value.map(trendStats))
 
   const state = reactive({
     scope: null, // scope id ที่เจาะดูอยู่ (null = ภาพรวมตลาด)
   })
 
-  const leader = computed(() => [...stats].sort((a, b) => b.scope.perf - a.scope.perf)[0])
-  const laggard = computed(() => [...stats].sort((a, b) => a.scope.perf - b.scope.perf)[0])
-  const momentumTop = computed(() => [...stats].sort((a, b) => b.momentum - a.momentum)[0])
-  const positiveCount = computed(() => scopes.filter((s) => s.perf > 0).length)
+  const leader = computed(() => [...stats.value].sort((a, b) => b.scope.perf - a.scope.perf)[0])
+  const laggard = computed(() => [...stats.value].sort((a, b) => a.scope.perf - b.scope.perf)[0])
+  const momentumTop = computed(() => [...stats.value].sort((a, b) => b.momentum - a.momentum)[0])
+  const positiveCount = computed(() => scopes.value.filter((s) => s.perf > 0).length)
 
-  const activeStat = computed(() => stats.find((s) => s.scope.id === state.scope) || null)
+  const activeStat = computed(() => stats.value.find((s) => s.scope.id === state.scope) || null)
 
   // เส้นที่แสดงบนกราฟ: เจาะดูหมวดเดียวถ้าเลือกไว้ ไม่งั้นแสดง 3 กลุ่มนำ + 2 กลุ่มตาม (ไม่เกิน 5 เส้น)
   const chartLines = computed(() => {
     if (activeStat.value) return [activeStat.value]
-    const ranked = [...stats].sort((a, b) => b.scope.perf - a.scope.perf)
+    const ranked = [...stats.value].sort((a, b) => b.scope.perf - a.scope.perf)
     const picked = [...ranked.slice(0, 3), ...ranked.slice(-2)]
     const seen = new Set()
     return picked

@@ -4,7 +4,7 @@ import { computed, nextTick, ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { FUND_TYPES } from '../../data/fundinfoData'
 import { useFundinfoTheme } from '../../composables/useFundinfoTheme'
-import { useFundinfoWatchlist } from '../../composables/useFundinfoWatchlist'
+import { useFundinfoWishlist } from '../../composables/useFundinfoWishlist'
 
 const tabs = [
   { to: '/fundinfo/feeder', ...FUND_TYPES.feeder },
@@ -14,7 +14,7 @@ const tabs = [
 ]
 
 const { isDark, toggleTheme } = useFundinfoTheme()
-const { count, watchedFunds, removeWatch } = useFundinfoWatchlist()
+const { count, wishedFunds, removeWish } = useFundinfoWishlist()
 const route = useRoute()
 const router = useRouter()
 const activeTab = computed(() => tabs.find((tab) => route.path.startsWith(tab.to)))
@@ -26,8 +26,8 @@ watch(
   },
 )
 
-const watchPanelOpen = ref(false)
-const watchPanelRef = ref(null)
+const wishPanelOpen = ref(false)
+const wishPanelRef = ref(null)
 let focusTimer
 
 const fundRouteByType = {
@@ -37,11 +37,11 @@ const fundRouteByType = {
   mixed: 'fundinfo-mixed',
 }
 
-async function goToWatchedFund(fund) {
+async function goToWishedFund(fund) {
   const targetRoute = fundRouteByType[fund.type]
   if (!targetRoute) return
 
-  watchPanelOpen.value = false
+  wishPanelOpen.value = false
   if (route.name !== targetRoute) await router.push({ name: targetRoute })
   await nextTick()
 
@@ -56,8 +56,8 @@ async function goToWatchedFund(fund) {
 }
 
 function handleOutsideClick(event) {
-  if (watchPanelOpen.value && watchPanelRef.value && !watchPanelRef.value.contains(event.target)) {
-    watchPanelOpen.value = false
+  if (wishPanelOpen.value && wishPanelRef.value && !wishPanelRef.value.contains(event.target)) {
+    wishPanelOpen.value = false
   }
 }
 
@@ -102,31 +102,31 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
             </nav>
 
             <div class="flex items-center gap-2 shrink-0">
-              <!-- Watchlist -->
-              <div class="relative" ref="watchPanelRef">
+              <!-- Wishlist -->
+              <div class="relative" ref="wishPanelRef">
                 <button
                   type="button"
-                  class="watchlist-trigger surf brd h-10 min-w-10 px-2.5 rounded-lg font-bold flex items-center gap-1"
+                  class="wishlist-trigger surf brd h-10 min-w-10 px-2.5 rounded-lg font-bold flex items-center gap-1"
                   title="รายการติดตาม"
-                  @click="watchPanelOpen = !watchPanelOpen"
+                  @click="wishPanelOpen = !wishPanelOpen"
                 >
-                  <span class="watchlist-icon" aria-hidden="true">★</span><span class="num text-[11px]">{{ count }}</span>
+                  <span class="wishlist-icon" aria-hidden="true">★</span><span class="num text-[11px]">{{ count }}</span>
                 </button>
 
                 <div
-                  v-if="watchPanelOpen"
+                  v-if="wishPanelOpen"
                   class="absolute right-0 mt-2 w-72 surf brd rounded-xl z-50 overflow-hidden shadow-lg"
                 >
                   <div class="px-3 py-2 brdb flex items-center justify-between">
                     <span class="text-xs font-bold txt">รายการติดตาม</span>
                     <span class="text-[11px] sub">{{ count }} กอง</span>
                   </div>
-                  <div v-if="!watchedFunds.length" class="p-4 text-xs sub text-center">
+                  <div v-if="!wishedFunds.length" class="p-4 text-xs sub text-center">
                     ยังไม่มีกองทุนที่ติดตาม กด ☆ ที่ตารางกองทุนเพื่อเพิ่ม
                   </div>
                   <div v-else class="max-h-72 overflow-y-auto divide-y divide-[var(--line)]">
-                    <div v-for="fund in watchedFunds" :key="fund.id" class="p-2.5 flex items-center justify-between hover:bg-[var(--surf2)]">
-                      <button type="button" class="watchlist-item min-w-0 text-left" :title="`ไปยังกองทุน ${fund.name}`" @click="goToWatchedFund(fund)">
+                    <div v-for="fund in wishedFunds" :key="fund.id" class="p-2.5 flex items-center justify-between hover:bg-[var(--surf2)]">
+                      <button type="button" class="wishlist-item min-w-0 text-left" :title="`ไปยังกองทุน ${fund.name}`" @click="goToWishedFund(fund)">
                         <strong class="num txt block truncate text-xs">{{ fund.id }}</strong>
                         <span class="sub text-[11px] truncate block">{{ fund.name }}</span>
                       </button>
@@ -134,7 +134,7 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
                         type="button"
                         class="text-[11px] font-bold sub hover:text-[var(--neg)] shrink-0 ml-2"
                         title="นำออกจากรายการติดตาม"
-                        @click.stop="removeWatch(fund.id)"
+                        @click.stop="removeWish(fund.id)"
                       >
                         ✕
                       </button>

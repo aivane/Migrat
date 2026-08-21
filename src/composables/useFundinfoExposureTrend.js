@@ -1,13 +1,13 @@
 // useFundinfoExposureTrend.js
-import { computed, reactive } from 'vue'
+import { computed, reactive, watch } from 'vue'
 import {
-  fundsByType,
   FUND_TYPES,
   STOCK_META,
   THAI_INDUSTRY_GROUPS,
   OFFSHORE_REGION_GROUPS,
   OFFSHORE_THEME_GROUPS,
 } from '../data/fundinfoData'
+import { useFundinfoStore } from '../stores/fundinfoStore'
 import { performanceSeries, CMP_LABELS } from './useFundinfoThemeTrend'
 
 // ==========================================================================
@@ -199,7 +199,12 @@ function getOffshoreState() {
 }
 
 export function useFundinfoExposureTrend(type = 'offshore') {
-  const funds = fundsByType(type).filter(isDirectEquityFund)
+  // Store-backed (fundinfoStore.js -> fundinfoApi.js): reads local mock data
+  // today, will read the real backend once VITE_FUNDINFO_API_MODE flips.
+  const fundinfoStore = useFundinfoStore()
+  fundinfoStore.loadFundsByType(type)
+  const funds = computed(() => fundinfoStore.getFundsByType(type).filter(isDirectEquityFund))
+
   const bench = BENCHMARKS[type] || BENCHMARKS.offshore
   const accent = FUND_TYPES[type]?.accent || '#2456d8'
   const foreign = type === 'offshore'
@@ -207,12 +212,12 @@ export function useFundinfoExposureTrend(type = 'offshore') {
   // offshore: ใช้ state ที่ persist ข้ามหน้า / thai (และอื่นๆ): reactive สดใหม่เหมือนของเดิม
   const state = foreign ? getOffshoreState() : reactive({ scopeMode: 'region', selected: [] })
 
-  const allScopes = computed(() => computeScopes(funds, type, state.scopeMode))
+  const allScopes = computed(() => computeScopes(funds.value, type, state.scopeMode))
   const scopes = computed(() => allScopes.value.filter((s) => s.hasData))
   const unavailable = computed(() => allScopes.value.filter((s) => !s.hasData))
   const maxExposure = computed(() => Math.max(...scopes.value.map((s) => s.exposure), 1))
 
-  const stockEntities = computed(() => buildStockEntities(funds))
+  const stockEntities = computed(() => buildStockEntities(funds.value))
   const mostHeld = computed(
     () => [...stockEntities.value].sort((a, b) => b.fundCount - a.fundCount || b.totalWeight - a.totalWeight)[0],
   )
@@ -274,7 +279,7 @@ export function useFundinfoExposureTrend(type = 'offshore') {
       // เก็บรายการที่เลือกไว้ของโหมดปัจจุบันก่อนสลับ (ไม่ล้างทิ้ง) แล้วดึงรายการของโหมดใหม่กลับมา
       state.selectedByMode[state.scopeMode] = state.selected.slice()
       state.scopeMode = mode
-      const targetScopes = computeScopes(funds, type, mode).filter((s) => s.hasData)
+      const targetScopes = computeScopes(funds.value, type, mode).filter((s) => s.hasData)
       const validIds = new Set(targetScopes.map((s) => s.id))
       const restored = (state.selectedByMode[mode] || []).filter((id) => validIds.has(id))
       state.selected = restored.length ? restored : targetScopes.slice(0, MAX_SELECTED).map((s) => s.id)
@@ -285,22 +290,37 @@ export function useFundinfoExposureTrend(type = 'offshore') {
     }
   }
 
-  if (foreign) {
-    if (!state.initialized) {
-      // ยังไม่เคยมี state ค้างอยู่เลย (ไม่มี cache/sessionStorage) — ตั้งค่าเริ่มต้นแค่ครั้งแรก
-      state.selected = scopes.value.slice(0, MAX_SELECTED).map((scope) => scope.id)
-      state.initialized = true
-    } else {
-      // มี state เดิมค้างอยู่แล้ว (จาก cache ในหน่วยความจำ หรือกู้จาก sessionStorage) — คงรายการที่เลือกไว้เดิม
-      // กันไว้เฉพาะกรณี scope id เดิมหายไปจากชุดข้อมูลปัจจุบัน ไม่ให้ chip ค้างเลือกทั้งที่ไม่มีในลิสต์
-      const validIds = new Set(scopes.value.map((s) => s.id))
-      state.selected = state.selected.filter((id) => validIds.has(id))
-    }
-    syncOffshore()
-  } else {
-    // thai: คงพฤติกรรมเดิมทุกอย่าง (เลือก 2 อันดับแรกให้เป็นตัวอย่าง, รีเซ็ตทุกครั้งที่ mount)
-    state.selected = scopes.value.slice(0, 2).map((scope) => scope.id)
-  }
+  // Store-backed funds resolve asynchronously (even under mock mode, one
+  // microtask tick), so `scopes` is empty on the very first synchronous
+  // evaluation — this seeding must wait for real data instead of running
+  // once at setup time. `seeded` gates it to fire exactly once per composable
+  // call (i.e. once per component mount), matching the original behavior.
+  let seeded = false
+  watch(
+    scopes,
+    (value) => {
+      if (seeded || !value.length) return
+      seeded = true
+
+      if (foreign) {
+        if (!state.initialized) {
+          // ยังไม่เคยมี state ค้างอยู่เลย (ไม่มี cache/sessionStorage) — ตั้งค่าเริ่มต้นแค่ครั้งแรก
+          state.selected = value.slice(0, MAX_SELECTED).map((scope) => scope.id)
+          state.initialized = true
+        } else {
+          // มี state เดิมค้างอยู่แล้ว (จาก cache ในหน่วยความจำ หรือกู้จาก sessionStorage) — คงรายการที่เลือกไว้เดิม
+          // กันไว้เฉพาะกรณี scope id เดิมหายไปจากชุดข้อมูลปัจจุบัน ไม่ให้ chip ค้างเลือกทั้งที่ไม่มีในลิสต์
+          const validIds = new Set(value.map((s) => s.id))
+          state.selected = state.selected.filter((id) => validIds.has(id))
+        }
+        syncOffshore()
+      } else {
+        // thai: คงพฤติกรรมเดิมทุกอย่าง (เลือก 2 อันดับแรกให้เป็นตัวอย่าง, รีเซ็ตทุกครั้งที่ mount)
+        state.selected = value.slice(0, 2).map((scope) => scope.id)
+      }
+    },
+    { immediate: true },
+  )
 
   return {
     foreign,

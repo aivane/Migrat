@@ -12,6 +12,11 @@ dist
 dist-ssr
 *.local
 
+# Environment files — may hold real backend hosts / client IDs, never commit
+.env
+.env.*
+!.env.example
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

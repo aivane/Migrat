@@ -1,5 +1,5 @@
 import { computed, reactive } from 'vue'
-import { fundsByType } from '../data/fundinfoData'
+import { useFundinfoStore } from '../stores/fundinfoStore'
 
 function unique(values) {
   return [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b))
@@ -35,7 +35,14 @@ export function useFundinfoCategory(type, options = {}) {
 }
 
 function createFundinfoCategory(type, { defaultSortBy = 'perf' } = {}) {
-  const funds = fundsByType(type)
+  // Store-backed (src/stores/fundinfoStore.js -> src/services/fundinfoApi.js):
+  // reads local mock data today, will read the real backend once
+  // VITE_FUNDINFO_API_MODE flips — nothing here needs to change when it does.
+  const fundinfoStore = useFundinfoStore()
+  fundinfoStore.loadFundsByType(type)
+  const funds = computed(() => fundinfoStore.getFundsByType(type))
+  const isLoading = computed(() => fundinfoStore.isLoading(type))
+  const loadError = computed(() => fundinfoStore.getError(type))
 
   const state = reactive({
     search: '',
@@ -46,12 +53,12 @@ function createFundinfoCategory(type, { defaultSortBy = 'perf' } = {}) {
     expandedId: '',
   })
 
-  const amcOptions = computed(() => unique(funds.map((fund) => fund.amc)))
+  const amcOptions = computed(() => unique(funds.value.map((fund) => fund.amc)))
 
   const filteredFunds = computed(() => {
     const query = state.search.trim().toLowerCase()
 
-    let rows = funds.filter((fund) => {
+    let rows = funds.value.filter((fund) => {
       if (!query) return true
       const haystack = [fund.id, fund.name, fund.master, fund.country, fund.amc]
         .filter(Boolean)
@@ -75,17 +82,18 @@ function createFundinfoCategory(type, { defaultSortBy = 'perf' } = {}) {
   const sortedFunds = computed(() => sortFundsBy(filteredFunds.value, state.sortBy, state.sortDir))
 
   const summary = computed(() => {
-    if (!funds.length) {
+    const list = funds.value
+    if (!list.length) {
       return { count: 0, avgPerf: 0, avgFee: 0, totalNetbuy: 0, best: null, mostPopular: null }
     }
 
-    const avgPerf = funds.reduce((sum, fund) => sum + fund.perf, 0) / funds.length
-    const avgFee = funds.reduce((sum, fund) => sum + fund.fee, 0) / funds.length
-    const totalNetbuy = funds.reduce((sum, fund) => sum + fund.netbuy, 0)
-    const best = [...funds].sort((a, b) => b.perf - a.perf)[0]
-    const mostPopular = [...funds].sort((a, b) => b.pop - a.pop)[0]
+    const avgPerf = list.reduce((sum, fund) => sum + fund.perf, 0) / list.length
+    const avgFee = list.reduce((sum, fund) => sum + fund.fee, 0) / list.length
+    const totalNetbuy = list.reduce((sum, fund) => sum + fund.netbuy, 0)
+    const best = [...list].sort((a, b) => b.perf - a.perf)[0]
+    const mostPopular = [...list].sort((a, b) => b.pop - a.pop)[0]
 
-    return { count: funds.length, avgPerf, avgFee, totalNetbuy, best, mostPopular }
+    return { count: list.length, avgPerf, avgFee, totalNetbuy, best, mostPopular }
   })
 
   const topHoldings = computed(() => {
@@ -121,6 +129,8 @@ function createFundinfoCategory(type, { defaultSortBy = 'perf' } = {}) {
 
   return {
     funds,
+    isLoading,
+    loadError,
     state,
     amcOptions,
     filteredFunds,

@@ -1,4 +1,4 @@
-<!-- SearchfilterSection.vue -->
+<!-- SearchFilterSection.vue -->
 <script setup>
 import { computed } from 'vue'
 import { FUND_TYPES } from '../../data/fundinfoData'
