@@ -1,8 +1,10 @@
 <script setup>
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useDashboardStore } from '../stores/dashboardStore'
 
 const dashboardStore = useDashboardStore()
+const router = useRouter()
 
 const state = reactive({
   sortBy: 'aum',
@@ -46,11 +48,16 @@ const partialErrorMessage = computed(() => {
 
 // ── 1. Portfolio Allocation Normalization ────────────────────────────────────
 const ALLOC_META = [
-  { key: 'feeder_fund', label: 'Feeder Fund', color: '#FF6633', icon: '🔍', bg: '#fff7ed' },
-  { key: 'off_shore',   label: 'Off Shore',   color: '#06b6d4', icon: '🌎', bg: '#ecfeff' },
-  { key: 'thai_fund',   label: 'Thai Fund',   color: '#FF0066', icon: 'TH', bg: '#ffe4e6', isBadge: true },
-  { key: 'mixed_fund',  label: 'Mixed Fund',  color: '#f59e0b', icon: '📊', bg: '#fef3c7' },
+  { key: 'feeder_fund', label: 'Feeder Fund', color: '#FF6633', icon: '🔍', bg: '#fff7ed', routeName: 'fundinfo-feeder' },
+  { key: 'off_shore',   label: 'Off Shore',   color: '#06b6d4', icon: '🌎', bg: '#ecfeff', routeName: 'fundinfo-offshore' },
+  { key: 'thai_fund',   label: 'Thai Fund',   color: '#FF0066', icon: 'TH', bg: '#ffe4e6', isBadge: true, routeName: 'fundinfo-thai' },
+  { key: 'mixed_fund',  label: 'Mixed Fund',  color: '#f59e0b', icon: '📊', bg: '#fef3c7', routeName: 'fundinfo-mixed' },
 ]
+
+function goToFundinfoType(seg) {
+  if (!seg?.routeName) return
+  router.push({ name: seg.routeName })
+}
 
 const allocationTotal = computed(() => {
   const alloc = state.portfolioAllocation
@@ -584,6 +591,9 @@ onMounted(loadInitialDashboard)
           <strong class="fi-alloc__total-value">
             ฿{{ allocationTotal ? formatNumber(allocationTotal) : '—' }}
           </strong>
+          <RouterLink :to="{ name: 'fundinfo-feeder' }" class="fi-alloc__viewall">
+            ดูข้อมูล Fundinfo ทั้งหมด →
+          </RouterLink>
         </div>
       </div>
 
@@ -608,7 +618,11 @@ onMounted(loadInitialDashboard)
             :key="seg.key"
             class="fi-alloc__seg"
             :style="{ width: seg.pct + '%', background: seg.color }"
-            :title="`${seg.label} (${seg.pct}%)`"
+            :title="`${seg.label} (${seg.pct}%) — คลิกเพื่อดูรายละเอียด`"
+            role="link"
+            tabindex="0"
+            @click="goToFundinfoType(seg)"
+            @keydown.enter="goToFundinfoType(seg)"
           ></div>
         </div>
 
@@ -617,7 +631,12 @@ onMounted(loadInitialDashboard)
           <div
             v-for="seg in allocationSegments"
             :key="seg.key"
-            class="fi-alloc__card"
+            class="fi-alloc__card fi-alloc__card--clickable"
+            :title="`ดูกองทุนประเภท ${seg.label}`"
+            role="link"
+            tabindex="0"
+            @click="goToFundinfoType(seg)"
+            @keydown.enter="goToFundinfoType(seg)"
           >
             <div class="fi-alloc__card-icon" :style="{ background: seg.bg, color: seg.color }">
               <span v-if="seg.isBadge" class="fi-alloc__card-badge">{{ seg.icon }}</span>
@@ -1291,6 +1310,15 @@ onMounted(loadInitialDashboard)
 .fi-alloc__total { text-align: right; }
 .fi-alloc__total-label { font-size: 13px; color: #64748b; font-weight: 600; display: block; }
 .fi-alloc__total-value { font-size: 24px; font-weight: 800; color: #0f172a; letter-spacing: -0.5px; }
+.fi-alloc__viewall {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #2563eb;
+  text-decoration: none;
+}
+.fi-alloc__viewall:hover { text-decoration: underline; }
 
 /* Percentage labels above bar */
 .fi-alloc__pct-labels {
@@ -1327,6 +1355,7 @@ onMounted(loadInitialDashboard)
 }
 .fi-alloc__seg {
   height: 100%;
+  cursor: pointer;
   transition: opacity 0.2s;
 }
 .fi-alloc__seg:hover { opacity: 0.85; }
@@ -1349,6 +1378,15 @@ onMounted(loadInitialDashboard)
   flex: 1;
   min-width: 200px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+.fi-alloc__card--clickable {
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+}
+.fi-alloc__card--clickable:hover {
+  transform: translateY(-1px);
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.06);
 }
 .fi-alloc__card-icon {
   width: 38px;

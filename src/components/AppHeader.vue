@@ -8,7 +8,6 @@ const theme = useThemeStore() // Global toggle, shared by every route
 const navLinks = [
   { to: '/', label: 'หน้าหลัก' },
   { to: '/dashboard', label: 'FUNDINFO' },
-  { to: '/fundinfo', label: 'FUNDINFO ตามประเภท' },
   { to: '/insights', label: 'IDEAFUND' },
   { to: '/articles', label: 'บทความ/บทวิเคราะห์' },
   { to: '/Faq', label: 'คำถามที่พบบ่อย' },
