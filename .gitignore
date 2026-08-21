@@ -27,3 +27,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# AI agent context files — local-only, not shared via git
+CLAUDE.md
+AGENTS.md
+context.md
