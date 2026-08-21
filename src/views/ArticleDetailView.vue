@@ -71,6 +71,7 @@
 import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getArticleById, getRecentArticles } from '../services/articlesApi'
+import { updateSeoMeta } from '../utils/seo'
 
 const route = useRoute()
 const router = useRouter()
@@ -163,6 +164,15 @@ const fetchArticleData = async () => {
       }
       tocList.value = toc
       morePosts.value = await getRecentArticles({ excludeId: articleId, limit: 4 })
+
+      // อัปเดต SEO Meta Tags สำหรับบทความนี้โดยเฉพาะ
+      updateSeoMeta({
+        title: `${article.value.title} | IDEA FUND`,
+        description: `อ่านบทวิเคราะห์การลงทุน เรื่อง "${article.value.title}" บนแพลตฟอร์ม IDEA FUND`,
+        ogTitle: `${article.value.title} | IDEA FUND`,
+        ogDescription: `บทความการลงทุน: ${article.value.title}`,
+        ogImage: article.value.thumbnail,
+      })
     } else {
       article.value = null
     }

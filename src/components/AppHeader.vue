@@ -1,10 +1,8 @@
 <script setup>
-import { ref } from 'vue'
-import { RouterLink, useRouter } from 'vue-router'
+import { RouterLink } from 'vue-router'
 import { useThemeStore } from '../stores/themeStore'
+import SearchBar from './SearchBar.vue'
 
-const router = useRouter()
-const searchText = ref('')
 const theme = useThemeStore() // Global toggle, shared by every route
 
 const navLinks = [
@@ -15,16 +13,6 @@ const navLinks = [
   { to: '/articles', label: 'บทความ/บทวิเคราะห์' },
   { to: '/Faq', label: 'คำถามที่พบบ่อย' },
 ]
-
-function goSearch() {
-  const symbols = searchText.value
-    .split(/[,\s]+/)
-    .map((item) => item.trim().toUpperCase())
-    .filter(Boolean)
-    .join(',')
-
-  router.push(symbols ? `/dashboard?symbols=${encodeURIComponent(symbols)}` : '/dashboard')
-}
 </script>
 
 <template>
@@ -41,10 +29,7 @@ function goSearch() {
     </nav>
 
     <div class="idea-nav-tools">
-      <form class="idea-search" @submit.prevent="goSearch">
-        <input v-model="searchText" type="search" placeholder="ค้นหากองทุน / หุ้น..." />
-        <button type="submit" aria-label="ค้นหา">⌕</button>
-      </form>
+      <SearchBar />
 
       <button
         type="button"
