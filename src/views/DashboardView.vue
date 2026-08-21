@@ -236,7 +236,35 @@ function topStockRows(items) {
 }
 
 function getEtfFlow(etf) {
-  return Number(etf.flow_net_usd ?? etf.flow_net_thb ?? etf.flow ?? etf.flow_change ?? etf.unit_change ?? etf.value ?? 0)
+  if (!etf || typeof etf !== 'object') return 0
+
+  const keys = [
+    'flow_net_usd', 'flow_net_thb', 'flow_net', 'net_flow',
+    'flow', 'flow_change', 'unit_change', 'flow_unit', 'net_flow_unit',
+    'flow_1m', 'flow_change_1m', 'value', 'total_value', 'amount',
+    'units', 'net_units', 'unit_flow', 'net_unit_flow', 'change_unit',
+    'unit_change_1m', 'flow_usd', 'flow_thb', 'net_flow_usd', 'net_flow_thb'
+  ]
+
+  // 1. ค้นหาฟิลด์จากลำดับมาตรฐานที่มีค่าไม่ใช่ 0 ก่อน
+  for (const k of keys) {
+    const val = Number(etf[k])
+    if (!isNaN(val) && val !== 0) {
+      return val
+    }
+  }
+
+  // 2. สแกนหาฟิลด์ใดก็ได้ในวัตถุที่มีค่าตัวเลขที่ไม่ใช่ 0 (ยกเว้น nav, count, id)
+  const ignoreKeys = ['risk', 'holders', 'count', 'thai_fund_count', 'foreign_fund_count', 'nav', 'price', 'id', 'risk_level']
+  for (const [k, raw] of Object.entries(etf)) {
+    if (ignoreKeys.includes(k.toLowerCase())) continue
+    const val = Number(raw)
+    if (!isNaN(val) && val !== 0 && typeof raw !== 'boolean') {
+      return val
+    }
+  }
+
+  return 0
 }
 
 function getEtfFundCount(etf) {
@@ -318,54 +346,14 @@ async function handleSymbolClick(symbolOrCode) {
   if (!symbolOrCode || symbolOrCode === '—' || symbolOrCode === '-') return
   const clean = String(symbolOrCode).trim().toUpperCase()
 
-  // 1. ลองหาว่าเป็นรหัสกองทุนที่มีข้อมูลอยู่แล้วหรือไม่
-  const foundFund = [...state.funds.FOREIGN, ...state.funds.TH].find(
-    f => f.code.toUpperCase() === clean
-  )
-  if (foundFund) {
-    openFundDrawer(foundFund)
-    state.searchSymbols = [clean]
-    state.searchInput = ''
-    runSearch()
-    return
-  }
-
-  // 2. เปิดหน้าต่าง Drawer รายละเอียดหุ้น/ETF ทันทีที่กด
-  drawer.type = 'stock'
-  drawer.stockSymbol = clean
-  drawer.stockHolders = []
-  drawer.fund = null
-  drawer.open = true
-  drawer.loading = true
-  document.body.style.overflow = 'hidden'
-
-  // อัปเดตการค้นหาในตารางด้านล่างด้วย
+  // เปลี่ยนสัญลักษณ์ค้นหาและแสดงผลในตารางด้านล่างโดยไม่ต้องเปิดหน้าต่าง Drawer
   state.searchSymbols = [clean]
   state.searchInput = ''
   runSearch()
 
-  // ดึงรายชื่อกองทุนที่ถือหุ้นนี้มาแสดงในหน้าต่าง Drawer
-  try {
-    const rawHolders = await dashboardStore.searchBySymbols([clean])
-    const allLoaded = [...state.funds.FOREIGN, ...state.funds.TH]
-    let mapped = (rawHolders || []).map(h => normalizeSearchHolder(h, allLoaded))
-
-    if (!mapped.length) {
-      const localMatches = allLoaded.filter(f => {
-        const codeMatch = f.code.toUpperCase().includes(clean)
-        const nameMatch = f.name.toUpperCase().includes(clean)
-        const topMatch  = (f.top || []).some(t => (t.symbol || t.s || '').toUpperCase().includes(clean))
-        return codeMatch || nameMatch || topMatch
-      })
-      mapped = localMatches
-    }
-
-    drawer.stockHolders = mapped
-  } catch (e) {
-    console.error(e)
-  } finally {
-    drawer.loading = false
-  }
+  // เลื่อนหน้าจอลงไปที่ตารางค้นหาด้านล่าง
+  const tbl = document.querySelector('.fi-fundsec')
+  if (tbl) tbl.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
 function closeDrawer() {
@@ -656,10 +644,10 @@ onMounted(loadInitialDashboard)
         <div class="fi-kpi-row">
           <div
             class="fi-kpi fi-kpi--clickable"
-            title="คลิกเพื่อดูรายละเอียด"
+            title="คลิกเพื่อค้นหากองทุน"
             @click="handleSymbolClick(state.topStocks.FOREIGN[0]?.symbol)"
           >
-            <span class="fi-kpi__label">Top Holding 🔍</span>
+            <span class="fi-kpi__label">Top Holding</span>
             <strong class="fi-kpi__val">{{ state.topStocks.FOREIGN[0]?.symbol || '—' }}</strong>
             <em v-if="state.topStocks.FOREIGN[0]?.total_thai_fund_value" class="fi-kpi__sub">
               ฿{{ formatCompact(state.topStocks.FOREIGN[0].total_thai_fund_value) }}
@@ -677,10 +665,10 @@ onMounted(loadInitialDashboard)
           </div>
           <div
             class="fi-kpi fi-kpi--clickable"
-            title="คลิกเพื่อดูรายละเอียด"
+            title="คลิกเพื่อค้นหากองทุน"
             @click="handleSymbolClick(foreignStats.topFlowFund?.code)"
           >
-            <span class="fi-kpi__label">Flow เข้าสูงสุด 🔍</span>
+            <span class="fi-kpi__label">Flow เข้าสูงสุด</span>
             <template v-if="foreignStats.topFlowFund?.code">
               <strong class="fi-kpi__val fi-kpi__val--sm">{{ foreignStats.topFlowFund.code }}</strong>
               <em class="fi-kpi__sub fi-pos">
@@ -750,10 +738,10 @@ onMounted(loadInitialDashboard)
         <div class="fi-kpi-row">
           <div
             class="fi-kpi fi-kpi--clickable"
-            title="คลิกเพื่อดูรายละเอียด"
+            title="คลิกเพื่อค้นหากองทุน"
             @click="handleSymbolClick(state.topStocks.TH[0]?.symbol)"
           >
-            <span class="fi-kpi__label">Top Holding 🔍</span>
+            <span class="fi-kpi__label">Top Holding</span>
             <strong class="fi-kpi__val">{{ state.topStocks.TH[0]?.symbol || '—' }}</strong>
             <em v-if="state.topStocks.TH[0]?.total_thai_fund_value" class="fi-kpi__sub">
               ฿{{ formatCompact(state.topStocks.TH[0].total_thai_fund_value) }}
@@ -771,10 +759,10 @@ onMounted(loadInitialDashboard)
           </div>
           <div
             class="fi-kpi fi-kpi--clickable"
-            title="คลิกเพื่อดูรายละเอียด"
+            title="คลิกเพื่อค้นหากองทุน"
             @click="handleSymbolClick(thaiStats.topFlowFund?.code)"
           >
-            <span class="fi-kpi__label">Flow เข้าสูงสุด 🔍</span>
+            <span class="fi-kpi__label">Flow เข้าสูงสุด</span>
             <template v-if="thaiStats.topFlowFund?.code">
               <strong class="fi-kpi__val fi-kpi__val--sm">{{ thaiStats.topFlowFund.code }}</strong>
               <em class="fi-kpi__sub fi-pos">
