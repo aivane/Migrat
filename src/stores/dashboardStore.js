@@ -10,7 +10,7 @@ import {
 } from '../services/fundApi'
 
 const CACHE_TTL_MS = 10 * 60 * 1000
-const STORAGE_KEY = 'migrat.dashboard.cache.v1'
+const STORAGE_KEY = 'migrat.dashboard.cache.v2'
 
 const emptyErrors = () => ({
   allocation: null,
@@ -26,7 +26,7 @@ const emptyErrors = () => ({
 
 function readSessionCache() {
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(STORAGE_KEY)
     return raw ? JSON.parse(raw) : null
   } catch {
     return null
@@ -35,7 +35,7 @@ function readSessionCache() {
 
 function writeSessionCache(snapshot) {
   try {
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot))
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot))
   } catch {
     // Ignore storage quota/private mode errors. Runtime cache still works.
   }
@@ -92,10 +92,16 @@ export const useDashboardStore = defineStore('dashboard', {
   },
   actions: {
     async loadDashboard({ force = false } = {}) {
-      if (!force && !this.hasDashboardData) {
-        this.restoreFromSession()
+      // 1. ถ้า in-memory ว่าง ให้ดึงจาก localStorage ก่อน
+      if (!this.hasDashboardData) {
+        const restored = this.restoreFromSession()
+        if (!force && restored && this.isFresh) {
+          // Cache ยังสดอยู่ ใช้ได้เลย
+          return this.snapshot()
+        }
       }
 
+      // 2. ถ้า in-memory มีข้อมูลแล้ว และยังสด ไม่ต้องโหลดซ้ำ
       if (!force && this.hasDashboardData && this.isFresh) {
         return this.snapshot()
       }
