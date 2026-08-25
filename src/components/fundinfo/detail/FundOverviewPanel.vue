@@ -17,6 +17,7 @@
 // drawn to <canvas> via the Chart.js API (never innerHTML).
 import { ref, onMounted, onUnmounted, watch } from 'vue'
 import Chart from 'chart.js/auto'
+import { fundinfoApiMode } from '../../../services/fundinfoApi'
 
 const props = defineProps({
   fund: { type: Object, required: true },
@@ -34,7 +35,10 @@ const MODES = [
   { key: 'return', label: 'ผลตอบแทน (%)' },
 ]
 
-const mode = ref('nav')
+// API Compatibility — direct mode has no real currency NAV series (only
+// checkpoint return percentages), so "ผลตอบแทน (%)" is the honest default;
+// mock mode keeps the original NAV-price default.
+const mode = ref(fundinfoApiMode === 'mock' ? 'nav' : 'return')
 const range = ref('1Y')
 const chartRef = ref(null)
 let chartInstance = null
@@ -208,7 +212,9 @@ watch([mode, range, () => props.fund?.id, () => props.isDark], renderChart)
     </div>
 
     <p class="text-[10px] sub text-right">
-      * หมายเหตุ: กราฟนี้เคลื่อนไหวโดยอ้างอิงจากลักษณะสถิติความผันผวนย้อนหลังของกองทุนรวมจริง
+      {{ fundinfoApiMode === 'mock'
+        ? '* หมายเหตุ: กราฟนี้เคลื่อนไหวโดยอ้างอิงจากลักษณะสถิติความผันผวนย้อนหลังของกองทุนรวมจริง'
+        : '* หมายเหตุ: คำนวณจากผลตอบแทนสะสมจริงตามช่วงเวลาที่ API เปิดเผย (1M/3M/1Y/3Y/5Y/10Y) ไม่ใช่ราคาปิดรายวันจริง' }}
     </p>
   </section>
 </template>

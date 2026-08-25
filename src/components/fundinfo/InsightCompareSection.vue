@@ -6,6 +6,7 @@ import { COMPARE_COLORS, COMPARE_DASH, useFundinfoInsight } from '../../composab
 import { useFundinfoRanking } from '../../composables/useFundinfoRanking'
 import { CMP_LABELS, performanceSeries } from '../../composables/useFundinfoThemeTrend'
 import { formatPercent } from '../../utils/fundinfoFormat'
+import { fundinfoApiMode } from '../../services/fundinfoApi'
 import InfoTooltip from '../common/InfoTooltip.vue'
 
 const props = defineProps({
@@ -207,6 +208,9 @@ onUnmounted(destroyChart)
             <b>จุดอ้างอิง: {{ bench.name }}</b>
             <span>ใช้เป็นเส้นกลางเพื่ออ่านทิศทาง ไม่ใช่ benchmark ทางการของ{{ itemLabel }}ทุกตัว</span>
           </div>
+          <p v-if="fundinfoApiMode !== 'mock'" class="text-[10px] sub text-right">
+            * หมายเหตุ: เส้นกราฟลากเชื่อมผลตอบแทนสะสมจริงตามช่วงเวลาที่ API เปิดเผย (1M/3M/1Y/3Y/5Y/10Y) ด้วยเส้นตรง ไม่ใช่ราคาปิดรายวันจริง
+          </p>
           <div class="comparison-chart-full">
             <canvas ref="combinedCanvas" />
           </div>

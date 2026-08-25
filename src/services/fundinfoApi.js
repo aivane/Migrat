@@ -166,6 +166,16 @@ function allocationsOfType(allocations, allocationType) {
     .map(({ name, percent }) => ({ name, percent }))
 }
 
+// API Contract — fund_tax_type is real (RMF/SSF/TESG/TESGX), just bucketed
+// into the app's existing SSF/RMF/Thai ESG/none categories.
+function mapTaxBenefit(record) {
+  const type = safeText(record.fund_tax_type, 16).toUpperCase()
+  if (type === 'RMF') return 'rmf'
+  if (type === 'SSF') return 'ssf'
+  if (type === 'TESG' || type === 'TESGX') return 'thaiesg'
+  return 'none'
+}
+
 function safeIsoDate(value) {
   const date = safeText(value, 32)
   return /^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2})?$/.test(date) ? date.slice(0, 10) : ''
@@ -233,7 +243,20 @@ function normalizeFund(record, requestedType, details = {}) {
     factSheetUrl: safeHttpsUrl(record.fund_fact_sheet),
     isFeederFund: asFlag(record.is_feeder_fund),
     isEtf: asFlag(record.is_etf),
+    taxBenefit: mapTaxBenefit(record),
     retP: { m1: rounded(safePercent(record.return_1m)), q1: rounded(safePercent(record.return_3m)), y1: return1y, y3: return3y, y5: return5y, y10: return10y },
+    // Distinct from retP above — retP defaults a missing period to 0% for safe
+    // display everywhere else. Anything that needs to tell "genuinely 0%
+    // return" apart from "no data for this period" (e.g. building a real
+    // checkpoint chart) must read this instead, never retP.
+    retPRaw: {
+      m1: optionalNumber(record.return_1m),
+      q1: optionalNumber(record.return_3m),
+      y1: optionalNumber(record.return_1y),
+      y3: optionalNumber(record.return_3y),
+      y5: optionalNumber(record.return_5y),
+      y10: optionalNumber(record.return_10y),
+    },
     flowP: { w1: rounded(safeNumber(record.unit_change_1w)), m1: flow1m, y1: flow1y },
     managementFee: optionalNumber(record.management_fee),
     frontEndFee: optionalNumber(record.front_end_fee),

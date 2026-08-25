@@ -24,6 +24,12 @@ function percentageText(value) {
   return Number.isFinite(number) ? `${number.toFixed(2)} % ต่อปี` : '-'
 }
 
+// Front/back-end fees are one-time transaction fees, not annual — no "ต่อปี" suffix.
+function feePercentText(value) {
+  const number = Number(value)
+  return Number.isFinite(number) ? `${number.toFixed(2)} %` : '-'
+}
+
 function finiteApiNumber(value) {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
@@ -202,8 +208,8 @@ export function useFundAnalytics(fundRef) {
     if (!f) return null
     if (!usesMockAnalytics) {
       return {
-        frontEndProspectus: '-', frontEndActual: '-',
-        backEndProspectus: '-', backEndActual: '-',
+        frontEndProspectus: '-', frontEndActual: feePercentText(f.frontEndFee),
+        backEndProspectus: '-', backEndActual: feePercentText(f.backEndFee),
         switchInProspectus: '-', switchInActual: '-',
         switchOutProspectus: '-', switchOutActual: '-',
         managementProspectus: '-', managementActual: percentageText(f.managementFee),
@@ -263,11 +269,56 @@ export function useFundAnalytics(fundRef) {
     }))
   })
 
+  // ---------- API-mode NAV history: real checkpoint returns, not a daily series ----------
+  // Direct API mode has no daily NAV/price series anywhere — but the fund
+  // list/detail response DOES publish real cumulative returns at fixed
+  // checkpoints (1M/3M/1Y/3Y/5Y/10Y, already captured into fund.retP). Turn
+  // those into a small real index series (base 100 = today) instead of
+  // either fabricating a daily path or leaving the chart blank. Every plotted
+  // value is derived directly from the fund's own disclosed return_*, and
+  // checkpoints the API left null for this fund are simply omitted.
+  const RETURN_CHECKPOINTS = [
+    { key: 'y10', days: 3650 },
+    { key: 'y5', days: 1825 },
+    { key: 'y3', days: 1095 },
+    { key: 'y1', days: 365 },
+    { key: 'q1', days: 90 },
+    { key: 'm1', days: 30 },
+  ]
+
+  function apiNavHistory(f) {
+    const points = RETURN_CHECKPOINTS
+      .map(({ key, days }) => ({ days, ret: f.retPRaw?.[key] }))
+      .filter((p) => typeof p.ret === 'number' && Number.isFinite(p.ret))
+      .sort((a, b) => b.days - a.days) // oldest first
+
+    if (!points.length) return noSeries()
+
+    const navDate = f.navDate ? new Date(f.navDate) : null
+    const rawLabels = []
+    const navData = []
+    points.forEach(({ days, ret }) => {
+      navData.push(+(100 / (1 + ret / 100)).toFixed(2))
+      if (navDate && !Number.isNaN(navDate.getTime())) {
+        const d = new Date(navDate)
+        d.setDate(d.getDate() - days)
+        rawLabels.push(d.toLocaleDateString('th-TH', { month: 'short', year: '2-digit' }))
+      } else {
+        rawLabels.push(`${days} วันก่อน`)
+      }
+    })
+    rawLabels.push('ปัจจุบัน')
+    navData.push(100)
+
+    return { labels: rawLabels, rawLabels, navData, totalReturnData: navData, benchmarkData: [] }
+  }
+
   // ---------- NAV history (line-chart source), memoized per fund+range ----------
   const navHistoryCache = new Map()
   function navHistory(range) {
     const f = fundRef.value
-    if (!f || !usesMockAnalytics) return noSeries()
+    if (!f) return noSeries()
+    if (!usesMockAnalytics) return apiNavHistory(f)
 
     const cacheKey = `${f.id}:${range}`
     if (navHistoryCache.has(cacheKey)) return navHistoryCache.get(cacheKey)

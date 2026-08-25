@@ -138,11 +138,20 @@ function buildMasterFundEntities(funds) {
   })
   const sum = (a) => a.reduce((s, x) => s + x, 0)
   const avg = (a) => +(sum(a) / a.length).toFixed(1)
+  // Null-aware: averages only members that actually have a value for this
+  // period, instead of retP's 0-for-missing default silently dragging the
+  // group average toward 0 whenever some members lack longer-term history.
+  const avgRaw = (a) => {
+    const finite = a.filter((v) => typeof v === 'number' && Number.isFinite(v))
+    return finite.length ? +(sum(finite) / finite.length).toFixed(1) : null
+  }
   return Object.entries(groups).map(([master, members], idx) => {
     const flowP = {}
     const retP = {}
+    const retPRaw = {}
     ;['w1', 'm1', 'y1'].forEach((p) => (flowP[p] = sum(members.map((m) => m.flowP[p]))))
     ;['m1', 'q1', 'y1', 'y3', 'y5'].forEach((p) => (retP[p] = avg(members.map((m) => m.retP[p]))))
+    ;['m1', 'q1', 'y1', 'y3', 'y5', 'y10'].forEach((p) => (retPRaw[p] = avgRaw(members.map((m) => m.retPRaw?.[p]))))
     return {
       idx,
       kind: 'master',
@@ -151,6 +160,7 @@ function buildMasterFundEntities(funds) {
       members,
       flowP,
       retP,
+      retPRaw,
       perf: avg(members.map((m) => m.perf)),
       div: Math.max(...members.map((m) => m.div)),
     }
