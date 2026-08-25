@@ -17,6 +17,23 @@ import OffshoreFundView from '../views/fundinfo/OffshoreFundView.vue'
 import ThaiFundView from '../views/fundinfo/ThaiFundView.vue'
 import MixedFundView from '../views/fundinfo/MixedFundView.vue'
 
+const MAX_REDIRECT_PATH_LENGTH = 2048
+
+function safeInternalRedirect(fullPath) {
+  // Auth Guard — never carry an absolute/protocol-relative URL into login redirect handling.
+  if (
+    typeof fullPath !== 'string' ||
+    fullPath.length > MAX_REDIRECT_PATH_LENGTH ||
+    !fullPath.startsWith('/') ||
+    fullPath.startsWith('//') ||
+    /[\u0000-\u001F\u007F]/.test(fullPath)
+  ) {
+    return '/'
+  }
+
+  return fullPath
+}
+
 const routes = [
   {
     path: '/',
@@ -108,6 +125,7 @@ const routes = [
     name: 'profile',
     component: ProfileView,
     meta: {
+      requiresAuth: true, // Auth Guard — profile may contain PII and must never render for an anonymous session.
       title: 'โปรไฟล์ผู้ใช้งาน | IDEA FUND',
       description: 'จัดการข้อมูลส่วนตัวและบัญชีผู้ใช้งานบน IDEA FUND',
       keywords: 'โปรไฟล์, Profile, บัญชีผู้ใช้',
@@ -156,13 +174,8 @@ const routes = [
     // Input Validation — reject malformed/malicious :id before the view ever
     // mounts or triggers a store/API call (defense-in-depth with the view's
     // own check and with fundinfoApi's isValidFundId on every request).
-    beforeEnter: (to, _from, next) => {
-      if (isValidFundId(to.params.id)) {
-        next()
-      } else {
-        next({ name: 'fundinfo-feeder' })
-      }
-    },
+    beforeEnter: (to) =>
+      isValidFundId(to.params.id) || { name: 'fundinfo-feeder' },
   },
 ]
 
@@ -174,17 +187,18 @@ export const router = createRouter({
 // Auth Guard — currently a no-op passthrough (no route sets requiresAuth yet),
 // wired up now so gating a future authenticated route only means adding
 // `meta: { requiresAuth: true }` to it, no router-wide changes.
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   const requiresAuth = to.matched.some((record) => record.meta?.requiresAuth)
   if (!requiresAuth) return true
 
-  // Lazy import avoids a hard dependency from the router module on Pinia's
-  // active-instance lifecycle at router-creation time.
-  return import('../stores/authStore').then(({ useAuthStore }) => {
-    const authStore = useAuthStore()
-    if (authStore.isAuthenticated) return true
-    return { name: 'login', query: { redirect: to.fullPath } }
-  })
+  // Auth Guard — a truthy in-memory token is not authorization. Verify it with
+  // the backend before every protected navigation; verifyToken clears failures.
+  const { useAuthStore } = await import('../stores/authStore')
+  const authStore = useAuthStore()
+  const isAuthorized = await authStore.verifyToken()
+
+  if (isAuthorized) return true
+  return { name: 'login', query: { redirect: safeInternalRedirect(to.fullPath) } }
 })
 
 // Navigation Guard สำหรับอัปเดต SEO Meta Tags ตามหน้า

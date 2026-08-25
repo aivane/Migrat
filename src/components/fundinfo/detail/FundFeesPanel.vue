@@ -17,8 +17,10 @@ defineProps({
 
 // Input validation: fund.minInvest comes from trusted app data, but guard
 // with Number(...) so a stray string/undefined never breaks toLocaleString.
+// API Compatibility — direct mode does not publish a minimum-purchase amount
+// (mock-only field). Show '-' instead of a fabricated "0 บาท".
 function formatBaht(n) {
-  return `${Number(n || 0).toLocaleString('en-US')} บาท`
+  return n ? `${Number(n).toLocaleString('en-US')} บาท` : '-'
 }
 </script>
 

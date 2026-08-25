@@ -72,6 +72,9 @@ const sortedCardsData = computed(() => {
 })
 
 const selectionSignature = computed(() => cardsData.value.map((card) => `${card.kind}:${card.id}`).join('|'))
+const hasHistoricalSeries = computed(() =>
+  cardsData.value.some((card) => Array.isArray(card.series) && card.series.length === CMP_LABELS.length),
+)
 
 function setSortLocal(key) {
   if (localSortKey.value === key) {
@@ -94,6 +97,19 @@ function shortBench(name) {
 function formatAum(aum) {
   return typeof aum === 'string' ? aum.replace('US$', '$') : aum || '—'
 }
+function finiteNumber(value) { return typeof value === 'number' && Number.isFinite(value) ? value : null }
+function formatOptionalPercent(value) {
+  const safeValue = finiteNumber(value)
+  return safeValue === null ? '—' : formatPercent(safeValue, 1)
+}
+function formatOptionalDrawdown(value) {
+  const safeValue = finiteNumber(value)
+  return safeValue === null ? '—' : `${safeValue}%`
+}
+function valueTone(value) {
+  const safeValue = finiteNumber(value)
+  return safeValue === null ? '' : safeValue >= 0 ? 'text-pos' : 'text-neg'
+}
 
 function destroyChart() {
   if (combinedChart) {
@@ -104,9 +120,10 @@ function destroyChart() {
 
 function createChart(canvas, entries) {
   destroyChart()
-  if (!canvas || !entries.length) return
+  const chartEntries = entries.filter((entry) => Array.isArray(entry.series) && entry.series.length === CMP_LABELS.length)
+  if (!canvas || !chartEntries.length) return
 
-  const datasets = entries.map((entry, index) => ({
+  const datasets = chartEntries.map((entry, index) => ({
     label: `${index + 1}. ${entry.title}`,
     data: entry.series,
     borderColor: COMPARE_COLORS[index % COMPARE_COLORS.length],
@@ -164,7 +181,7 @@ async function rebuildCharts() {
   createChart(combinedCanvas.value, cardsData.value)
 }
 
-watch(selectionSignature, rebuildCharts)
+watch([selectionSignature, hasHistoricalSeries], rebuildCharts)
 onMounted(rebuildCharts)
 onUnmounted(destroyChart)
 </script>
@@ -183,7 +200,7 @@ onUnmounted(destroyChart)
 
     <article class="comparison-panel">
       <div class="comparison-panel-body">
-        <template v-if="cardsData.length">
+        <template v-if="cardsData.length && hasHistoricalSeries">
           <!-- จุดอ้างอิง -->
           <div class="industry-benchmark">
             <span class="dashed-line">------</span>
@@ -194,6 +211,7 @@ onUnmounted(destroyChart)
             <canvas ref="combinedCanvas" />
           </div>
         </template>
+        <div v-else-if="cardsData.length" class="comparison-empty">API ยังไม่มีข้อมูลผลตอบแทนรายช่วงเวลาสำหรับสร้างกราฟเปรียบเทียบ</div>
         <div v-else class="comparison-empty">เลือกรายการจากการ์ดจัดอันดับด้านบนเพื่อเริ่มเปรียบเทียบ</div>
 
         <!-- แยก Heading ออกมาจาก Table Wrap เพื่อไม่ให้เลื่อนตามตาราง -->
@@ -241,12 +259,13 @@ onUnmounted(destroyChart)
                     <span class="compare-fund-avatar" :style="{ background: COMPARE_COLORS[index % COMPARE_COLORS.length] }">{{ (card.title || '').slice(0, 2).toUpperCase() }}</span>
                     <span class="compare-fund-text min-w-0"><strong class="block truncate" :title="card.title">{{ card.title }}</strong><small>{{ card.subtitle }}</small></span>
                   </td>
-                  <td class="text-right" :class="card.perf >= 0 ? 'text-pos' : 'text-neg'">{{ formatPercent(card.perf, 1) }}</td>
+                  <!-- Output Defense — API-derived values render as escaped text only. -->
+                  <td class="text-right" :class="valueTone(card.perf)">{{ formatOptionalPercent(card.perf) }}</td>
                   <td class="text-right">{{ formatAum(card.aum ?? card.cap) }}</td>
-                  <td class="text-right text-neg">{{ card.maxDrawdown }}%</td>
+                  <td class="text-right" :class="valueTone(card.maxDrawdown)">{{ formatOptionalDrawdown(card.maxDrawdown) }}</td>
                   <td class="text-right">{{ card.pe != null ? `${card.pe}x` : '-' }}</td>
                   <td class="text-right">{{ card.pb != null ? `${card.pb}x` : '-' }}</td>
-                  <td class="text-right" :class="card.gap >= 0 ? 'text-pos' : 'text-neg'">{{ card.gap > 0 ? '+' : '' }}{{ card.gap }}%</td>
+                  <td class="text-right" :class="valueTone(card.gap)">{{ formatOptionalPercent(card.gap) }}</td>
                   <td>{{ card.benchName ? shortBench(card.benchName) : '-' }}</td>
                   <td>{{ card.topTickers || card.holdings || '-' }}</td>
                 </tr>

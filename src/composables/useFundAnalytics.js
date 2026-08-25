@@ -1,7 +1,7 @@
 // src/composables/useFundAnalytics.js
 //
-// Deterministic mock-analytics derivations for a single fund (NAV history,
-// fee schedule, dividend history, allocations, policy copy).
+// Deterministic mock-analytics derivations for a single fund. Direct API mode
+// deliberately returns only API-backed values; it must never invent analytics.
 //
 // Security note: this module never touches user input, the DOM, or
 // localStorage — it only shapes numbers/strings that callers bind via
@@ -9,9 +9,24 @@
 // no injection surface here by construction.
 import { computed } from 'vue'
 import { INSIGHT } from '../data/fundinfoData'
+import { fundinfoApiMode } from '../services/fundinfoApi'
 
 const MONTHS_TH = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.']
 const MAX_NAV_CACHE_ENTRIES = 40 // Perf: cap memoization cache, avoid unbounded memory growth
+const usesMockAnalytics = fundinfoApiMode === 'mock'
+
+function noSeries() {
+  return { labels: [], rawLabels: [], navData: [], totalReturnData: [], benchmarkData: [] }
+}
+
+function percentageText(value) {
+  const number = Number(value)
+  return Number.isFinite(number) ? `${number.toFixed(2)} % ต่อปี` : '-'
+}
+
+function finiteApiNumber(value) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
 
 /**
  * Stable numeric seed derived from a fund id.
@@ -39,11 +54,12 @@ export function useFundAnalytics(fundRef) {
   const registrationDate = computed(() => {
     const f = fundRef.value
     if (!f) return '-'
+    if (!usesMockAnalytics) return f.inceptionDate || '-'
     const h = seed.value
     return `${(h % 28) + 1} ${MONTHS_TH[h % 12]} ${2558 + (h % 8)}`
   })
 
-  const turnoverRatio = computed(() => (((seed.value % 35) + 10) / 100).toFixed(2))
+  const turnoverRatio = computed(() => (usesMockAnalytics ? (((seed.value % 35) + 10) / 100).toFixed(2) : '-'))
 
   // ---------- Country allocation ----------
   const COUNTRY_TABLE = {
@@ -64,6 +80,7 @@ export function useFundAnalytics(fundRef) {
   const countryAllocation = computed(() => {
     const f = fundRef.value
     if (!f) return []
+    if (!usesMockAnalytics) return Array.isArray(f.countryAllocation) ? f.countryAllocation : []
     if (f.type === 'thai') return [{ name: 'ประเทศไทย', percent: 96.5 }, { name: 'อื่นๆ', percent: 3.5 }]
     return COUNTRY_TABLE[f.country] || [
       { name: 'สหรัฐอเมริกา', percent: 62.4 }, { name: 'ญี่ปุ่น', percent: 7.8 },
@@ -82,6 +99,7 @@ export function useFundAnalytics(fundRef) {
   const topHoldings = computed(() => {
     const f = fundRef.value
     if (!f) return []
+    if (!usesMockAnalytics) return Array.isArray(f.top5) ? f.top5.slice(0, 10) : []
     const insightSource =
       (f.master && INSIGHT[f.master]) ||
       (f.themes?.[1] && INSIGHT[f.themes[1]]) ||
@@ -99,6 +117,13 @@ export function useFundAnalytics(fundRef) {
   const policyBullets = computed(() => {
     const f = fundRef.value
     if (!f) return []
+    if (!usesMockAnalytics) {
+      return [
+        f.group ? `หมวดหมู่กองทุน: ${f.group}` : '',
+        f.master ? `กองทุนหลัก: ${f.master}` : '',
+        f.dividendPolicy ? `นโยบายการจ่ายปันผล: ${f.dividendPolicy}` : '',
+      ].filter(Boolean)
+    }
     const fx = f.stats?.fxhedge
     if (f.type === 'feeder') {
       return [
@@ -133,6 +158,7 @@ export function useFundAnalytics(fundRef) {
   // ---------- Benchmark / alpha / beta / recovery ----------
   function benchmarkReturn(fundReturn, fund = fundRef.value) {
     if (!fund) return 0
+    if (!usesMockAnalytics) return null
     const h = seed.value
     if (isIndexFund(fund)) return +(fundReturn - 0.05 * ((h % 3) - 1)).toFixed(1)
     return +(fundReturn - (0.4 + (h % 5) * 0.3)).toFixed(1)
@@ -141,6 +167,7 @@ export function useFundAnalytics(fundRef) {
   const alphaBetaRecover = computed(() => {
     const f = fundRef.value
     if (!f) return { alpha: 0, beta: 0, recover: 0 }
+    if (!usesMockAnalytics) return { alpha: null, beta: null, recover: null, available: false }
     // Known-good published figures for this fund mirror the source prototype 1:1.
     if (f.id === 'SCBNDQ') return { alpha: -0.11, beta: 0.97, recover: 13 }
     const bench = benchmarkReturn(f.perf, f)
@@ -152,6 +179,7 @@ export function useFundAnalytics(fundRef) {
   })
 
   const recoveringPeriodText = computed(() => {
+    if (alphaBetaRecover.value.available === false) return '-'
     const months = alphaBetaRecover.value.recover
     const years = Math.floor(months / 12)
     const rem = months % 12
@@ -162,6 +190,7 @@ export function useFundAnalytics(fundRef) {
   })
 
   function groupAverage(val) {
+    if (!usesMockAnalytics) return null
     const h = seed.value
     const offset = (((h * 7) % 11) / 11 - 0.5) * 2
     return +(val - 0.5 + offset).toFixed(1)
@@ -171,6 +200,19 @@ export function useFundAnalytics(fundRef) {
   const feeSchedule = computed(() => {
     const f = fundRef.value
     if (!f) return null
+    if (!usesMockAnalytics) {
+      return {
+        frontEndProspectus: '-', frontEndActual: '-',
+        backEndProspectus: '-', backEndActual: '-',
+        switchInProspectus: '-', switchInActual: '-',
+        switchOutProspectus: '-', switchOutActual: '-',
+        managementProspectus: '-', managementActual: percentageText(f.managementFee),
+        terProspectus: '-', terActual: percentageText(f.fee),
+        bid: finiteApiNumber(f.nav),
+        offer: finiteApiNumber(f.nav),
+        turnoverRatio: '-',
+      }
+    }
     const fee = f.fee || 0
     const actualFrontEnd = fee < 0.8 ? 0 : fee > 1.8 ? 1.5 : 1.0
 
@@ -209,6 +251,7 @@ export function useFundAnalytics(fundRef) {
   const dividendHistory = computed(() => {
     const f = fundRef.value
     if (!f || !f.div) return []
+    if (!usesMockAnalytics) return []
     const h = seed.value
     const years = [2568, 2567, 2567, 2566]
     const months = ['มิ.ย.', 'ธ.ค.', 'มิ.ย.', 'ธ.ค.']
@@ -224,7 +267,7 @@ export function useFundAnalytics(fundRef) {
   const navHistoryCache = new Map()
   function navHistory(range) {
     const f = fundRef.value
-    if (!f) return { labels: [], rawLabels: [], navData: [], totalReturnData: [], benchmarkData: [] }
+    if (!f || !usesMockAnalytics) return noSeries()
 
     const cacheKey = `${f.id}:${range}`
     if (navHistoryCache.has(cacheKey)) return navHistoryCache.get(cacheKey)

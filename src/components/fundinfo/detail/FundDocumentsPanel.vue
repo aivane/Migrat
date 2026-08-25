@@ -31,6 +31,20 @@ function downloadDoc(label) {
   downloadNotice.value = `กำลังจำลองการดาวน์โหลดเอกสาร: ${label} ของกองทุน ${props.fund.id} (ระบบสาธิต — ไม่มีการดาวน์โหลดไฟล์จริง)`
   noticeTimer = setTimeout(() => { downloadNotice.value = '' }, 4000)
 }
+
+function isFiniteMetric(value) {
+  return typeof value === 'number' && Number.isFinite(value)
+}
+
+// API Compatibility — direct mode does not publish alpha/beta/recovery yet.
+// Render a neutral placeholder instead of calling numeric methods on null.
+function alphaText(value) {
+  return isFiniteMetric(value) ? `${value > 0 ? '+' : ''}${value}%` : '—'
+}
+
+function betaText(value) {
+  return isFiniteMetric(value) ? value.toFixed(2) : '—'
+}
 </script>
 
 <template>
@@ -60,13 +74,11 @@ function downloadDoc(label) {
         </div>
         <div class="flex justify-between py-3.5">
           <span class="sub">Alpha</span>
-          <span class="num" :class="alphaBetaRecover.alpha < 0 ? 'text-neg' : 'text-pos'">
-            {{ alphaBetaRecover.alpha > 0 ? '+' : '' }}{{ alphaBetaRecover.alpha }}%
-          </span>
+          <span class="num" :class="alphaBetaRecover.alpha < 0 ? 'text-neg' : 'text-pos'">{{ alphaText(alphaBetaRecover.alpha) }}</span>
         </div>
         <div class="flex justify-between py-3.5">
           <span class="sub">Beta</span>
-          <span class="num text-pos">{{ alphaBetaRecover.beta.toFixed(2) }}</span>
+          <span class="num text-pos">{{ betaText(alphaBetaRecover.beta) }}</span>
         </div>
       </div>
     </div>

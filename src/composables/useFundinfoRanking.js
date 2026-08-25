@@ -1,6 +1,7 @@
 import { computed, reactive, watch } from 'vue'
 import { FUND_TYPES, STOCK_META } from '../data/fundinfoData'
 import { useFundinfoStore } from '../stores/fundinfoStore'
+import { fundinfoApiMode } from '../services/fundinfoApi'
 
 // ==========================================================================
 // Section ② Ranking Cards
@@ -66,6 +67,36 @@ function buildStockRankEntities(funds) {
       div: x.meta.div ?? ret,
     }
   })
+}
+
+// API Contract — /stocks/top already aggregates actual holdings across funds.
+// Do not infer stock returns, dividend yields, or price history from this endpoint.
+function buildApiStockRankEntities(stocks) {
+  return stocks.map((stock, idx) => ({
+    idx,
+    kind: 'stock',
+    id: `stock:${stock.marketType}:${stock.symbol}`,
+    title: `${stock.symbol} · ${stock.name}`,
+    name: stock.name,
+    ticker: stock.symbol,
+    sector: stock.marketType === 'TH' ? 'หุ้นไทย' : 'หุ้นต่างประเทศ',
+    country: stock.marketType === 'TH' ? 'ประเทศไทย' : 'ต่างประเทศ',
+    // API Compatibility — the rank endpoint does not provide valuation or
+    // drawdown fields. Keep the existing comparison selection shape safe.
+    meta: { dd: null, pe: null, pb: null, div: null, cap: null },
+    perf: 0,
+    retP: { m1: 0, q1: 0, y1: 0 },
+    div: 0,
+    fundCount: stock.fundCount,
+    totalHoldingValueMThb: stock.totalHoldingValueMThb,
+    avgHoldingWeight: stock.avgHoldingWeight,
+    maxHoldingWeight: stock.maxHoldingWeight,
+    // UI Adapter — existing Rank Card renders `totalWeight` as a percentage.
+    // The API's average holding weight is the matching real metric.
+    totalWeight: stock.avgHoldingWeight,
+    dataSource: 'api',
+    selectable: true,
+  }))
 }
 
 // กองทุนไทยที่ถือหุ้นเหล่านี้โดยตรง — entity อีกแบบสำหรับ Offshore/Thai ให้ "ถือ" ในทิศทางกลับกับหุ้น
@@ -141,8 +172,14 @@ function buildMixedFundEntities(funds) {
   }))
 }
 
-function buildEntities(type, allFunds) {
+function buildEntities(type, allFunds, topStocks, useApiStocks) {
   if (isStockTab(type)) {
+    if (useApiStocks) {
+      // API lists omit holdings: use the ranking endpoint for stocks, while
+      // retaining the real fund list for the fund Ranking Card view.
+      return [...buildApiStockRankEntities(topStocks), ...buildFundHolderEntities(allFunds)]
+    }
+
     const funds = allFunds.filter(isDirectEquityFund)
     // รวมหุ้นรายตัว (kind: 'stock') กับกองทุนไทยที่ถือหุ้นเหล่านั้นโดยตรง (kind: 'holder') ไว้ใน pool
     // เดียวกัน ให้ทั้งสองแบบ "เท่าเทียมกัน" ตามที่ heading ด้านล่างสื่อไว้อยู่แล้ว
@@ -172,9 +209,17 @@ function createFundinfoRanking(type) {
   const fundinfoStore = useFundinfoStore()
   fundinfoStore.loadFundsByType(type)
   const funds = computed(() => fundinfoStore.getFundsByType(type))
-
-  const entities = computed(() => buildEntities(type, funds.value))
   const stock = isStockTab(type)
+  const stockMarket = type === 'thai' ? 'TH' : 'FOREIGN'
+  const usesApiStocks = stock && fundinfoApiMode !== 'mock'
+
+  if (usesApiStocks) fundinfoStore.loadTopStocksByMarket(stockMarket)
+
+  const topStocks = computed(() => (usesApiStocks ? fundinfoStore.getTopStocksByMarket(stockMarket) : []))
+  const stockRankingLoading = computed(() => usesApiStocks && fundinfoStore.isLoading(`stocks:${stockMarket}`))
+  const stockRankingError = computed(() => (usesApiStocks ? fundinfoStore.getError(`stocks:${stockMarket}`) : null))
+
+  const entities = computed(() => buildEntities(type, funds.value, topStocks.value, usesApiStocks))
   const accent = FUND_TYPES[type]?.accent || '#2456d8'
 
   const state = reactive({
@@ -316,6 +361,44 @@ function createFundinfoRanking(type) {
   const stockCards = computed(() => {
     if (!stock) return []
     const rows = stockRankEntities.value
+
+    if (usesApiStocks) {
+      const rowsByWeight = (field) =>
+        rows
+          .map((row) => ({ ...row, totalWeight: row[field] }))
+          .sort((left, right) => right.totalWeight - left.totalWeight)
+
+      return [
+        {
+          key: 'stock-count',
+          emoji: '🏦',
+          title: 'ถือโดยกองทุนมากที่สุด',
+          desc: 'จำนวนกองทุนที่ถือหุ้นนั้น ตามข้อมูลการถือครองที่ API สรุปไว้',
+          caption: 'ไม่ใช่คำแนะนำซื้อหรือขาย',
+          list: sortRanked(rows, (a, b) => b.fundCount - a.fundCount),
+          valueType: 'count',
+        },
+        {
+          key: 'stock-average-weight',
+          emoji: '⚖️',
+          title: 'น้ำหนักเฉลี่ยสูงสุด',
+          desc: 'สัดส่วนการถือครองเฉลี่ยของกองทุนที่ถือหุ้นนั้น',
+          caption: 'อ้างอิงข้อมูลการถือครองที่ API สรุปไว้',
+          list: rowsByWeight('avgHoldingWeight'),
+          valueType: 'weight',
+        },
+        {
+          key: 'stock-max-weight',
+          emoji: '⚖️',
+          title: 'น้ำหนักสูงสุด',
+          desc: 'สัดส่วนการถือครองสูงสุดที่พบในกองทุน',
+          caption: 'ไม่ใช่ผลตอบแทนของหุ้น',
+          list: rowsByWeight('maxHoldingWeight'),
+          valueType: 'weight',
+        },
+      ]
+    }
+
     return [
       {
         key: 'stock-count',
@@ -409,6 +492,9 @@ function createFundinfoRanking(type) {
 
   return {
     stock,
+    usesApiStocks,
+    stockRankingLoading,
+    stockRankingError,
     accent,
     heading,
     itemLabel,

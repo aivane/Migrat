@@ -1,4 +1,4 @@
-import { computed, reactive } from 'vue'
+import { computed, reactive, watch } from 'vue'
 import { useFundinfoStore } from '../stores/fundinfoStore'
 import { performanceSeries, CMP_LABELS } from './useFundinfoThemeTrend'
 
@@ -61,6 +61,26 @@ export function useFundinfoMarketLens(type = 'mixed') {
   const fundinfoStore = useFundinfoStore()
   fundinfoStore.loadFundsByType(type)
   const funds = computed(() => fundinfoStore.getFundsByType(type))
+
+  // API Compatibility — /funds/list never returns a fund's own asset mix
+  // (only /funds/{code} does), so computeScopes() below would otherwise
+  // always see an empty fund.mix/fund.asset for every fund and group nothing.
+  // "Mixed" is a small, bounded category (a few dozen funds), so backfilling
+  // each one's real allocation via the per-fund detail endpoint once — same
+  // lazy fetch FundTableWithCompare.vue uses on row-expand — is cheap and
+  // gets cached by fundinfoStore, so this only ever runs once per fund.
+  let detailBackfillStarted = false
+  watch(
+    funds,
+    (list) => {
+      if (detailBackfillStarted || !list.length) return
+      detailBackfillStarted = true
+      list.forEach((fund) => {
+        if (!fundinfoStore.hasFundDetail(fund.id)) fundinfoStore.loadFundById(fund.id)
+      })
+    },
+    { immediate: true },
+  )
 
   const scopes = computed(() => computeScopes(funds.value))
   const stats = computed(() => scopes.value.map(trendStats))

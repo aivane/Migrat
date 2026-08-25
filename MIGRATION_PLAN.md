@@ -321,3 +321,55 @@ WordPress handler เดิมบาง action ส่ง response เป็น `
 Dashboard -> Insights -> Auth/Profile -> Cleanup WordPress snippets
 ```
 
+## สถานะล่าสุด — Fundinfo (branch `fundinfoVer2`, อัปเดต 2026-08-25)
+
+อ้างอิง API จริงที่ `https://isabella-hagiologic-rolland.ngrok-free.dev/api/fund/docs#/` (proxy ผ่าน `/api/fund` ใน `vite.config.js`, base path จริงคือ `/api/v1/...`)
+
+### ทำแล้ว
+
+- เชื่อม Fund list/detail และ Top Stocks API จริงสำหรับ Feeder, Offshore, Thai ผ่าน `src/services/fundinfoApi.js` (`/api/v1/funds/list`, `/api/v1/funds/{code}`, `/api/v1/stocks/top`)
+- Feeder/Offshore/Thai แสดงข้อมูลจริงแทน mock แล้ว
+- Rank Card ของ Offshore/Thai กดเลือกเปรียบเทียบได้ (`useFundinfoRanking.js`)
+- Analysis ใช้ข้อมูล holdings และ portfolio-allocation จริง (`/api/v1/portfolio-allocation`)
+- แก้หน้า Detail ไม่ crash เมื่อ API ไม่มี Alpha/Beta
+- เพิ่ม secure adapter (input validation + sanitization) สำหรับ portfolio-allocation, insights/themes, theme-funds ใน `fundinfoApi.js`
+- ตรวจ `npm run build` ผ่านทุกครั้งก่อน commit
+
+### บั๊กที่พบและแก้แล้ว (session ตรวจ fundinfo, 2026-08-25)
+
+ทั้งหมดยืนยันด้วยการยิง API จริง + ทดสอบใน browser จริง ไม่ใช่จากอ่านโค้ดเดาเฉยๆ ไม่มีจุดไหนกระทบ UI/layout — แก้แค่ค่าที่แสดง/แหล่งข้อมูลที่ดึงมา
+
+1. **[FundDetailRow.vue](src/views/fundinfo/FundDetailRow.vue)** — กราฟ "Calendar Year Returns" ตอนขยายแถวกองทุนในตาราง มโนตัวเลขปลอม (`{'2564':18.5,...}`) ทุกครั้งที่ API ไม่มี field `cyr` (ซึ่งไม่มีจริงเสมอ) แก้ให้ไม่วาดกราฟเมื่อไม่มีข้อมูลจริง แทนที่จะโชว์เลขมั่ว
+2. **[FundFeesPanel.vue](src/components/fundinfo/detail/FundFeesPanel.vue)** — "มูลค่าขั้นต่ำของการซื้อครั้งแรก" โชว์ "0 บาท" เสมอ (API ไม่มี field นี้) ทำให้เข้าใจผิดว่าไม่มีขั้นต่ำ แก้เป็น "-"
+3. **[FundTableWithCompare.vue](src/components/fundinfo/FundTableWithCompare.vue)** — คอลัมน์ "หุ้นที่ถือเยอะ"/"น้ำหนักรวม" และ panel สัดส่วนอุตสาหกรรม/Top 5 Holdings ตอนขยายแถว ว่างเปล่าตลอด เพราะ `/funds/list` ไม่ส่ง holdings/allocations มาให้ (มีแค่ `/funds/{code}` เดี่ยวๆ) แก้ให้ตอนขยายแถวไป fetch รายละเอียดจริงของกองทุนนั้น (ใช้ mechanism ที่ `fundinfoStore.js` มีอยู่แล้ว แค่ไม่เคยถูกเรียก) ทดสอบแล้วเห็นข้อมูลจริงทั้งคอลัมน์และ panel
+4. **[useFundinfoMarketLens.js](src/composables/useFundinfoMarketLens.js)** — Mixed Fund หน้า "MARKET LENS" (ภาพตลาด 3 กลุ่มนำ 2 กลุ่มตาม) ว่าง/ไม่มีข้อมูลตลอด สาเหตุเดียวกับข้อ 3 (`fund.mix`/`fund.asset` ว่างจาก list endpoint) — Mixed เป็น category เล็ก (~39 กองทุนเท่านั้น) เลย backfill รายละเอียดจริงของทุกกองครั้งเดียวตอนโหลดหน้า ทดสอบแล้วเห็นกลุ่มจริง (หุ้น, เงินฝากธนาคาร P/N และ B/E, หน่วยลงทุน, พันธบัตรรัฐบาล, หุ้นกู้) พร้อมตัวเลขจริง
+
+**พบแต่ยังไม่แก้ (dead code, ไม่กระทบผู้ใช้ตอนนี้)**: [FundDetailCard.vue:58](src/components/fundinfo/FundDetailCard.vue:58) มีบั๊กแบบเดียวกับข้อ 1 เป๊ะ แต่ไฟล์นี้ไม่มีใครเรียกใช้ในโปรเจกต์เลย
+
+### เหลือ / ต้องตัดสินใจเพิ่ม (ติดที่ API ไม่มีข้อมูลจริง ไม่ใช่บั๊กโค้ด — ยืนยันด้วยการยิง API จริงแล้ว)
+
+- **กราฟภาพรวม (NAV/ผลตอบแทน) + Calendar Year Returns ในหน้า Detail** — ไม่มี endpoint ราคา/NAV ย้อนหลังที่ไหนเลยในระบบ ลองยิง `/api/v1/funds/{code}/trend` ดูจริงแล้วพบว่าเป็น "holdings trend" (สัดส่วนหุ้นที่ถือขึ้น/ลง/ทรงตัว) ไม่ใช่ราคาย้อนหลัง และไม่มี field ผลตอบแทนรายปีปฏิทินเลยสักตัว — ต้องรอ backend เพิ่ม endpoint ประเภทนี้ก่อน
+- **เปรียบเทียบ Performance บนกราฟเดียวกัน (`InsightCompareSection.vue`)** — เหตุผลเดียวกัน ต้องใช้ผลตอบแทนย้อนหลังแบบ time-series ของหุ้น/กองทุนแต่ละตัว ซึ่งไม่มีอยู่ในสเปคเลยสักตัว (`hasHistoricalSeries` เลย false ตลอดในโหมด API จริง ตามที่ตั้งใจออกแบบไว้)
+- **คอลัมน์ "สิทธิภาษี" ในตารางกองทุน** — มีบั๊กจริง (`useFundinfoScreener.js` คำนวณ tag ไว้ที่ `screenerTags.taxBenefit` แต่ `FundTableWithCompare.vue` อ่านจาก `fund.taxBenefit` คนละที่) **แต่ตั้งใจไม่แก้ให้ตรงกัน** เพราะค่าที่คำนวณไว้เป็นค่าสุ่มแบบ deterministic ต่อ id กองทุน ไม่ใช่ข้อมูลสิทธิภาษีจริง (คอมเมนต์ในโค้ดเขียนตรงๆ ว่า "ยังไม่มีในโครงสร้างข้อมูลจริง") ถ้าเชื่อมให้ตรงกันจะกลายเป็นโชว์ป้าย SSF/RMF/Thai ESG ปลอมให้กองทุนจริง อันตรายกว่าโชว์ "-" — **ต้องตัดสินใจ**: จะเอาคอลัมน์นี้ออกเพราะ API ไม่มีข้อมูลจริง หรือรอ backend เพิ่ม field แล้วค่อยเชื่อม
+- **"ขั้นต่ำ" และ "NAV/หน่วย" ในตารางกองทุน** — ยืนยันแล้วว่า API ไม่มี field พวกนี้เลยทั้งใน `/funds/list` และ `/funds/{code}` ต้องรอ backend เพิ่ม
+- `fetchInsightThemes()` และ `fetchThemeFunds()` มีใน `fundinfoApi.js` แล้ว (เรียก `/api/v1/insights/themes`, `/api/v1/insights/theme-funds`) แต่ **ยังไม่ถูกเรียกใช้จริง** — ไม่มีทั้งใน `fundinfoStore.js` และไม่มี component ไหน import ไปใช้ ต้อง wire เข้า Analysis Offshore (`InsightCompareSection.vue`) พร้อม cache layer แบบเดียวกับ fund list/detail
+
+### ตรวจสอบ API — ขาด endpoint ไหนบ้าง?
+
+เทียบ endpoint ที่ `src/services/fundinfoApi.js` เรียกอยู่ (feeder/offshore/thai/mixed list, detail, top stocks, portfolio-allocation, insights/themes, insights/theme-funds) กับ OpenAPI spec ปัจจุบัน (`/api/fund/openapi.json`):
+
+**ไม่ขาด** — endpoint ที่ fundinfo ใช้ทั้งหมดมีอยู่จริงและ path ตรงกับ spec เป๊ะ
+
+**พบปัญหาที่ของเดิม (`/dashboard`, `/insights` route เดิม ไม่ใช่ fundinfo — แต่ยัง active ใน router อยู่)** — `src/services/fundApi.js`, `src/services/insightsApi.js`, `src/components/SearchBar.vue` เรียก path ที่ผิดกับ spec ปัจจุบัน:
+  - **ขาด prefix `/api/v1`** (จะได้ 404 จาก backend จริง เพราะ path ที่เรียกไม่ตรง route): `/dashboard/stats`, `/dashboard/master-etfs`, `/dashboard/thai-etfs`, `/search/suggestions`, `/search/funds`, `/insights/flow-trend`, `/funds/{code}/trend`
+  - **endpoint ไม่มีอยู่จริงในสเปคเลย** ไม่ว่าจะเติม prefix หรือไม่: `/insights/trend`, `/insights/valuation`, `/insights/popularity`, `/insights/global-flow`, `/dashboard/portfolio-allocation` (ของจริงคือ `/api/v1/portfolio-allocation` ไม่มี `/dashboard` นำหน้า)
+  - นี่คือโค้ดเดิมที่มีมาก่อน branch นี้ ยังไม่ได้แก้ในรอบนี้ — ควรตัดสินใจว่าจะแก้ให้ตรง spec ปัจจุบัน หรือเลิกใช้หน้า Dashboard/Insights เดิมไปเลยถ้าจะย้ายผู้ใช้ไปหน้า fundinfo แทน
+
+**Endpoint ที่มีอยู่จริงแต่ยังไม่ได้ใช้เลยในโค้ด** (อาจเป็นประโยชน์กับงานที่เหลือ):
+  - `/api/v1/insights/sectors`, `/insights/sectors/thai|foreign|feeder|mixed` — sector/theme ranking แยกตามประเภทกองทุน (มี `sort_by` เช่น holding_value/flow/aum) น่าจะเอามาใช้แทน mock บางส่วนใน Analysis ได้
+  - `/api/v1/feeder-funds/holders` — หา Thai feeder fund ที่ถือ master fund ต่างประเทศตัวหนึ่งโดยตรง (ค้นด้วย `symbol`/`target`) แทนการ join เองฝั่ง frontend อย่างที่ `buildFundHolderEntities()` ทำอยู่ตอนนี้
+  - `/api/v1/search/foreign-funds`, `/api/v1/search/stocks` (มีทั้ง GET/POST) — full-text search ที่มี field ครบกว่า `/search/suggestions`
+  - `/api/v1/funds/{code}/trend` — มีจริง แต่เป็น "fund holdings trend" (สัดส่วนการถือครองย้อนหลัง) ไม่ใช่ราคาหุ้น/NAV ย้อนหลัง จึงช่วยกราฟผลตอบแทนใน `InsightCompareSection.vue` ไม่ได้โดยตรง
+
+**สรุปเรื่องกราฟผลตอบแทนจริงรายหุ้น**: ยืนยันจาก OpenAPI spec แล้วว่าไม่มี endpoint ไหนคืนค่า time-series ราคา/ผลตอบแทนของหุ้นหรือ benchmark เลยแม้แต่ตัวเดียว (schema ของทุก endpoint เป็น `{}` เพราะ backend คืน raw dict ไม่ได้ประกาศ response model — ต้อง verify field จาก response จริงเสมอ ไม่ใช่จาก spec) ต้องรอ backend เพิ่ม endpoint นี้ก่อนถึงจะทำกราฟผลตอบแทนจริงรายหุ้น/index ได้
+

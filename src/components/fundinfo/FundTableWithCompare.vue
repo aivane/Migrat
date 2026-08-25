@@ -3,6 +3,7 @@
 import { computed, ref } from 'vue'
 import { useFundinfoScreener } from '../../composables/useFundinfoScreener'
 import { useFundinfoWishlist } from '../../composables/useFundinfoWishlist'
+import { useFundinfoStore } from '../../stores/fundinfoStore'
 import { STOCK_META } from '../../data/fundinfoData'
 import { formatPercent } from '../../utils/fundinfoFormat'
 import FundCompareTable from './FundCompareTable.vue'
@@ -13,6 +14,12 @@ const props = defineProps({ type: { type: String, default: 'offshore' } })
 
 const { screenedFunds, toggleCompare, compareFunds, compareOrderOf } = useFundinfoScreener(props.type)
 const { isWished, toggleWish } = useFundinfoWishlist()
+// API Compatibility — /funds/list never returns a fund's own holdings/
+// allocations (only /funds/{code} does), so every row starts with an empty
+// top5/asset/sectorMix. Fetching the full profile on expand fills those in
+// via the store's existing list-merge (fundinfoStore.mergeFundIntoCachedLists),
+// so both the expanded panel and this row's own columns pick up real data.
+const fundinfoStore = useFundinfoStore()
 const expandedFundId = ref(null)
 const selectedFundsList = computed(() => compareFunds.value)
 
@@ -90,7 +97,11 @@ function totalHoldingWeight(fund) {
 }
 function badgeLabel(fund) { return ({ KASIKORN: 'KA', KKP: 'KKP', SCB: 'SCB', BBLAM: 'B', BCAP: 'BC', ABRDN: 'AB' })[fund.amcShort] || fund.amcShort?.slice(0, 3) || 'FI' }
 function badgeTone(fund) { return ({ KASIKORN: 'kasikorn', KKP: 'kkp', SCB: 'scb', BBLAM: 'bblam', BCAP: 'bcap', ABRDN: 'abrdn' })[fund.amcShort] || 'default' }
-function toggleDetails(fundId) { expandedFundId.value = expandedFundId.value === fundId ? null : fundId }
+function toggleDetails(fundId) {
+  const opening = expandedFundId.value !== fundId
+  expandedFundId.value = opening ? fundId : null
+  if (opening && !fundinfoStore.hasFundDetail(fundId)) fundinfoStore.loadFundById(fundId)
+}
 function clearAllCompare() { selectedFundsList.value.forEach((fund) => toggleCompare(fund.id)) }
 
 // ฟังก์ชันสำหรับจำกัดการเพิ่มลงตารางเปรียบเทียบแค่ 3 ตัว

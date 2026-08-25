@@ -24,8 +24,11 @@ function goToDetail() {
 
 function renderChart() {
   cyChartInstance?.destroy()
-  if (!cyChartRef.value) return
-  const data = props.fund.cyr || { '2564': 18.5, '2565': 12.4, '2566': -15.2, '2567': 22.1, '2568': 14.8 }
+  cyChartInstance = null
+  // API Compatibility — direct mode does not publish calendar-year returns
+  // (mock-only field). Never fabricate a chart from placeholder numbers.
+  const data = props.fund.cyr
+  if (!cyChartRef.value || !data) return
   const values = Object.values(data)
   cyChartInstance = new Chart(cyChartRef.value, {
     type: 'bar',

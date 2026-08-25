@@ -8,6 +8,7 @@ import {
   OFFSHORE_THEME_GROUPS,
 } from '../data/fundinfoData'
 import { useFundinfoStore } from '../stores/fundinfoStore'
+import { fundinfoApiMode } from '../services/fundinfoApi'
 import { performanceSeries, CMP_LABELS } from './useFundinfoThemeTrend'
 
 // ==========================================================================
@@ -203,7 +204,26 @@ export function useFundinfoExposureTrend(type = 'offshore') {
   // today, will read the real backend once VITE_FUNDINFO_API_MODE flips.
   const fundinfoStore = useFundinfoStore()
   fundinfoStore.loadFundsByType(type)
-  const funds = computed(() => fundinfoStore.getFundsByType(type).filter(isDirectEquityFund))
+  const allFunds = computed(() => fundinfoStore.getFundsByType(type))
+  const stockMarket = type === 'thai' ? 'TH' : 'FOREIGN'
+  const shouldLoadApiStocks = fundinfoApiMode !== 'mock'
+
+  if (shouldLoadApiStocks) {
+    fundinfoStore.loadTopStocksByMarket(stockMarket)
+    fundinfoStore.loadPortfolioAllocation({ marketType: stockMarket })
+  }
+
+  const apiStocks = computed(() => (
+    shouldLoadApiStocks ? fundinfoStore.getTopStocksByMarket(stockMarket) : []
+  ))
+  const portfolioAllocation = computed(() => (
+    shouldLoadApiStocks ? fundinfoStore.getPortfolioAllocation({ marketType: stockMarket }) : []
+  ))
+  const usesApiExposure = computed(() => shouldLoadApiStocks && apiStocks.value.length > 0)
+  // Mock mode retains the original STOCK_META-only behavior exactly.
+  const funds = computed(() => (
+    usesApiExposure.value ? allFunds.value : allFunds.value.filter(isDirectEquityFund)
+  ))
 
   const bench = BENCHMARKS[type] || BENCHMARKS.offshore
   const accent = FUND_TYPES[type]?.accent || '#2456d8'
@@ -212,12 +232,20 @@ export function useFundinfoExposureTrend(type = 'offshore') {
   // offshore: ใช้ state ที่ persist ข้ามหน้า / thai (และอื่นๆ): reactive สดใหม่เหมือนของเดิม
   const state = foreign ? getOffshoreState() : reactive({ scopeMode: 'region', selected: [] })
 
-  const allScopes = computed(() => computeScopes(funds.value, type, state.scopeMode))
+  function scopesFor(scopeMode) {
+    return usesApiExposure.value
+      ? computeApiScopes(allFunds.value, apiStocks.value, portfolioAllocation.value, type, scopeMode)
+      : computeScopes(funds.value, type, scopeMode)
+  }
+
+  const allScopes = computed(() => scopesFor(state.scopeMode))
   const scopes = computed(() => allScopes.value.filter((s) => s.hasData))
   const unavailable = computed(() => allScopes.value.filter((s) => !s.hasData))
   const maxExposure = computed(() => Math.max(...scopes.value.map((s) => s.exposure), 1))
 
-  const stockEntities = computed(() => buildStockEntities(funds.value))
+  const stockEntities = computed(() => (
+    usesApiExposure.value ? buildApiStockEntities(apiStocks.value) : buildStockEntities(funds.value)
+  ))
   const mostHeld = computed(
     () => [...stockEntities.value].sort((a, b) => b.fundCount - a.fundCount || b.totalWeight - a.totalWeight)[0],
   )
@@ -279,7 +307,7 @@ export function useFundinfoExposureTrend(type = 'offshore') {
       // เก็บรายการที่เลือกไว้ของโหมดปัจจุบันก่อนสลับ (ไม่ล้างทิ้ง) แล้วดึงรายการของโหมดใหม่กลับมา
       state.selectedByMode[state.scopeMode] = state.selected.slice()
       state.scopeMode = mode
-      const targetScopes = computeScopes(funds.value, type, mode).filter((s) => s.hasData)
+      const targetScopes = scopesFor(mode).filter((s) => s.hasData)
       const validIds = new Set(targetScopes.map((s) => s.id))
       const restored = (state.selectedByMode[mode] || []).filter((id) => validIds.has(id))
       state.selected = restored.length ? restored : targetScopes.slice(0, MAX_SELECTED).map((s) => s.id)
@@ -344,4 +372,198 @@ export function useFundinfoExposureTrend(type = 'offshore') {
     clear,
     setScopeMode,
   }
+}
+
+const THAI_SCOPE_BY_TICKER = Object.freeze({
+  KBANK: 'FINCIAL', KTB: 'FINCIAL', TISCO: 'FINCIAL', BBL: 'FINCIAL', SCB: 'FINCIAL', TTB: 'FINCIAL', BAY: 'FINCIAL',
+  DELTA: 'TECH', ADVANC: 'TECH', INTUCH: 'TECH', TRUE: 'TECH',
+  GULF: 'RESOURC', PTT: 'RESOURC', PTTEP: 'RESOURC', TOP: 'RESOURC', BCP: 'RESOURC',
+  AOT: 'SERVICE', CPALL: 'SERVICE', BJC: 'SERVICE', COM7: 'SERVICE', BCH: 'SERVICE', SPA: 'SERVICE',
+  TPIPL: 'INDUS',
+  AMATA: 'PROP',
+})
+
+const THAI_SCOPE_BY_SECTOR = Object.freeze({
+  'การเงิน': 'FINCIAL',
+  'พลังงานและสาธารณูปโภค': 'RESOURC',
+  'เทคโนโลยีและสื่อสาร': 'TECH',
+  'อิเล็กทรอนิกส์': 'TECH',
+  'ขนส่งและท่องเที่ยว': 'SERVICE',
+  'พาณิชย์': 'SERVICE',
+  'การแพทย์': 'SERVICE',
+  'นิคมอุตสาหกรรม': 'PROP',
+})
+
+const OFFSHORE_SCOPE_RULES = Object.freeze({
+  REG_GLOBAL: /global|world|international|multi[ -]?country/i,
+  REG_US: /(?:^|\W)(?:us|u\.?s\.?|united states|america|american)(?:$|\W)/i,
+  REG_CHINA: /china|hong kong|greater china/i,
+  REG_VIETNAM: /vietnam/i,
+  REG_INDIA: /india/i,
+  REG_JAPAN: /japan/i,
+  REG_EUROPE: /europe|eurozone|european/i,
+  REG_KOREA: /korea/i,
+  REG_EM: /emerging|asean|asia ex[ -]?japan|latin america|frontier/i,
+  MEGA_TECH: /technology|tech|digital|internet|software|communication/i,
+  MEGA_AI: /artificial intelligence|(?:^|\W)ai(?:$|\W)|robot|automation/i,
+  MEGA_SEMI: /semiconductor|chip/i,
+  MEGA_HEALTH: /health|biotech|medical|pharma/i,
+  MEGA_CLEANEV: /clean energy|renewable|electric vehicle|(?:^|\W)ev(?:$|\W)|climate/i,
+  MEGA_LUXURY: /luxury|consumer discretionary|brand/i,
+  MEGA_CYBER: /cyber/i,
+  MEGA_INFRA: /infrastructure/i,
+  MEGA_REIT: /(?:^|\W)reit(?:$|\W)|real estate|property/i,
+})
+
+const OFFSHORE_SCOPE_BY_TICKER = Object.freeze({
+  MSFT: ['MEGA_TECH', 'MEGA_AI'], META: ['MEGA_TECH', 'MEGA_AI'], NVDA: ['MEGA_TECH', 'MEGA_AI', 'MEGA_SEMI'],
+  TSM: ['MEGA_TECH', 'MEGA_SEMI'], TSMC: ['MEGA_TECH', 'MEGA_SEMI'], AVGO: ['MEGA_TECH', 'MEGA_SEMI'],
+  LLY: ['MEGA_HEALTH'], UNH: ['MEGA_HEALTH'], NVO: ['MEGA_HEALTH'], JNJ: ['MEGA_HEALTH'], ABBV: ['MEGA_HEALTH'],
+  CATL: ['MEGA_CLEANEV'], BYD: ['MEGA_CLEANEV'],
+  MC: ['MEGA_LUXURY'],
+  'MBB.VN': ['REG_VIETNAM'], 'ACB.VN': ['REG_VIETNAM'], 'MWG11': ['REG_VIETNAM'],
+  '9988N.MX': ['REG_CHINA'],
+})
+
+const STOCK_META_BY_TICKER = Object.freeze(
+  Object.values(STOCK_META).reduce((byTicker, meta) => {
+    byTicker[meta.ticker] = meta
+    return byTicker
+  }, {}),
+)
+
+const THAI_ALLOCATION_MATCHERS = Object.freeze({
+  FINCIAL: /การเงิน/i,
+  INDUS: /อุตสาหกรรม|วัสดุ/i,
+  PROP: /อสังหาริมทรัพย์/i,
+  RESOURC: /พลังงาน|อรรถประโยชน์|สาธารณูปโภค/i,
+  SERVICE: /สินค้า|การแพทย์/i,
+  TECH: /เทคโนโลยี|สื่อสาร/i,
+})
+
+const OFFSHORE_REGION_ALLOCATION_MATCHERS = Object.freeze({
+  REG_GLOBAL: /developed country/i,
+  REG_US: /united states/i,
+  REG_CHINA: /china|hong kong/i,
+  REG_VIETNAM: /vietnam/i,
+  REG_INDIA: /india/i,
+  REG_JAPAN: /^japan$/i,
+  REG_EUROPE: /eurozone|europe/i,
+  REG_KOREA: /korea/i,
+  REG_EM: /^emerging market$/i,
+})
+
+function allocationExposureForScope(allocation, type, scopeMode, scopeId) {
+  if (!allocation.length || (type === 'offshore' && scopeMode !== 'region')) return null
+
+  const matcher = type === 'thai'
+    ? THAI_ALLOCATION_MATCHERS[scopeId]
+    : OFFSHORE_REGION_ALLOCATION_MATCHERS[scopeId]
+  if (!matcher) return null
+
+  const allocationType = type === 'thai' ? 'SECTOR' : 'REGIONAL'
+  const matches = allocation.filter((item) => (
+    item.allocationType === allocationType && matcher.test(item.name)
+  ))
+  if (!matches.length) return null
+
+  // API Contract — Thai taxonomy combines several published sectors, while
+  // regional labels overlap. Sum the former and use the largest published
+  // regional weight rather than falsely adding overlapping regions together.
+  const value = type === 'thai'
+    ? matches.reduce((sum, item) => sum + item.weightedPercent, 0)
+    : Math.max(...matches.map((item) => item.weightedPercent))
+  return +value.toFixed(1)
+}
+
+function averageReturn(funds) {
+  if (!funds.length) return null
+  return +(funds.reduce((sum, fund) => sum + Number(fund.perf || 0), 0) / funds.length).toFixed(1)
+}
+
+function apiStockScopeIds(stock, type, scopeMode) {
+  const ticker = String(stock.symbol || '').toUpperCase()
+  const stockMeta = STOCK_META_BY_TICKER[ticker]
+
+  if (type === 'thai') {
+    const byTicker = THAI_SCOPE_BY_TICKER[ticker]
+    if (byTicker) return [byTicker]
+    const bySector = stockMeta ? THAI_SCOPE_BY_SECTOR[stockMeta.sector] : null
+    return bySector ? [bySector] : []
+  }
+
+  const byTicker = OFFSHORE_SCOPE_BY_TICKER[ticker] || []
+  if (scopeMode === 'theme') return byTicker.filter((id) => id.startsWith('MEGA_'))
+  return byTicker.filter((id) => id.startsWith('REG_'))
+}
+
+function fundScopeIds(fund, scopeMode) {
+  const scopeText = `${fund.group || ''} ${fund.master || ''} ${fund.name || ''}`
+  const prefix = scopeMode === 'theme' ? 'MEGA_' : 'REG_'
+
+  return Object.entries(OFFSHORE_SCOPE_RULES)
+    .filter(([id, rule]) => id.startsWith(prefix) && rule.test(scopeText))
+    .map(([id]) => id)
+}
+
+function matchingStocksForScope(stocks, scopeId, type, scopeMode, memberIds) {
+  return stocks.filter((stock) => {
+    if (apiStockScopeIds(stock, type, scopeMode).includes(scopeId)) return true
+    return (stock.topHoldingFundCodes || []).some((code) => memberIds.has(code))
+  })
+}
+
+// API Contract — list records contain fund performance while /stocks/top
+// contains aggregate holdings. Join only the API's disclosed holder codes;
+// never invent stock returns or allocations for an unknown stock.
+function computeApiScopes(funds, stocks, portfolioAllocation, type, scopeMode) {
+  const defs = taxonomyFor(type, scopeMode)
+  const totalHoldingValue = stocks.reduce((sum, stock) => sum + Number(stock.totalHoldingValueMThb || 0), 0)
+
+  return defs.map((def, idx) => {
+    const categoryMembers = type === 'thai'
+      ? []
+      : funds.filter((fund) => fundScopeIds(fund, scopeMode).includes(def.id))
+    const memberIds = new Set(categoryMembers.map((fund) => fund.id))
+    const matchedStocks = matchingStocksForScope(stocks, def.id, type, scopeMode, memberIds)
+    const disclosedHolderIds = new Set(matchedStocks.flatMap((stock) => stock.topHoldingFundCodes || []))
+
+    funds.forEach((fund) => {
+      if (disclosedHolderIds.has(fund.id)) memberIds.add(fund.id)
+    })
+
+    const members = funds.filter((fund) => memberIds.has(fund.id))
+    const holdingValue = matchedStocks.reduce((sum, stock) => sum + Number(stock.totalHoldingValueMThb || 0), 0)
+    const holdingExposure = totalHoldingValue > 0 ? (holdingValue / totalHoldingValue) * 100 : 0
+    const allocationExposure = allocationExposureForScope(portfolioAllocation, type, scopeMode, def.id)
+
+    return {
+      id: def.id,
+      title: def.title,
+      subtitle: def.subtitle,
+      idx,
+      members,
+      stocks: matchedStocks,
+      stockCount: matchedStocks.length,
+      // API Compatibility — prefer `portfolio-allocation`'s published
+      // weighted allocation. The top-stock ratio remains a direct fallback
+      // when no equivalent taxonomy label exists in the endpoint response.
+      exposure: allocationExposure ?? +holdingExposure.toFixed(1),
+      perf: averageReturn(members),
+      // API Contract — do not show a taxonomy group until the ranking API
+      // supplies at least one actual holding that can be matched to it.
+      hasData: members.length > 0 && matchedStocks.length > 0,
+    }
+  })
+}
+
+function buildApiStockEntities(stocks) {
+  return stocks.map((stock) => ({
+    name: stock.name,
+    ticker: stock.symbol,
+    fundCount: stock.fundCount,
+    // UI Adapter — this view expects a percentage, and the API's average
+    // holding weight is the only corresponding aggregate it publishes.
+    totalWeight: stock.avgHoldingWeight,
+  }))
 }

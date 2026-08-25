@@ -1,5 +1,6 @@
 import { computed } from 'vue'
 import { INSIGHT } from '../data/fundinfoData'
+import { fundinfoApiMode } from '../services/fundinfoApi'
 import { useFundinfoRanking } from './useFundinfoRanking'
 import { performanceSeries, CMP_LABELS } from './useFundinfoThemeTrend'
 
@@ -37,6 +38,16 @@ function seedFromId(id) {
 // ผลตอบแทนสะสมจำลอง (ฐาน 100) สำหรับ entity หนึ่งตัวบนกราฟเปรียบเทียบ Section 3
 function entitySeries(ent) {
   return performanceSeries(seedFromId(ent.id), ent.perf ?? 0, CMP_LABELS.length)
+}
+
+function finiteNumber(value) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+function averageFinite(values) {
+  const validValues = values.map(finiteNumber).filter((value) => value !== null)
+  if (!validValues.length) return null
+  return +(validValues.reduce((sum, value) => sum + value, 0) / validValues.length).toFixed(1)
 }
 
 // บทวิเคราะห์ Master Fund (Feeder) — จาก INSIGHT[master] หรือ fallback ที่รวม Top Holdings ของสมาชิกเอง
@@ -80,7 +91,7 @@ function insightFor(ent) {
 }
 
 function avgMaxDrawdown(ent) {
-  return +(ent.members.reduce((sum, f) => sum + f.stats.maxdd, 0) / ent.members.length).toFixed(1)
+  return averageFinite(ent.members.map((fund) => fund.stats?.maxdd))
 }
 
 // การ์ด "ลักษณะเด่น" ของ Master Fund — valuation / ทองคำ (cost & tracking) / ตราสารหนี้ (income & rate risk) / ไม่มี
@@ -95,6 +106,7 @@ function keyCharacteristics(insight) {
 export function useFundinfoInsight(type = 'feeder') {
   const stock = type === 'offshore' || type === 'thai'
   const bench = BENCHMARKS[type] || BENCHMARKS.feeder
+  const usesMockInsightData = fundinfoApiMode === 'mock'
   const itemLabel = stock ? (type === 'offshore' ? 'หุ้นต่างประเทศ' : 'หุ้นไทย') : type === 'feeder' ? 'Master Fund' : 'ธีมลงทุน'
 
   // instance เดียวกับที่ RankingCardsSection.vue (Section 2) ใช้ — เลือก/ถอดที่นั่นสะท้อนมาที่นี่ทันที
@@ -102,9 +114,29 @@ export function useFundinfoInsight(type = 'feeder') {
 
   const cardsData = computed(() =>
     selectedEntities.value.map((ent) => {
-      const series = entitySeries(ent)
+      const series = usesMockInsightData ? entitySeries(ent) : null
 
       if (ent.kind === 'stock') {
+        if (ent.dataSource === 'api') {
+          return {
+            id: ent.id,
+            kind: 'stock',
+            title: `${ent.ticker} · ${ent.name}`,
+            subtitle: `${ent.sector} · ${ent.country}`,
+            perf: null,
+            gap: null,
+            maxDrawdown: null,
+            pe: null,
+            pb: null,
+            div: null,
+            cap: ent.totalHoldingValueMThb,
+            fundCount: ent.fundCount,
+            totalWeight: ent.totalWeight,
+            holdings: `น้ำหนักเฉลี่ย ${ent.avgHoldingWeight.toFixed(1)}%`,
+            series: null,
+          }
+        }
+
         const gap = +(ent.perf - bench.ret).toFixed(1)
         return {
           id: ent.id,
@@ -128,13 +160,13 @@ export function useFundinfoInsight(type = 'feeder') {
       // buildFundHolderEntities ใน useFundinfoRanking.js) ใช้ข้อมูลกองทุนจริงของตัวมันเอง
       // ไม่ใช่ synthetic insight แบบ Master Fund (Feeder) ด้านล่าง
       if (ent.kind === 'holder') {
-        const gap = +(ent.perf - bench.ret).toFixed(1)
+        const gap = usesMockInsightData ? +(ent.perf - bench.ret).toFixed(1) : null
         return {
           id: ent.id,
           kind: 'holder',
           title: ent.title,
           subtitle: `${ent.amc}${ent.country ? ' · ' + ent.country : ''}`,
-          perf: ent.perf,
+          perf: finiteNumber(ent.perf),
           gap,
           maxDrawdown: ent.fund.stats.maxdd,
           fee: ent.fund.fee,
@@ -146,6 +178,27 @@ export function useFundinfoInsight(type = 'feeder') {
           fundCount: ent.fundCount,
           totalWeight: ent.totalWeight,
           series,
+        }
+      }
+
+      if (!usesMockInsightData) {
+        return {
+          id: ent.id,
+          kind: 'master',
+          title: ent.title,
+          subtitle: 'ข้อมูลรวมกองทุน Feeder จาก API',
+          perf: finiteNumber(ent.perf),
+          gap: null,
+          maxDrawdown: avgMaxDrawdown(ent),
+          characteristics: null,
+          pe: null,
+          pb: null,
+          exposure: '',
+          topTickers: '',
+          aum: null,
+          memberCount: ent.members.length,
+          benchName: null,
+          series: null,
         }
       }
 

@@ -13,38 +13,109 @@ import {
   verify,
 } from '../services/authApi'
 
-const STORAGE_KEY = 'migrat.auth.v1'
+const LEGACY_STORAGE_KEY = 'migrat.auth.v1'
+const USERNAME_PATTERN = /^[A-Za-z0-9._-]{3,64}$/
+const EMAIL_PATTERN = /^[^\s@]{1,64}@[A-Za-z0-9.-]{1,190}\.[A-Za-z]{2,63}$/
+const SECRET_PATTERN = /^[^\s\u0000-\u001F\u007F]{8,128}$/
+const TOKEN_PATTERN = /^[A-Za-z0-9._~+/=-]{16,4096}$/
+const GOOGLE_CREDENTIAL_PATTERN = /^[A-Za-z0-9._~+/=-]{20,12000}$/
 
-// Secure State — localStorage is JS-readable by any script on the page, so an
-// XSS anywhere in the app can exfiltrate anything stored here. We can't avoid
-// persisting *something* across reloads without an httpOnly cookie from the
-// backend, so we minimize the blast radius: only the bearer token is kept,
-// never `user`/`account` (PII — display name, email, etc.). Callers must
-// re-fetch profile data via loadProfile() after restore() instead of trusting
-// a stale cached copy.
-function readStoredToken() {
+function clearLegacyStoredAuth() {
+  // Secure State — remove token data written by earlier builds. This app never
+  // reads or writes bearer credentials to Web Storage.
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    return raw ? JSON.parse(raw).token || '' : ''
+    localStorage.removeItem(LEGACY_STORAGE_KEY)
   } catch {
-    return ''
+    // Storage may be unavailable; the in-memory state remains safe.
   }
 }
 
-function writeStoredToken(token) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ token }))
-  } catch {
-    // Runtime auth state is still available even if localStorage is blocked.
+function validationError(message) {
+  const error = new Error(message)
+  error.name = 'AuthValidationError'
+  return error
+}
+
+function safeAuthError(error, fallback) {
+  return error?.name === 'AuthValidationError' ? error.message : fallback
+}
+
+function isRecord(value) {
+  return Object.prototype.toString.call(value) === '[object Object]'
+}
+
+function normalizeUsername(value) {
+  const username = typeof value === 'string' ? value.trim() : ''
+  if (!USERNAME_PATTERN.test(username) && !EMAIL_PATTERN.test(username)) {
+    throw validationError('กรุณากรอก Username หรือ Email ให้ถูกต้อง')
+  }
+  return username
+}
+
+function normalizeEmail(value) {
+  const email = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  if (!EMAIL_PATTERN.test(email)) throw validationError('กรุณากรอกอีเมลให้ถูกต้อง')
+  return email
+}
+
+function normalizeSecret(value, label = 'รหัสผ่าน') {
+  if (typeof value !== 'string' || !SECRET_PATTERN.test(value)) {
+    throw validationError(`${label}ต้องมีความยาว 8–128 ตัวอักษร และไม่มีอักขระควบคุม`)
+  }
+  return value
+}
+
+function validateLoginCredentials(credentials) {
+  if (!isRecord(credentials)) throw validationError('รูปแบบข้อมูลเข้าสู่ระบบไม่ถูกต้อง')
+
+  return {
+    username: normalizeUsername(credentials.username),
+    password: normalizeSecret(credentials.password),
+    remember: credentials.remember === true,
   }
 }
 
-function clearStoredAuth() {
-  try {
-    localStorage.removeItem(STORAGE_KEY)
-  } catch {
-    // Ignore storage errors.
+function validateRegistration(payload) {
+  if (!isRecord(payload)) throw validationError('รูปแบบข้อมูลสมัครสมาชิกไม่ถูกต้อง')
+
+  return {
+    username: normalizeUsername(payload.username),
+    email: normalizeEmail(payload.email),
+    password: normalizeSecret(payload.password),
   }
+}
+
+function extractSession(payload) {
+  const token = payload?.token || payload?.access_token || ''
+  if (!hasValidSessionToken(token)) {
+    throw validationError('ไม่พบข้อมูลการยืนยันตัวตนที่ถูกต้อง')
+  }
+
+  // Secure State — never retain the response object because it contains its token.
+  return {
+    token,
+    user: isRecord(payload?.user) ? payload.user : isRecord(payload?.profile) ? payload.profile : null,
+  }
+}
+
+function hasValidSessionToken(token) {
+  return typeof token === 'string' && TOKEN_PATTERN.test(token)
+}
+
+function normalizeDisplayName(value) {
+  const displayName = typeof value === 'string' ? value.trim() : ''
+  if (!displayName || displayName.length > 100 || /[\u0000-\u001F\u007F]/.test(displayName)) {
+    throw validationError('ชื่อที่แสดงต้องมีความยาว 1–100 ตัวอักษร')
+  }
+  return displayName
+}
+
+function validatePasswordReset(payload) {
+  if (!isRecord(payload) || !hasValidSessionToken(payload.token)) {
+    throw validationError('ลิงก์รีเซ็ตรหัสผ่านไม่ถูกต้อง')
+  }
+
+  return { token: payload.token, password: normalizeSecret(payload.password) }
 }
 
 export const useAuthStore = defineStore('auth', {
@@ -67,26 +138,23 @@ export const useAuthStore = defineStore('auth', {
   },
   actions: {
     restore() {
-      // Only the token survives a reload — user/account are re-fetched fresh
-      // via loadProfile() by the caller, never trusted from storage.
-      this.token = readStoredToken()
+      // Secure State — a reload starts unauthenticated unless the backend adds
+      // an httpOnly-cookie session bootstrap endpoint in the future.
+      clearLegacyStoredAuth()
       this.restored = true
-    },
-    persist() {
-      writeStoredToken(this.token)
     },
     async loginWithPassword(credentials) {
       this.loading = true
       this.error = ''
 
       try {
-        const payload = await login(credentials)
-        this.token = payload.token || payload.access_token || ''
-        this.user = payload.user || payload.profile || payload
-        this.persist()
+        const payload = await login(validateLoginCredentials(credentials))
+        const session = extractSession(payload)
+        this.token = session.token
+        this.user = session.user
         return payload
       } catch (error) {
-        this.error = error?.message || error?.error || 'เข้าสู่ระบบไม่สำเร็จ'
+        this.error = safeAuthError(error, 'เข้าสู่ระบบไม่สำเร็จ')
         throw error
       } finally {
         this.loading = false
@@ -97,13 +165,17 @@ export const useAuthStore = defineStore('auth', {
       this.error = ''
 
       try {
+        if (typeof credential !== 'string' || !GOOGLE_CREDENTIAL_PATTERN.test(credential)) {
+          throw validationError('ข้อมูลยืนยันตัวตนจาก Google ไม่ถูกต้อง')
+        }
+
         const payload = await googleVerify(credential)
-        this.token = payload.token || payload.access_token || ''
-        this.user = payload.user || payload.profile || payload
-        this.persist()
+        const session = extractSession(payload)
+        this.token = session.token
+        this.user = session.user
         return payload
       } catch (error) {
-        this.error = error?.message || error?.error || 'เข้าสู่ระบบด้วย Google ไม่สำเร็จ'
+        this.error = safeAuthError(error, 'เข้าสู่ระบบด้วย Google ไม่สำเร็จ')
         throw error
       } finally {
         this.loading = false
@@ -132,16 +204,19 @@ export const useAuthStore = defineStore('auth', {
       this.error = ''
 
       try {
-        return await register(payload)
+        return await register(validateRegistration(payload))
       } catch (error) {
-        this.error = error?.message || error?.error || 'สมัครสมาชิกไม่สำเร็จ'
+        this.error = safeAuthError(error, 'สมัครสมาชิกไม่สำเร็จ')
         throw error
       } finally {
         this.loading = false
       }
     },
     async loadProfile() {
-      if (!this.token) return null
+      if (!hasValidSessionToken(this.token)) {
+        this.clearAuth()
+        return null
+      }
 
       this.loading = true
       this.error = ''
@@ -157,14 +232,17 @@ export const useAuthStore = defineStore('auth', {
         // token in storage is unchanged by a profile fetch.
         return this.user
       } catch (error) {
-        this.error = error?.message || error?.error || 'โหลดข้อมูลบัญชีไม่สำเร็จ'
+        this.error = safeAuthError(error, 'โหลดข้อมูลบัญชีไม่สำเร็จ')
         throw error
       } finally {
         this.loading = false
       }
     },
     async verifyToken() {
-      if (!this.token) return false
+      if (!hasValidSessionToken(this.token)) {
+        this.clearAuth()
+        return false
+      }
 
       try {
         await verify(this.token)
@@ -175,18 +253,22 @@ export const useAuthStore = defineStore('auth', {
       }
     },
     async updateDisplayName(displayName) {
-      if (!this.token) return null
+      if (!hasValidSessionToken(this.token)) {
+        this.clearAuth()
+        return null
+      }
 
-      const payload = await updateProfile({ token: this.token, displayName })
-      this.user = { ...(this.user || {}), display_name: displayName }
+      const safeDisplayName = normalizeDisplayName(displayName)
+      const payload = await updateProfile({ token: this.token, displayName: safeDisplayName })
+      this.user = { ...(this.user || {}), display_name: safeDisplayName }
       // No persist() — display_name is PII, kept in memory only (see restore()).
       return payload
     },
     async requestPasswordReset(email) {
-      return forgotPassword(email)
+      return forgotPassword(normalizeEmail(email))
     },
     async resetPasswordWithToken(payload) {
-      return resetPassword(payload)
+      return resetPassword(validatePasswordReset(payload))
     },
     async logoutUser() {
       try {
@@ -200,7 +282,7 @@ export const useAuthStore = defineStore('auth', {
       this.user = null
       this.account = null
       this.error = ''
-      clearStoredAuth()
+      clearLegacyStoredAuth()
     },
   },
 })

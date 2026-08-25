@@ -15,6 +15,16 @@ export default defineConfig(({ mode }) => {
     plugins: [vue()],
     server: {
       proxy: {
+        // Fundinfo direct API — keeps the ngrok origin server-side in development,
+        // avoiding CORS exposure and preserving same-origin request semantics.
+        '/api/fund': {
+          target: fundApiTarget,
+          changeOrigin: true,
+          secure: false,
+          headers: {
+            'ngrok-skip-browser-warning': '1',
+          },
+        },
         // Proxy สำหรับ Recon / Fund / Dashboard / Insights API
         '/api/recon/v2': {
           target: fundApiTarget,
