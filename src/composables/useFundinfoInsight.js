@@ -140,6 +140,15 @@ function avgMaxDrawdown(ent) {
   return averageFinite(ent.members.map((fund) => fund.stats?.maxdd))
 }
 
+// AUM รวมของ Master Fund (feeder) มาจากการรวม fund.aum (ล้านบาท) ของกองทุนสมาชิกทุกตัว —
+// API /funds/list มี field นี้จริง (aum_m_thb) ต่างจาก P/E, P/B, benchmark index ที่ไม่มี
+function sumAum(members) {
+  const finite = members.map((fund) => finiteNumber(fund.aum)).filter((value) => value !== null)
+  if (!finite.length) return null
+  const total = finite.reduce((sum, value) => sum + value, 0)
+  return `฿${Math.round(total).toLocaleString('th-TH')} ล้านบ.`
+}
+
 // การ์ด "ลักษณะเด่น" ของ Master Fund — valuation / ทองคำ (cost & tracking) / ตราสารหนี้ (income & rate risk) / ไม่มี
 function keyCharacteristics(insight) {
   const text = `${insight.theme} ${insight.master.name}`.toLowerCase()
@@ -241,7 +250,7 @@ export function useFundinfoInsight(type = 'feeder') {
           pb: null,
           exposure: '',
           topTickers: '',
-          aum: null,
+          aum: sumAum(ent.members),
           memberCount: ent.members.length,
           benchName: null,
           series: apiCheckpointSeries(ent.retPRaw),

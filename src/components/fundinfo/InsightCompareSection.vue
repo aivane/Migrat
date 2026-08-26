@@ -27,11 +27,11 @@ const localSortDir = ref('desc') // 'desc' = มากไปน้อย, 'asc' 
 function parseAumValue(raw) {
   if (typeof raw === 'number') return raw
   if (typeof raw !== 'string') return 0
-  const match = raw.replace(/US\$|\$/g, '').match(/([\d.]+)\s*([MBK])?/i)
+  const match = raw.replace(/US\$|\$|฿/g, '').match(/([\d,]+(?:\.\d+)?)\s*(ล้าน|[MBK])?/i)
   if (!match) return 0
-  const num = parseFloat(match[1])
+  const num = parseFloat(match[1].replace(/,/g, ''))
   const unit = (match[2] || '').toUpperCase()
-  const mult = unit === 'B' ? 1e9 : unit === 'M' ? 1e6 : unit === 'K' ? 1e3 : 1
+  const mult = unit === 'B' ? 1e9 : unit === 'M' || unit === 'ล้าน' ? 1e6 : unit === 'K' ? 1e3 : 1
   return num * mult
 }
 
