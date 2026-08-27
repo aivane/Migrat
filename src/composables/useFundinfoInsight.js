@@ -173,13 +173,16 @@ export function useFundinfoInsight(type = 'feeder') {
 
       if (ent.kind === 'stock') {
         if (ent.dataSource === 'api') {
+          const perf = finiteNumber(ent.return1y)
+          // /stocks/top still has no valuation (P/E, P/B) or dividend/drawdown
+          // fields — pe/pb/div/maxDrawdown stay null until the API adds them.
           return {
             id: ent.id,
             kind: 'stock',
             title: `${ent.ticker} · ${ent.name}`,
             subtitle: `${ent.sector} · ${ent.country}`,
-            perf: null,
-            gap: null,
+            perf,
+            gap: perf === null ? null : +(perf - bench.ret).toFixed(1),
             maxDrawdown: null,
             pe: null,
             pb: null,
@@ -215,17 +218,25 @@ export function useFundinfoInsight(type = 'feeder') {
       // buildFundHolderEntities ใน useFundinfoRanking.js) ใช้ข้อมูลกองทุนจริงของตัวมันเอง
       // ไม่ใช่ synthetic insight แบบ Master Fund (Feeder) ด้านล่าง
       if (ent.kind === 'holder') {
-        const gap = usesMockInsightData ? +(ent.perf - bench.ret).toFixed(1) : null
+        const perf = finiteNumber(ent.perf)
+        const benchReturn = usesMockInsightData ? bench.ret : finiteNumber(ent.fund.benchmarkReturn1y)
+        const gap = perf === null || benchReturn === null ? null : +(perf - benchReturn).toFixed(1)
         return {
           id: ent.id,
           kind: 'holder',
           title: ent.title,
           subtitle: `${ent.amc}${ent.country ? ' · ' + ent.country : ''}`,
-          perf: finiteNumber(ent.perf),
+          perf,
           gap,
           maxDrawdown: ent.fund.stats.maxdd,
           fee: ent.fund.fee,
           risk: ent.fund.risk,
+          // P/E, P/B exist in the API schema but are still null for every
+          // fund observed — kept null-aware, not defaulted, so this becomes
+          // real automatically once the backend populates them.
+          pe: usesMockInsightData ? null : finiteNumber(ent.fund.peRatio),
+          pb: usesMockInsightData ? null : finiteNumber(ent.fund.pbRatio),
+          benchName: usesMockInsightData ? null : (ent.fund.benchmarkName || null),
           holdings: (ent.fund.top5 || [])
             .slice(0, 3)
             .map((h) => `${h.name} ${h.percent}%`)
@@ -237,22 +248,36 @@ export function useFundinfoInsight(type = 'feeder') {
       }
 
       if (!usesMockInsightData) {
+        const perf = finiteNumber(ent.perf)
+        const avgBenchReturn = averageFinite(ent.members.map((fund) => fund.benchmarkReturn1y))
+        const benchName = ent.members.find((fund) => fund.benchmarkName)?.benchmarkName || null
+        // This row is a Master Fund (feeder-target ETF) — the API has no
+        // endpoint for it directly, so every number here is aggregated
+        // client-side from the Thai feeder funds that track it (see
+        // sumAum/averageFinite above). Say that plainly instead of the old
+        // generic "ข้อมูลรวมกองทุน Feeder จาก API" placeholder, which read the
+        // same on every row and didn't explain what was actually being shown.
+        const subtitle = benchName
+          ? `${benchName} · รวมจากกองทุนไทย ${ent.members.length} กอง`
+          : `รวมจากกองทุนไทย ${ent.members.length} กองที่ลงทุนใน Master Fund นี้`
         return {
           id: ent.id,
           kind: 'master',
           title: ent.title,
-          subtitle: 'ข้อมูลรวมกองทุน Feeder จาก API',
-          perf: finiteNumber(ent.perf),
-          gap: null,
+          subtitle,
+          perf,
+          gap: perf === null || avgBenchReturn === null ? null : +(perf - avgBenchReturn).toFixed(1),
           maxDrawdown: avgMaxDrawdown(ent),
           characteristics: null,
-          pe: null,
-          pb: null,
+          // Averaged across member funds — still null while pe_ratio/pb_ratio
+          // are unpopulated API-side (see fundinfoApi.js normalizeFund).
+          pe: averageFinite(ent.members.map((fund) => fund.peRatio)),
+          pb: averageFinite(ent.members.map((fund) => fund.pbRatio)),
           exposure: '',
           topTickers: '',
           aum: sumAum(ent.members),
           memberCount: ent.members.length,
-          benchName: null,
+          benchName,
           series: apiCheckpointSeries(ent.retPRaw),
         }
       }

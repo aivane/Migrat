@@ -17,7 +17,7 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { FUND_TYPES } from '../../data/fundinfoData'
-import { isValidFundId } from '../../services/fundinfoApi'
+import { isValidFundId, fundinfoApiMode } from '../../services/fundinfoApi'
 import { useFundinfoStore } from '../../stores/fundinfoStore'
 import { useFundinfoTheme } from '../../composables/useFundinfoTheme'
 import { useFundAnalytics } from '../../composables/useFundAnalytics'
@@ -96,8 +96,27 @@ const analytics = useFundAnalytics(fund)
 
 // Daily NAV change (diffBaht / diffPct), ported 1:1 from the prototype's
 // init() (prevNav = second-to-last point of the 1Y series).
+//
+// API Data Quality — the fund profile's own `nav_change_pct_1d` looks broken
+// upstream (e.g. +126.72% "1-day" change on an equity feeder, +19.99% on a
+// low-volatility bond fund — consistent with being computed against
+// inception NAV rather than the previous day). Don't surface it; diff the
+// real daily nav-history series instead (analytics.apiNavHistoryVersion is
+// read here so this recomputes once that async fetch resolves).
 const dailyChange = computed(() => {
   if (!fund.value) return { diffBaht: 0, diffPct: 0 }
+
+  if (fundinfoApiMode !== 'mock') {
+    void analytics.apiNavHistoryVersion.value // reactivity trigger — see comment above
+    const history = analytics.navHistory('1M')
+    const nav = history?.isDaily ? history.navData : []
+    const last = nav.length - 1
+    if (last < 1) return { diffBaht: 0, diffPct: 0 } // Robustness: real series not loaded yet
+    const prevNav = nav[last - 1]
+    const diffBaht = nav[last] - prevNav
+    return { diffBaht, diffPct: prevNav ? (diffBaht / prevNav) * 100 : 0 }
+  }
+
   const nav = analytics.navHistory('1Y')?.navData || []
   const last = nav.length - 1
   if (last < 1) return { diffBaht: 0, diffPct: 0 } // Robustness: not enough points yet
@@ -215,7 +234,13 @@ const dailyChange = computed(() => {
                structural cue is lost. -->
           <div class="p-5 md:p-6">
             <div v-if="activeTab === 'overview'" id="panel-overview" role="tabpanel" aria-labelledby="tab-overview">
-              <FundOverviewPanel :fund="fund" :accent="accent" :is-dark="isDark" :nav-history="analytics.navHistory" />
+              <FundOverviewPanel
+                :fund="fund"
+                :accent="accent"
+                :is-dark="isDark"
+                :nav-history="analytics.navHistory"
+                :nav-history-version="analytics.apiNavHistoryVersion.value"
+              />
             </div>
 
             <div v-else-if="activeTab === 'performance'" id="panel-performance" role="tabpanel" aria-labelledby="tab-performance">

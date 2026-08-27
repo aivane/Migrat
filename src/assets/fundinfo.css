@@ -724,7 +724,7 @@
 
 /* Fund Results Table & Scrollbars */
 .fundinfo-scope .fund-results-table {
-  max-width: 1400px;
+  max-width: none;
   margin: 0 auto;
   overflow-x: auto;
   overflow-y: auto;
@@ -746,12 +746,11 @@
   background: var(--sub);
 }
 
-.fundinfo-scope .fund-results-table table { 
-  width: 90%;
-  min-width: 1200px; 
-  table-layout: auto; 
+.fundinfo-scope .fund-results-table table {
+  width: 100%;
+  table-layout: fixed;
   font-size: 11px;
-  margin: 0 auto; 
+  margin: 0 auto;
 }
 
 .fundinfo-scope .fund-results-table th {
@@ -1621,34 +1620,48 @@
   margin: 0 auto 20px; 
 }
 
-.fundinfo-scope .compare-table-wrap { 
-  margin: 8px auto 0; 
-  width: 100%; 
-  max-width: 1400px;
+.fundinfo-scope .compare-table-wrap {
+  margin: 8px auto 0;
+  width: 100%;
+  max-width: 1760px;
   overflow-x: auto;
 }
 .fundinfo-scope .compare-table-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; border-top: 1px solid var(--line); padding-top: 10px; }
 .fundinfo-scope .compare-table-heading h3 { font-size: 15px; font-weight: 700; color: var(--txt); margin: 0; }
 .fundinfo-scope .compare-sort-btn { font-size: 12px; font-weight: 600; color: var(--brand); background: var(--surf2); border: 1px solid var(--line); border-radius: 8px; padding: 5px 10px; cursor: pointer; }
 
-.fundinfo-scope .compare-fund-table { 
-  width: 90%; 
-  border-collapse: collapse; 
+.fundinfo-scope .compare-fund-table {
+  width: 100%;
+  min-width: 1300px; /* keeps every column readable instead of getting squeezed on medium-width screens — the wrap below already scrolls horizontally when needed */
+  border-collapse: collapse;
   table-layout: fixed;
   font-size: 14px;
-  margin: 0 auto; 
+  margin: 0;
 }
 
-.fundinfo-scope .compare-fund-table th:first-child { 
-  text-align: left; 
-  width: 22%;
-  font-size: 14px; 
+/* คอลัมน์ชื่อกองทุนมี 2 บรรทัด (ชื่อ + subtitle) ทำให้แถวสูงกว่าหัวตาราง (1 บรรทัด) มาก
+   padding แนวตั้ง 13px จาก th/td ทั่วแอป (style.css) เลยทิ้งช่องว่างเหนือ/ใต้เนื้อหาในแถวข้อมูล
+   มากกว่าที่ควร ทำให้เส้นคั่นแถวรู้สึกลอยห่างจากเนื้อหาแทนที่จะแนบชิด — ลดเหลือ 9px เฉพาะตารางนี้ */
+.fundinfo-scope .compare-fund-table th,
+.fundinfo-scope .compare-fund-table td {
+  padding: 9px 14px;
+  border-bottom-color: var(--border-strong);
+}
+
+.fundinfo-scope .compare-fund-table th:first-child,
+.fundinfo-scope .compare-fund-table td:first-child {
+  text-align: left;
+  width: 22%; /* was 16% — full fund names (long Thai names) now wrap instead of truncating, so this column needs real room */
+  font-size: 14px;
 }
 
 .fundinfo-scope .compare-fund-table th:not(:first-child) {
   text-align: center;
   white-space: nowrap;
-  min-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 9%;
+  min-width: 96px;
   font-size: 14px;
 }
 
@@ -1657,7 +1670,42 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  min-width: 90px;
+  min-width: 96px;
+}
+
+/* ความกว้างต่อคอลัมน์อิงจากความยาวจริงของ "หัวคอลัมน์" (ตัวที่ยาวสุดในแถวข้อมูล เพราะ header เป็น
+   nowrap แถวเดียว) ไม่ใช่หารเท่ากันทุกคอลัมน์ — ก่อนหน้านี้ "ผลตอบแทนกองทุน 1 ปี ↕"/"Max Drawdown ↕"/
+   "เทียบจุดอ้างอิง ↕" แคบกว่าความยาว label จริง ข้อความเลยล้นทับ header คอลัมน์ถัดไป (เหมือนที่ subtitle
+   เคยล้นทับคอลัมน์ข้าง ๆ ) ตอนนี้มี overflow:hidden ด้านบนกันไว้อีกชั้น แต่กว้างพอไม่ต้องพึ่ง ellipsis ปกติ */
+.fundinfo-scope .compare-fund-table th:nth-child(2),
+.fundinfo-scope .compare-fund-table td:nth-child(2) {
+  width: 12%;
+}
+.fundinfo-scope .compare-fund-table th:nth-child(3),
+.fundinfo-scope .compare-fund-table td:nth-child(3),
+.fundinfo-scope .compare-fund-table th:nth-child(4),
+.fundinfo-scope .compare-fund-table td:nth-child(4) {
+  width: 11%;
+}
+.fundinfo-scope .compare-fund-table th:nth-child(5),
+.fundinfo-scope .compare-fund-table td:nth-child(5),
+.fundinfo-scope .compare-fund-table th:nth-child(6),
+.fundinfo-scope .compare-fund-table td:nth-child(6) {
+  width: 8%;
+  min-width: 80px;
+}
+.fundinfo-scope .compare-fund-table th:nth-child(7),
+.fundinfo-scope .compare-fund-table td:nth-child(7) {
+  width: 10%;
+}
+.fundinfo-scope .compare-fund-table th:nth-child(8),
+.fundinfo-scope .compare-fund-table td:nth-child(8) {
+  width: 9%;
+}
+.fundinfo-scope .compare-fund-table th:last-child,
+.fundinfo-scope .compare-fund-table td:last-child {
+  width: 9%; /* was 13%, then over-cut to 5% (truncated its own "Top exposure" header) — table-layout:fixed uses the header row's declared width as the real column basis, min-width below doesn't act as a floor the way it would in auto layout */
+  min-width: 150px;
 }
 
 @media (max-width: 767px) {
@@ -1668,30 +1716,47 @@
   .fundinfo-scope .compare-fund-table td:not(:first-child) { width: auto; min-width: 90px; }
 }
 
-.fundinfo-scope .compare-fund-name { 
-  display: flex; 
-  align-items: center; 
-  gap: 8px; 
-  min-width: 180px; 
+.fundinfo-scope .compare-fund-name {
+  display: flex;
+  align-items: flex-start; /* was center — a wrapped 2-3 line name shouldn't push the avatar to its vertical middle */
+  gap: 8px;
+  min-width: 260px;
+}
+.fundinfo-scope .compare-fund-name strong {
+  /* white-space is inherited, and the global th/td reset (style.css) sets it
+     to nowrap — removing the old `truncate` class stopped the name being cut
+     off with "…", but without this it just silently overflowed past the
+     column unwrapped instead (invisible in a plain scrollWidth check, since
+     overflow stayed `visible`). Force it to actually wrap like the subtitle. */
+  white-space: normal;
+  overflow-wrap: break-word;
+}
+.fundinfo-scope .compare-fund-avatar {
+  width: 26px;
+  height: 26px;
+  margin-top: 2px; /* .compare-fund-name is now align-items:flex-start (wrapped names), so nudge this back down to sit level with the name's first line */
+  border-radius: 8px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
-.fundinfo-scope .compare-fund-avatar { 
-  width: 26px; 
-  height: 26px; 
-  border-radius: 8px; 
-  color: #fff; 
-  font-size: 11px; 
-  font-weight: 700; 
-  display: flex; 
-  align-items: center; 
-  justify-content: center; 
-  flex-shrink: 0; 
-}
-
-.fundinfo-scope .compare-fund-text small { 
-  display: block; 
-  color: var(--sub); 
-  font-size: 12px; 
+.fundinfo-scope .compare-fund-text small {
+  display: block;
+  color: var(--sub);
+  font-size: 12px;
   margin-top: 1px;
   text-align: left;
+  /* Overrides the inherited white-space:nowrap from the global th/td reset
+     (style.css) so a long subtitle (benchmark category + fund count can run
+     long, e.g. "Commodities Precious Metals · รวมจากกองทุนไทย 23 กอง") wraps
+     onto a second line and stays fully readable, instead of either spilling
+     into the next column or being cut short with an ellipsis. */
+  white-space: normal;
+  overflow-wrap: break-word;
+  max-width: 100%;
 }

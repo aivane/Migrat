@@ -69,8 +69,9 @@ function buildStockRankEntities(funds) {
   })
 }
 
-// API Contract — /stocks/top already aggregates actual holdings across funds.
-// Do not infer stock returns, dividend yields, or price history from this endpoint.
+// API Contract — /stocks/top aggregates actual holdings across funds, and
+// now also publishes return_1m/return_1y/industry/sector per stock. It still
+// has no valuation (P/E, P/B) or dividend/drawdown fields — those stay null.
 function buildApiStockRankEntities(stocks) {
   return stocks.map((stock, idx) => ({
     idx,
@@ -79,13 +80,18 @@ function buildApiStockRankEntities(stocks) {
     title: `${stock.symbol} · ${stock.name}`,
     name: stock.name,
     ticker: stock.symbol,
-    sector: stock.marketType === 'TH' ? 'หุ้นไทย' : 'หุ้นต่างประเทศ',
+    sector: stock.sector || (stock.marketType === 'TH' ? 'หุ้นไทย' : 'หุ้นต่างประเทศ'),
+    industry: stock.industry || '',
     country: stock.marketType === 'TH' ? 'ประเทศไทย' : 'ต่างประเทศ',
-    // API Compatibility — the rank endpoint does not provide valuation or
+    // API Compatibility — the rank endpoint still has no valuation/dividend/
     // drawdown fields. Keep the existing comparison selection shape safe.
     meta: { dd: null, pe: null, pb: null, div: null, cap: null },
     perf: 0,
     retP: { m1: 0, q1: 0, y1: 0 },
+    // Null-aware raw returns (see fund.retPRaw for the same pattern) — lets
+    // useFundinfoInsight tell "0% return" apart from "API hasn't got this yet".
+    return1m: stock.return1m,
+    return1y: stock.return1y,
     div: 0,
     fundCount: stock.fundCount,
     totalHoldingValueMThb: stock.totalHoldingValueMThb,
@@ -228,6 +234,7 @@ function createFundinfoRanking(type) {
   const topStocks = computed(() => (usesApiStocks ? fundinfoStore.getTopStocksByMarket(stockMarket) : []))
   const stockRankingLoading = computed(() => usesApiStocks && fundinfoStore.isLoading(`stocks:${stockMarket}`))
   const stockRankingError = computed(() => (usesApiStocks ? fundinfoStore.getError(`stocks:${stockMarket}`) : null))
+  const fundsLoading = computed(() => fundinfoStore.isLoading(type))
 
   const entities = computed(() => buildEntities(type, funds.value, topStocks.value, usesApiStocks))
   const accent = FUND_TYPES[type]?.accent || '#2456d8'
@@ -244,12 +251,18 @@ function createFundinfoRanking(type) {
   // ภาพต้นแบบ ซึ่งดูเหมือนเป็นการ paste ซ้ำ ไม่ใช่ของสองชุดที่ตั้งใจ (เพราะตัวเลขในทั้งสอง block ของภาพ
   // เหมือนกันทุกตัว)
   // Seeded once, the first time entities has data — a later store refresh
-  // must not clobber whatever the person has since selected.
+  // must not clobber whatever the person has since selected. In API mode,
+  // stocks and funds load from two separate requests that can resolve in
+  // either order — seeding as soon as entities has ANY length would lock in
+  // a stock-only (or holder-only) selection if one request settles before
+  // the other, permanently starving the comparison chart of a chartable
+  // series on the missing side. Wait for both to settle first.
   let selectionSeeded = false
   watch(
-    entities,
-    (value) => {
+    [entities, stockRankingLoading, fundsLoading],
+    ([value, stocksStillLoading, fundsStillLoading]) => {
       if (selectionSeeded || !value.length) return
+      if (usesApiStocks && (stocksStillLoading || fundsStillLoading)) return
       selectionSeeded = true
       if (stock) {
         state.selected.push(

@@ -130,9 +130,16 @@ export function useFundinfoThemeTrend(type = 'feeder') {
     { immediate: true },
   )
 
-  const positiveCount = computed(() => stats.value.filter((s) => s.scope.perf > 0).length)
-  const acceleratingCount = computed(() => stats.value.filter((s) => s.accel > 1).length)
-  const outperformCount = computed(() => stats.value.filter((s) => s.vsGlobal > 0).length)
+  const selectedStats = computed(() =>
+    state.selected.map((id) => stats.value.find((s) => s.scope.id === id)).filter(Boolean),
+  )
+
+  // Scoped to the themes currently plotted on the comparison chart
+  // (selectedStats), not every theme that exists — the summary badges above
+  // the chart should read "of what you're looking at", not "of everything".
+  const positiveCount = computed(() => selectedStats.value.filter((s) => s.scope.perf > 0).length)
+  const acceleratingCount = computed(() => selectedStats.value.filter((s) => s.accel > 1).length)
+  const outperformCount = computed(() => selectedStats.value.filter((s) => s.vsGlobal > 0).length)
 
   const interesting = computed(() => [...stats.value].sort((a, b) => b.q1 - a.q1 || b.flow - a.flow).slice(0, 3))
 
@@ -146,10 +153,6 @@ export function useFundinfoThemeTrend(type = 'feeder') {
         .includes(q),
     )
   })
-
-  const selectedStats = computed(() =>
-    state.selected.map((id) => stats.value.find((s) => s.scope.id === id)).filter(Boolean),
-  )
 
   const maxReached = computed(() => state.selected.length >= MAX_SELECTED)
 

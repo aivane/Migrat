@@ -94,8 +94,8 @@ function scrollToInsight() { document.getElementById(`insight-${props.type}`)?.s
             <button v-for="(entity, index) in card.list.slice(0, 5)" :key="entity.id" type="button" class="ranking-row" :class="{ selected: orderOf(entity.id) > -1 }" @click="select(entity.id)">
               <span class="ranking-number" :class="{ medal: index < 3 }" :style="index < 3 ? { background: RANK_COLORS[index] } : {}">{{ index + 1 }}</span>
               <span class="ranking-row-name" :title="entity.title">{{ entity.title }}</span>
-              <strong v-if="card.valueType === 'count'">{{ countLabel(entity, activeSection) }}</strong>
-              <strong v-else-if="card.valueType === 'weight'">{{ entity.totalWeight.toFixed(1) }}%</strong>
+              <strong v-if="card.valueType === 'count'" class="text-pos">{{ countLabel(entity, activeSection) }}</strong>
+              <strong v-else-if="card.valueType === 'weight'" class="text-pos">{{ entity.totalWeight.toFixed(1) }}%</strong>
               <strong v-else-if="card.valueType === 'percent'" :class="entity.retP[state.rk.ret] >= 0 ? 'text-pos' : 'text-neg'">{{ formatPercent(entity.retP[state.rk.ret], 1) }}</strong>
               <strong v-else-if="card.valueType === 'flow'" :class="entity.flowP[state.rk.flow] >= 0 ? 'text-pos' : 'text-neg'">{{ entity.flowP[state.rk.flow] > 0 ? '+' : '' }}฿{{ formatFlow(entity.flowP[state.rk.flow]) }}</strong>
               <strong v-else-if="card.valueType === 'dividend'" class="text-pos">{{ entity.div.toFixed(1) }}%</strong>

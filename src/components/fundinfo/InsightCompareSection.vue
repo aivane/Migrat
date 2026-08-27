@@ -261,7 +261,7 @@ onUnmounted(destroyChart)
                 <tr v-for="(card, index) in sortedCardsData" :key="card.id">
                   <td class="compare-fund-name">
                     <span class="compare-fund-avatar" :style="{ background: COMPARE_COLORS[index % COMPARE_COLORS.length] }">{{ (card.title || '').slice(0, 2).toUpperCase() }}</span>
-                    <span class="compare-fund-text min-w-0"><strong class="block truncate" :title="card.title">{{ card.title }}</strong><small>{{ card.subtitle }}</small></span>
+                    <span class="compare-fund-text min-w-0"><strong class="block" :title="card.title">{{ card.title }}</strong><small>{{ card.subtitle }}</small></span>
                   </td>
                   <!-- Output Defense — API-derived values render as escaped text only. -->
                   <td class="text-right" :class="valueTone(card.perf)">{{ formatOptionalPercent(card.perf) }}</td>

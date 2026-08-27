@@ -84,6 +84,12 @@ function safeNumber(value, fallback = 0) {
 }
 
 function optionalNumber(value) {
+  // Bug fix: `Number(null) === 0` and `Number.isFinite(0) === true`, so a
+  // bare `Number(value)` coercion silently turned every explicit API `null`
+  // (very common — pe_ratio/pb_ratio/max_drawdown_*/front_end_fee etc. are
+  // frequently null) into 0, misrepresenting "no data" as "genuinely zero"
+  // everywhere this feeds a `??` fallback or a `!= null` display check.
+  if (value === null || value === undefined) return null
   const number = Number(value)
   return Number.isFinite(number) ? number : null
 }
@@ -218,8 +224,9 @@ function normalizeFund(record, requestedType, details = {}) {
     amcShort: amc,
     risk: Math.min(Math.max(Math.round(safeNumber(record.risk_level)), 0), 8),
     fee: rounded(expenseRatio),
-    div: 0, // The API exposes a policy, not a dividend yield.
+    div: rounded(safePercent(record.dividend_yield)),
     dividendPolicy: safeText(record.dividend_policy),
+    hasDividend: asFlag(record.has_dividend),
     master,
     masterFund: master,
     country: marketType || category,
@@ -234,11 +241,15 @@ function normalizeFund(record, requestedType, details = {}) {
     perf: return1y,
     pop: 0, // Popularity is not supplied by the API; do not fabricate analytics.
     aum: rounded(safeNumber(record.aum_m_thb)),
-    // UI Adapter — the existing detail header requires a numeric NAV. This
-    // API's fund profile currently omits NAV, so retain the legacy numeric
-    // contract with a neutral display value rather than crashing the page.
     nav: rounded(safeNumber(record.nav ?? record.nav_value)),
     navDate: safeText(record.nav_date, 32),
+    // API Data Quality — this field looks broken upstream as of this writing
+    // (seen +126.72% on an equity feeder, +19.99% on a low-vol bond fund —
+    // consistent with being computed against inception NAV, not the previous
+    // day). Kept for completeness/debugging only; don't display it as a
+    // "daily change" — derive that from nav-history instead (see
+    // useFundAnalytics.js dailyChange usage in FundInfoDetailView.vue).
+    navChangePct1d: optionalNumber(record.nav_change_pct_1d),
     inceptionDate: safeIsoDate(record.inception_date),
     factSheetUrl: safeHttpsUrl(record.fund_fact_sheet),
     isFeederFund: asFlag(record.is_feeder_fund),
@@ -261,8 +272,21 @@ function normalizeFund(record, requestedType, details = {}) {
     managementFee: optionalNumber(record.management_fee),
     frontEndFee: optionalNumber(record.front_end_fee),
     backEndFee: optionalNumber(record.back_end_fee),
+    maxFrontEndFee: optionalNumber(record.max_front_end_fee),
+    maxBackEndFee: optionalNumber(record.max_back_end_fee),
     sharpe: optionalNumber(record.sharpe_ratio_1y),
     drawdown: maxDrawdown === null ? '-' : `${rounded(maxDrawdown)}%`,
+    // Benchmark/alpha/beta — the API attaches these to the fund's own AIMC
+    // category, not a market index feed. peRatio/pbRatio exist in the schema
+    // but are still null for every fund observed so far — kept null-aware
+    // (optionalNumber) rather than defaulted, so UI can tell "not disclosed
+    // yet" apart from "genuinely zero".
+    benchmarkName: safeText(record.benchmark_name, 120),
+    benchmarkReturn1y: optionalNumber(record.benchmark_return_1y ?? record.category_avg_return_1y),
+    alpha: optionalNumber(record.alpha_1y),
+    beta: optionalNumber(record.beta_1y),
+    peRatio: optionalNumber(record.pe_ratio),
+    pbRatio: optionalNumber(record.pb_ratio),
     stats: {
       sharpe: optionalNumber(record.sharpe_ratio_1y),
       sd: optionalNumber(record.std_1y),
@@ -305,6 +329,10 @@ function mapTopStock(record) {
     symbol,
     name,
     marketType: safeText(record.market_type, 16).toUpperCase(),
+    industry: safeText(record.industry, 80),
+    sector: safeText(record.sector, 80),
+    return1m: optionalNumber(record.return_1m),
+    return1y: optionalNumber(record.return_1y),
     fundCount,
     totalHoldingValueMThb,
     avgHoldingWeight,
@@ -417,6 +445,48 @@ async function fetchDirectFundById(id) {
   const payload = await reconGet(`/api/v1/funds/${encodeURIComponent(id)}`)
   const profile = isRecord(payload?.profile) ? payload.profile : payload?.fund || payload
   return normalizeFund(profile, inferFundType(profile), payload)
+}
+
+function mapNavHistoryPoint(record) {
+  if (!isRecord(record)) return null
+
+  const date = safeIsoDate(record.date)
+  const nav = optionalNumber(record.nav)
+  if (!date || nav === null) return null
+
+  return { date, nav, changePct: optionalNumber(record.change_pct) }
+}
+
+function extractNavHistory(payload) {
+  if (Array.isArray(payload?.data)) return payload.data
+  if (Array.isArray(payload)) return payload
+  return []
+}
+
+// Real daily NAV series — added to the recon API after the fund profile's
+// checkpoint-only returns (retPRaw) were the sole option. Sorted oldest-first
+// so callers can plot it directly without re-sorting.
+export async function fetchFundNavHistory(id, { days = 365 } = {}) {
+  if (!isValidFundId(id)) {
+    throw new Error('Invalid fund id requested')
+  }
+
+  if (fundinfoApiMode === 'mock') return []
+
+  const safeDays = Math.min(Math.max(Math.round(safeNumber(days, 365)), 1), 3650)
+
+  try {
+    const payload = fundinfoApiMode === 'wordpress'
+      ? await wpGet('fundinfo_nav_history', { id, days: safeDays })
+      : await reconGet(`/api/v1/funds/${encodeURIComponent(id)}/nav-history`, { days: safeDays })
+
+    return extractNavHistory(payload)
+      .map(mapNavHistoryPoint)
+      .filter(Boolean)
+      .sort((a, b) => a.date.localeCompare(b.date))
+  } catch {
+    return [] // Non-critical chart data — fail quiet, callers already fall back to checkpoint returns.
+  }
 }
 
 export async function fetchTopStocksByMarket(marketType, { limit = 100 } = {}) {

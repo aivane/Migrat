@@ -7,9 +7,9 @@
 // localStorage — it only shapes numbers/strings that callers bind via
 // Vue's `{{ }}` interpolation (auto-escaped), never via v-html. There is
 // no injection surface here by construction.
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { INSIGHT } from '../data/fundinfoData'
-import { fundinfoApiMode } from '../services/fundinfoApi'
+import { fundinfoApiMode, fetchFundNavHistory } from '../services/fundinfoApi'
 
 const MONTHS_TH = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.']
 const MAX_NAV_CACHE_ENTRIES = 40 // Perf: cap memoization cache, avoid unbounded memory growth
@@ -173,7 +173,11 @@ export function useFundAnalytics(fundRef) {
   const alphaBetaRecover = computed(() => {
     const f = fundRef.value
     if (!f) return { alpha: 0, beta: 0, recover: 0 }
-    if (!usesMockAnalytics) return { alpha: null, beta: null, recover: null, available: false }
+    if (!usesMockAnalytics) {
+      // API has alpha_1y/beta_1y but no recovery-period figure — surface the
+      // two it has instead of hiding all three behind one `available` flag.
+      return { alpha: finiteApiNumber(f.alpha), beta: finiteApiNumber(f.beta), recover: null, available: false }
+    }
     // Known-good published figures for this fund mirror the source prototype 1:1.
     if (f.id === 'SCBNDQ') return { alpha: -0.11, beta: 0.97, recover: 13 }
     const bench = benchmarkReturn(f.perf, f)
@@ -208,8 +212,8 @@ export function useFundAnalytics(fundRef) {
     if (!f) return null
     if (!usesMockAnalytics) {
       return {
-        frontEndProspectus: '-', frontEndActual: feePercentText(f.frontEndFee),
-        backEndProspectus: '-', backEndActual: feePercentText(f.backEndFee),
+        frontEndProspectus: feePercentText(f.maxFrontEndFee), frontEndActual: feePercentText(f.frontEndFee),
+        backEndProspectus: feePercentText(f.maxBackEndFee), backEndActual: feePercentText(f.backEndFee),
         switchInProspectus: '-', switchInActual: '-',
         switchOutProspectus: '-', switchOutActual: '-',
         managementProspectus: '-', managementActual: percentageText(f.managementFee),
@@ -269,14 +273,34 @@ export function useFundAnalytics(fundRef) {
     }))
   })
 
-  // ---------- API-mode NAV history: real checkpoint returns, not a daily series ----------
-  // Direct API mode has no daily NAV/price series anywhere — but the fund
-  // list/detail response DOES publish real cumulative returns at fixed
-  // checkpoints (1M/3M/1Y/3Y/5Y/10Y, already captured into fund.retP). Turn
-  // those into a small real index series (base 100 = today) instead of
-  // either fabricating a daily path or leaving the chart blank. Every plotted
-  // value is derived directly from the fund's own disclosed return_*, and
-  // checkpoints the API left null for this fund are simply omitted.
+  // ---------- API-mode NAV history: real daily series when available ----------
+  // The recon API grew a real per-day NAV endpoint (fund/{code}/nav-history)
+  // after this chart originally shipped against checkpoint-only returns. It's
+  // a plain async GET, so we fetch-and-cache it here (keyed by fund+days) and
+  // bump apiNavHistoryVersion so callers watching that ref re-render once the
+  // real series lands, instead of making `navHistory()` itself async.
+  const apiNavHistoryCache = new Map()
+  const apiNavHistoryPending = new Set()
+  const apiNavHistoryVersion = ref(0)
+  const NAV_HISTORY_DAYS = { '1M': 30, '3M': 90, '1Y': 365, '3Y': 1095, '5Y': 1825, MAX: 3650 }
+
+  function ensureApiNavHistory(fundId, days) {
+    const key = `${fundId}:${days}`
+    if (apiNavHistoryCache.has(key) || apiNavHistoryPending.has(key)) return
+    apiNavHistoryPending.add(key)
+    fetchFundNavHistory(fundId, { days })
+      .then((points) => {
+        apiNavHistoryCache.set(key, points)
+        apiNavHistoryVersion.value++
+      })
+      .finally(() => apiNavHistoryPending.delete(key))
+  }
+
+  // Fallback while the real series is loading (or for a fund/range it never
+  // covers): the fund profile's checkpoint returns (1M/3M/1Y/3Y/5Y/10Y,
+  // already captured into fund.retPRaw) turned into a small real index
+  // series (base 100 = today). Every plotted value is still derived directly
+  // from the fund's own disclosed return_*, never fabricated.
   const RETURN_CHECKPOINTS = [
     { key: 'y10', days: 3650 },
     { key: 'y5', days: 1825 },
@@ -286,7 +310,7 @@ export function useFundAnalytics(fundRef) {
     { key: 'm1', days: 30 },
   ]
 
-  function apiNavHistory(f) {
+  function apiCheckpointNavHistory(f) {
     const points = RETURN_CHECKPOINTS
       .map(({ key, days }) => ({ days, ret: f.retPRaw?.[key] }))
       .filter((p) => typeof p.ret === 'number' && Number.isFinite(p.ret))
@@ -310,7 +334,25 @@ export function useFundAnalytics(fundRef) {
     rawLabels.push('ปัจจุบัน')
     navData.push(100)
 
-    return { labels: rawLabels, rawLabels, navData, totalReturnData: navData, benchmarkData: [] }
+    return { labels: rawLabels, rawLabels, navData, totalReturnData: navData, benchmarkData: [], isDaily: false }
+  }
+
+  function apiNavHistory(f, range) {
+    const days = NAV_HISTORY_DAYS[range] || NAV_HISTORY_DAYS['1Y']
+    ensureApiNavHistory(f.id, days)
+
+    const points = apiNavHistoryCache.get(`${f.id}:${days}`)
+    if (!points || !points.length) return apiCheckpointNavHistory(f)
+
+    const rawLabels = points.map((p) => new Date(p.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }))
+    const navData = points.map((p) => p.nav)
+    const step = Math.max(1, Math.round(points.length / 12))
+    const labels = rawLabels.map((l, idx) => (idx % step === 0 || idx === points.length - 1 ? l : ''))
+
+    // No daily benchmark series from the API yet — leave empty rather than
+    // fabricate one; FundOverviewPanel already renders an empty benchmark
+    // line gracefully.
+    return { labels, rawLabels, navData, totalReturnData: navData, benchmarkData: [], isDaily: true }
   }
 
   // ---------- NAV history (line-chart source), memoized per fund+range ----------
@@ -318,7 +360,7 @@ export function useFundAnalytics(fundRef) {
   function navHistory(range) {
     const f = fundRef.value
     if (!f) return noSeries()
-    if (!usesMockAnalytics) return apiNavHistory(f)
+    if (!usesMockAnalytics) return apiNavHistory(f, range)
 
     const cacheKey = `${f.id}:${range}`
     if (navHistoryCache.has(cacheKey)) return navHistoryCache.get(cacheKey)
@@ -391,6 +433,7 @@ export function useFundAnalytics(fundRef) {
     groupAverage,
     benchmarkReturn,
     navHistory,
+    apiNavHistoryVersion,
     isIndexFund: () => isIndexFund(fundRef.value),
   }
 }

@@ -36,7 +36,8 @@ function isFiniteMetric(value) {
   return typeof value === 'number' && Number.isFinite(value)
 }
 
-// API Compatibility — direct mode does not publish alpha/beta/recovery yet.
+// API Compatibility — direct mode doesn't publish a recovery period, and
+// alpha/beta are null for funds the backend hasn't computed them for yet.
 // Render a neutral placeholder instead of calling numeric methods on null.
 function alphaText(value) {
   return isFiniteMetric(value) ? `${value > 0 ? '+' : ''}${value}%` : '—'

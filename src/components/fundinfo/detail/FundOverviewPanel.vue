@@ -23,10 +23,15 @@ const props = defineProps({
   fund: { type: Object, required: true },
   accent: { type: String, required: true },
   isDark: { type: Boolean, default: false },
-  // (range: '1M'|'3M'|'1Y'|'3Y'|'5Y'|'MAX') => { labels, rawLabels, navData, totalReturnData, benchmarkData }
+  // (range: '1M'|'3M'|'1Y'|'3Y'|'5Y'|'MAX') => { labels, rawLabels, navData, totalReturnData, benchmarkData, isDaily }
   // Inject useFundAnalytics(fundRef).navHistory from the parent — keeps
   // mock-data derivation centralized and this panel purely presentational.
   navHistory: { type: Function, required: true },
+  // useFundAnalytics(fundRef).apiNavHistoryVersion.value — the real daily NAV
+  // series loads asynchronously after first render, so this bumps to tell us
+  // to re-call navHistory() and redraw once it lands (navHistory() itself is
+  // a plain sync function, not reactive on its own).
+  navHistoryVersion: { type: Number, default: 0 },
 })
 
 const RANGES = ['1M', '3M', '1Y', '3Y', '5Y', 'MAX']
@@ -41,6 +46,7 @@ const MODES = [
 const mode = ref(fundinfoApiMode === 'mock' ? 'nav' : 'return')
 const range = ref('1Y')
 const chartRef = ref(null)
+const usingDailySeries = ref(false)
 let chartInstance = null
 
 function setMode(key) {
@@ -69,6 +75,7 @@ function renderChart() {
   if (!chartRef.value || !props.fund) return
 
   const history = props.navHistory(range.value)
+  usingDailySeries.value = !!history?.isDaily
   if (!history?.navData?.length) return // Robustness: no series yet for this fund/range
 
   const textColor = props.isDark ? '#93a3c0' : '#607091'
@@ -168,7 +175,7 @@ onUnmounted(() => chartInstance?.destroy()) // Perf: release canvas/GPU resource
 // the active fund (compared by id, not full object, to keep this cheap),
 // and theme (Chart.js colors are baked in at creation time, not reactive,
 // so a dark-mode toggle needs a full re-render, not just a CSS change).
-watch([mode, range, () => props.fund?.id, () => props.isDark], renderChart)
+watch([mode, range, () => props.fund?.id, () => props.isDark, () => props.navHistoryVersion], renderChart)
 </script>
 
 <template>
@@ -214,7 +221,9 @@ watch([mode, range, () => props.fund?.id, () => props.isDark], renderChart)
     <p class="text-[10px] sub text-right">
       {{ fundinfoApiMode === 'mock'
         ? '* หมายเหตุ: กราฟนี้เคลื่อนไหวโดยอ้างอิงจากลักษณะสถิติความผันผวนย้อนหลังของกองทุนรวมจริง'
-        : '* หมายเหตุ: คำนวณจากผลตอบแทนสะสมจริงตามช่วงเวลาที่ API เปิดเผย (1M/3M/1Y/3Y/5Y/10Y) ไม่ใช่ราคาปิดรายวันจริง' }}
+        : usingDailySeries
+          ? '* หมายเหตุ: ราคา NAV ปิดจริงรายวันจาก API'
+          : '* หมายเหตุ: ยังไม่มีราคาปิดรายวันสำหรับกองทุน/ช่วงเวลานี้ กราฟนี้จึงคำนวณจากผลตอบแทนสะสมจริงตามช่วงเวลาที่ API เปิดเผย (1M/3M/1Y/3Y/5Y/10Y) แทน' }}
     </p>
   </section>
 </template>

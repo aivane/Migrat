@@ -23,6 +23,7 @@ const {
   acceleratingCount,
   outperformCount,
   maxReached,
+  maxSelected,
   orderOf,
   toggle,
   clear,
@@ -104,9 +105,9 @@ onUnmounted(() => detailChart?.destroy())
       </div>
       
       <div class="theme-summary" aria-label="สรุปแนวโน้มธีม">
-        <span>บวก 1Y <b>{{ positiveCount }}/{{ stats.length }}</b></span>
-        <span>เร่งขึ้น <b>{{ acceleratingCount }}/{{ stats.length }}</b></span>
-        <span>เหนือ Global <b>{{ outperformCount }}/{{ stats.length }}</b></span>
+        <span>บวก 1Y <b>{{ positiveCount }}/{{ selectedStats.length }}</b></span>
+        <span>เร่งขึ้น <b>{{ acceleratingCount }}/{{ selectedStats.length }}</b></span>
+        <span>เหนือ Global <b>{{ outperformCount }}/{{ selectedStats.length }}</b></span>
       </div>
     </header>
 
@@ -141,7 +142,7 @@ onUnmounted(() => detailChart?.destroy())
       <!-- ส่วนแสดง Chips + ปุ่มล้างทั้งหมด (ในโหมดเลือกธีมเอง) -->
       <div class="theme-selection-wrapper">
         <div class="theme-chips-container">
-          <span v-if="selectedStats.length" class="theme-selected-label">ธีมที่เลือก {{ selectedStats.length }}/5:</span>
+          <span v-if="selectedStats.length" class="theme-selected-label">ธีมที่เลือก {{ selectedStats.length }}/{{ maxSelected }}:</span>
           
           <div class="theme-chips">
             <button
