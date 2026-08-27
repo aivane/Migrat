@@ -118,13 +118,39 @@ const scrollContainerRef = ref(null)
 const rowEls = new Map()
 let rowObserver = null
 
+// Concurrency cap on the fetches the observer below queues up — a fast
+// scroll (or a wide 200px prefetch margin catching several rows already
+// in view on mount) can land many rows in the SAME IntersectionObserver
+// callback batch. Firing them all as simultaneous requests has been seen
+// to open a burst of parallel TLS connections through the dev proxy to the
+// same upstream tunnel, some of which get reset mid-handshake ("Client
+// network socket disconnected before secure TLS connection was
+// established") — the tunnel/backend can't accept that many connections
+// at once. Draining a small queue instead keeps only a few in flight.
+const MAX_CONCURRENT_ROW_FETCHES = 3
+const rowFetchQueue = []
+let activeRowFetches = 0
+
+function drainRowFetchQueue() {
+  while (activeRowFetches < MAX_CONCURRENT_ROW_FETCHES && rowFetchQueue.length) {
+    const fundId = rowFetchQueue.shift()
+    if (fundinfoStore.hasFundDetail(fundId)) continue
+    activeRowFetches++
+    fundinfoStore.loadFundById(fundId).finally(() => {
+      activeRowFetches--
+      drainRowFetchQueue()
+    })
+  }
+}
+
 function handleRowIntersect(entries) {
   entries.forEach((entry) => {
     if (!entry.isIntersecting) return
     const fundId = entry.target.dataset.fundId
-    if (fundId && !fundinfoStore.hasFundDetail(fundId)) fundinfoStore.loadFundById(fundId)
+    if (fundId && !fundinfoStore.hasFundDetail(fundId)) rowFetchQueue.push(fundId)
     rowObserver?.unobserve(entry.target)
   })
+  drainRowFetchQueue()
 }
 
 function setRowRef(fundId, el) {
