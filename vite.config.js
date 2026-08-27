@@ -15,11 +15,21 @@ export default defineConfig(({ mode }) => {
     plugins: [vue()],
     server: {
       proxy: {
-        // Proxy สำหรับ Recon / Fund / Dashboard / Insights API
+        // Proxy หลักสำหรับ Mutual Fund API (New Swagger-based API)
+        '/api/fund': {
+          target: fundApiTarget,
+          changeOrigin: true,
+          secure: false,
+          headers: {
+            'ngrok-skip-browser-warning': '1',
+          },
+        },
+        // Proxy เดิม (Recon) — rewrite ให้ชี้ไปที่ /api/fund/api/v1 ของ server ใหม่
         '/api/recon/v2': {
           target: fundApiTarget,
           changeOrigin: true,
           secure: false,
+          rewrite: (path) => path.replace(/^\/api\/recon\/v2/, '/api/fund/api/v1'),
           headers: {
             'ngrok-skip-browser-warning': '1',
           },

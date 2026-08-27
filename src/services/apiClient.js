@@ -2,7 +2,7 @@ import axios from 'axios'
 
 const reconBaseURL =
   import.meta.env.VITE_FUND_API_RECON ||
-  '/api/recon/v2'
+  '/api/fund/api/v1'
 
 const authBaseURL =
   import.meta.env.VITE_FUND_BACKEND ||

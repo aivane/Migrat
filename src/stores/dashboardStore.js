@@ -4,6 +4,7 @@ import {
   getFundList,
   getMasterEtfs,
   getPortfolioAllocation,
+  getSectorHierarchy,
   getThaiEtfs,
   getTopStocks,
   searchFunds,
@@ -14,6 +15,8 @@ const STORAGE_KEY = 'migrat.dashboard.cache.v2'
 
 const emptyErrors = () => ({
   allocation: null,
+  statsAll: null,
+  sectorHierarchy: null,
   statsForeign: null,
   statsTH: null,
   topForeign: null,
@@ -68,6 +71,7 @@ export const useDashboardStore = defineStore('dashboard', {
     masterEtfs: [],
     thaiEtfs: [],
     portfolioAllocation: null,
+    sectorHierarchy: null,
     searchCache: {},
     partialErrors: emptyErrors(),
     restoredFromSession: false,
@@ -108,20 +112,18 @@ export const useDashboardStore = defineStore('dashboard', {
 
       const tasks = {
         allocation: getPortfolioAllocation(),
-        statsForeign: getDashboardStats('FOREIGN', '1M'),
-        statsTH: getDashboardStats('TH', '1M'),
+        sectorHierarchy: getSectorHierarchy(),
+        statsAll: getDashboardStats(),   // API ใหม่ตอบ array รวม [TH, FOREIGN] ในคราวเดียว
         topForeign: getTopStocks('FOREIGN', 20),
         topTH: getTopStocks('TH', 20),
-        masterEtfs: getMasterEtfs('1M'),
-        thaiEtfs: getThaiEtfs('1M'),
+        masterEtfs: getMasterEtfs(),
+        thaiEtfs: getThaiEtfs(),
         fundsForeign: getFundList({
           type: 'FOREIGN',
-          sort_by: 'aum',
-          sort_dir: 'desc',
-          per_page: 100,
-          page: 1,
+          limit: 200,
+          offset: 0,
         }),
-        fundsTH: getFundList({ type: 'TH', sort_by: 'aum', sort_dir: 'desc', per_page: 100, page: 1 }),
+        fundsTH: getFundList({ type: 'TH', limit: 200, offset: 0 }),
       }
 
       const keys = Object.keys(tasks)
@@ -139,6 +141,13 @@ export const useDashboardStore = defineStore('dashboard', {
         const value = result.value
 
         if (key === 'allocation') this.portfolioAllocation = value
+        if (key === 'sectorHierarchy') this.sectorHierarchy = value
+        if (key === 'statsAll') {
+          // API ใหม่ตอบ array ที่มีทั้ง TH และ FOREIGN ในคราวเดียว
+          const arr = Array.isArray(value) ? value : (Array.isArray(value?.data) ? value.data : [])
+          this.stats.FOREIGN = arr.find(s => s.market_type === 'FOREIGN') || arr[1] || null
+          this.stats.TH = arr.find(s => s.market_type === 'TH') || arr[0] || null
+        }
         if (key === 'statsForeign') this.stats.FOREIGN = value
         if (key === 'statsTH') this.stats.TH = value
         if (key === 'topForeign') this.topStocks.FOREIGN = value
@@ -178,6 +187,7 @@ export const useDashboardStore = defineStore('dashboard', {
     snapshot() {
       return {
         portfolioAllocation: this.portfolioAllocation,
+        sectorHierarchy: this.sectorHierarchy,
         stats: this.stats,
         topStocks: this.topStocks,
         masterEtfs: this.masterEtfs,
@@ -194,6 +204,7 @@ export const useDashboardStore = defineStore('dashboard', {
       if (!cached?.loadedAt) return false
 
       this.portfolioAllocation = cached.portfolioAllocation || null
+      this.sectorHierarchy = cached.sectorHierarchy || null
       this.stats.FOREIGN = cached.stats?.FOREIGN || null
       this.stats.TH = cached.stats?.TH || null
       this.topStocks.FOREIGN = cached.topStocks?.FOREIGN || []
