@@ -13,6 +13,19 @@ const collapsed = ref(false)
 function fundType(fund) {
   return { thai: 'Thai Fund', offshore: 'Offshore Fund', feeder: 'Feeder Fund', mixed: 'Mixed Fund' }[fund.type] || 'Fund'
 }
+
+// Bug fix — direct/API mode always reports dividend_yield (fund.div) as 0,
+// even for a fund whose real policy is to pay (verified live) — this row
+// used to render "0.0%" for every fund regardless, looking identical to a
+// genuine non-payer. Fall back to the real policy text (fund.dividendPolicy:
+// "จ่าย"/"ไม่จ่าย", mapped from the API) when the numeric yield is unusable;
+// mock funds have no such field and keep the original numeric display.
+function dividendDisplay(fund) {
+  if (fund.div > 0) return { text: `${fund.div.toFixed(1)}%`, cls: 'positive' }
+  if (fund.dividendPolicy === 'จ่าย') return { text: 'จ่ายปันผล', cls: 'positive' }
+  if (fund.dividendPolicy === 'ไม่จ่าย') return { text: 'ไม่จ่าย', cls: '' }
+  return { text: '0.0%', cls: 'positive' }
+}
 </script>
 
 <template>
@@ -53,7 +66,7 @@ function fundType(fund) {
           <tr><th>1Y Return</th><td v-for="fund in selectedFunds" :key="fund.id" :class="fund.perf >= 0 ? 'positive' : 'negative'">{{ formatPercent(fund.perf, 1) }}</td></tr>
           <tr><th>Sharpe Ratio</th><td v-for="fund in selectedFunds" :key="fund.id">{{ fund.sharpe?.toFixed(2) || '-' }}</td></tr>
           <tr><th>Max Drawdown</th><td v-for="fund in selectedFunds" :key="fund.id" class="negative">{{ fund.drawdown || '-' }}</td></tr>
-          <tr><th>เงินปันผล</th><td v-for="fund in selectedFunds" :key="fund.id" class="positive">{{ fund.div?.toFixed(1) || '0.0' }}%</td></tr>
+          <tr><th>เงินปันผล</th><td v-for="fund in selectedFunds" :key="fund.id" :class="dividendDisplay(fund).cls">{{ dividendDisplay(fund).text }}</td></tr>
           <tr><th>TER (ค่าธรรมเนียม)</th><td v-for="fund in selectedFunds" :key="fund.id">{{ fund.fee?.toFixed(2) || '-' }}%</td></tr>
           <tr><th>Master Fund</th><td v-for="fund in selectedFunds" :key="fund.id">{{ fund.master || '-' }}</td></tr>
         </tbody>

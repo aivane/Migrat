@@ -88,13 +88,30 @@ function deriveScreenerTags(fund) {
   if (tagCache.has(fund.id)) return tagCache.get(fund.id)
 
   const seed = seedFromId(fund.id)
-  const sd = fund.csvStats?.sd || +(6 + (seed % 14)).toFixed(1)
-  const sharpe = fund.csvStats?.sharpe || +(((seed % 30) - 6) / 10).toFixed(2)
+  // Bug fix — direct/API mode already parses real sharpe_ratio_1y/std_1y into
+  // fund.stats (see normalizeFund in fundinfoApi.js), but this only checked
+  // fund.csvStats (mock-CSV-only) and fell straight to fabricated seeded
+  // values, so the SD/Sharpe screener filters silently ignored real API data.
+  // Same fallback order maxDrawdown below already used — csvStats (mock) →
+  // stats (real API) → seeded fallback (only when neither source has it).
+  const sd = fund.csvStats?.sd ?? fund.stats?.sd ?? +(6 + (seed % 14)).toFixed(1)
+  const sharpe = fund.csvStats?.sharpe ?? fund.stats?.sharpe ?? +(((seed % 30) - 6) / 10).toFixed(2)
   const maxDrawdown = Math.abs(fund.csvStats?.maxDrawdown ?? fund.stats?.maxdd ?? +(8 + (seed % 20)).toFixed(1))
+
+  // Bug fix — this used to guess dividendPolicy from fund.div (dividend_yield),
+  // which direct/API mode always reports as 0 regardless of the fund's real
+  // policy (verified live — the API doesn't populate that field), silently
+  // falling through to a random seed%3 coin flip. The API now maps the real
+  // policy text (fund.dividendPolicy: "จ่าย"/"ไม่จ่าย") — read that when it
+  // exists; mock funds still have no such field, so they keep the old guess.
+  const dividendPolicy =
+    fund.dividendPolicy === 'จ่าย' ? 'pay'
+    : fund.dividendPolicy === 'ไม่จ่าย' ? 'accumulate'
+    : fund.div > 0 || seed % 3 === 0 ? 'pay' : 'accumulate'
 
   const tags = {
     taxBenefit: fund.taxBenefit || TAX_BENEFIT_SEEDS[seed % TAX_BENEFIT_SEEDS.length],
-    dividendPolicy: fund.div > 0 || seed % 3 === 0 ? 'pay' : 'accumulate',
+    dividendPolicy,
     minInvestment: fund.minInvestment || MIN_INVESTMENT_SEEDS[seed % MIN_INVESTMENT_SEEDS.length],
     // legacy (feeder/offshore)
     fxHedging: fund.fxHedging || FX_HEDGING_OPTIONS[seed % FX_HEDGING_OPTIONS.length],
