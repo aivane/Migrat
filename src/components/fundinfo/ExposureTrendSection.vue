@@ -5,6 +5,7 @@ import Chart from 'chart.js/auto'
 import { useFundinfoExposureTrend, holdingIcon, trendSeries } from '../../composables/useFundinfoExposureTrend'
 import { performanceSeries, CMP_LABELS, COMPARE_COLORS, COMPARE_DASH } from '../../composables/useFundinfoThemeTrend'
 import InfoTooltip from '../common/InfoTooltip.vue'
+import ApiErrorBanner from '../common/ApiErrorBanner.vue'
 
 const props = defineProps({ type: { type: String, default: 'offshore' } })
 
@@ -27,6 +28,8 @@ const {
   toggle,
   clear,
   setScopeMode,
+  stocksError,
+  retryStocks,
 } = useFundinfoExposureTrend(props.type)
 
 const detailCanvas = ref(null)
@@ -169,6 +172,8 @@ onUnmounted(() => detailChart?.destroy())
           มาตรฐาน SET · {{ scopes.length }} Industry Groups
         </span>
       </header>
+
+      <ApiErrorBanner v-if="stocksError" :message="stocksError" @retry="retryStocks" />
 
       <div class="industry-kpis">
         <button type="button" :disabled="!leaderPerf" @click="leaderPerf && toggle(leaderPerf.id)">

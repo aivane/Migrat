@@ -2,6 +2,42 @@
 
 บันทึกงานที่ทำในแต่ละวัน เรียงจากล่าสุดไปเก่าสุด
 
+## 2026-08-28 — Fundinfo: ลบ Mock Mode ทั้งหมด + ไล่แก้ fabricated data ที่เหลือ
+
+### ตัวกรองเพิ่มเติม (FX Hedging/Geography/Megatrend/Style/Investment Style/Size/เงินลงทุนขั้นต่ำ) โชว์ 0 กองทุนเสมอ — regression จากการแก้ mock ตอนบ่าย ([useFundinfoScreener.js](src/composables/useFundinfoScreener.js))
+- ตอนลบ mock ออก เปลี่ยนให้ dimension ที่ไม่มี field จริงจาก API เลย (7 ตัวข้างบน) คืนค่า `null`/`[]` แทนการเดา — แต่ effect ข้างเคียงคือ `[].some(...)` และ `null < x` ทำให้ตัวกรองพวกนี้ **exclude ทุกกองทันทีที่เลือก** (กด chip ไหนก็ได้ผลลัพธ์ 0 เสมอ) — verify สดด้วยข้อมูลจริง 3,166 กองบน `/fundinfo/offshore`: เลือก "Global Equity" คนเดียวก็เหลือ 0
+- แก้เป็น no-op แทน: dropdown/chip ยังกดได้ตามเดิม (ไม่แตะ UI) แต่ไม่ narrow ผลลัพธ์ เพราะไม่มีข้อมูลจริงมา filter ได้ — filter ที่มี field จริง (นโยบายปันผล, สิทธิภาษี, SD/Sharpe/MaxDrawdown) ไม่กระทบ ยัง filter ถูกต้องตามเดิม (verify แล้ว: เลือก 4 chip ที่ไม่มีข้อมูลพร้อมกัน ยังคง 3,166 กอง, สลับไปกดนโยบายปันผล=จ่าย ลดเหลือ 33 ถูกต้อง)
+- เช็ค schema เต็มของ `/api/v1/funds/list`/`/api/v1/funds/{code}` ยืนยันว่า **7 dimension นี้ไม่มี field รองรับเลยสักตัว** (ไม่ใช่แค่ backend ยังไม่ใส่ค่าแบบ pe_ratio/pb_ratio): FX Hedging, Geography, Megatrends/Thematic, Fund Style, Investment Style, Size & Characteristic, เงินลงทุนขั้นต่ำ — บันทึกลง [context.md §3](context.md) ให้ทีมเอาไป report backend ได้ พร้อม field ที่ต้องขอ (`fx_hedge_ratio`, `region`/`geography`, `theme_tags`, `investment_style`, `market_cap_class`, `min_investment_amount`) — สลับกลับเป็น filter จริงได้ทันทีที่มี field ไหนมา
+
+### นโยบายปันผล — filter/ตารางเปรียบเทียบโชว์ผิด ([useFundinfoScreener.js](src/composables/useFundinfoScreener.js), [FundCompareTable.vue](src/components/fundinfo/FundCompareTable.vue)) — **committed (`85c4221`)**
+- ตัวกรอง "นโยบายปันผล" เดิมไม่ได้อ่าน `fund.dividendPolicy` (field จริงจาก API) เลย ใช้ `fund.div > 0 || seed % 3 === 0` (เดาแบบสุ่ม 1/3) แทน — verify สดกับ API จริงทั้ง `/fundinfo/thai` และ `/fundinfo/offshore` (mismatch = 0 จาก ~90 กองที่เช็ค) หลังแก้
+- ตัวกรอง SD/Sharpe เจอบั๊กแบบเดียวกัน: เช็คแต่ `fund.csvStats` (mock-only) ข้าม `fund.stats` (API จริง) ไปเลย
+
+### API endpoint audit — ไล่เช็คทุก endpoint ที่ `fundinfoApi.js` ใช้ ว่า field ไหนขาด/ไม่ได้ใช้
+- `/insights/themes`, `/insights/theme-funds`: mapper (`mapTheme`, `mapThemeFund`) เขียนไว้สำหรับ schema คนละแบบกับที่ API ใช้จริง (`theme_id`/`icon`/`master_fund`/`sample_symbols` ไม่มีอยู่จริงเลย) ทำให้ `fetchThemeFunds()` คืน `[]` เสมอ 100% — แก้ให้อ่าน field จริง (`theme_name`, `funds_count`, `total_aum_m_thb`, `avg_return_1m/1y`) แทน (ตอนนี้ยังไม่มีใครเรียกใช้ทั้งสอง endpoint นี้จริง เลยยังไม่กระทบผู้ใช้)
+- พบ field จริงที่มีอยู่แต่ยังไม่ได้ใช้อีกหลายตัว: `return_6m`, `category_avg_return_3m/6m/1y`, `category_avg_sharpe_1y`, `category_avg_max_drawdown_1y`, `sharpe_ratio_3y`, `std_3y`, `max_drawdown_3y`
+
+### ตารางผลตอบแทน/ความเสี่ยง — เลขปลอมที่ยังหลงเหลือ ([fundinfoApi.js](src/services/fundinfoApi.js), [useFundAnalytics.js](src/composables/useFundAnalytics.js), [FundPerformancePanel.vue](src/components/fundinfo/detail/FundPerformancePanel.vue))
+- แถว "6 เดือน"/"10 ปี" ในตารางเปรียบเทียบผลตอบแทน fabricate ด้วย `y1*0.6`/`y5*1.5` ทั้งที่ `retP.y10` มีอยู่แล้วจริง (ใช้ในกราฟข้างๆ ด้วยซ้ำ) และ `return_6m` มีจริงจาก API แค่ไม่เคย map เข้ามา — แก้ทั้งคู่
+- คอลัมน์ "เฉลี่ยกลุ่ม" เดิม return `null` เสมอใน direct mode (โชว์เป็น "%" เปล่าๆ) — ตอนนี้ดึงจาก `category_avg_return_3m/6m/1y` จริง (3Y/5Y/10Y ยังไม่มี field รองรับ โชว์ "-" แทนการเดา)
+- ตาราง SD/Sharpe/Max Drawdown เดิมรันสูตรคูณ multiplier ปลอมทั้ง 6 ช่วงเวลา (คอมเมนต์ในโค้ดเองก็บอกว่า "mock illustrative figures only, not live risk data") ทั้งที่รันใน direct mode ด้วย — ตอนนี้เหลือแค่ 1Y/3Y (2 ช่วงเดียวที่ API มีข้อมูลจริง) ช่วงอื่นตัดทิ้งแทนการเดา
+
+### ลบ Mock Mode ทั้งหมด — ก้อนใหญ่ที่สุดของวันนี้
+- ลบ `src/data/fundinfoData.js`, `fundCsv.js`, ไฟล์ CSV มือสอง 4 ไฟล์ + ไฟล์ raw data เก่าที่ไม่มีใครใช้อีก — `VITE_FUNDINFO_API_MODE` เหลือแค่ `direct`/`wordpress` (ทั้งคู่คุย backend จริง ไม่มี mock อีกแล้ว)
+- แยก label/lookup constants (ชื่อหมวดกองทุน, AMC, sector taxonomy, benchmark) ที่ทุกโหมดใช้จริงออกมาเป็น `src/data/fundinfoConstants.js` (ไฟล์ใหม่) ก่อนลบ ไม่งั้น direct mode พังไปด้วย
+- ยุบ mock/real branch เหลือแต่ real ใน 10 ไฟล์: `fundinfoApi.js`, `useFundAnalytics.js`, `useFundinfoInsight.js`, `useFundinfoExposureTrend.js`, `useFundinfoRanking.js`, `useFundinfoScreener.js`, `FundInfoDetailView.vue`, `InsightCompareSection.vue`, `FundOverviewPanel.vue`, `FundPerformancePanel.vue`
+- **บั๊กที่เจอระหว่างทาง**: `useFundinfoScreener.js`'s null-coercion (`null <= min` = `0 <= min` = true ใน JS) ทำให้กองทุนไม่มีข้อมูลจริงหลุดผ่านตัวกรอง SD/Sharpe/MaxDrawdown/เงินลงทุนขั้นต่ำแบบผิดๆ — แก้ให้ exclude ชัดเจนแทน
+- **บั๊กที่เจอระหว่างทาง**: `useFundinfoExposureTrend.js` เดิม fallback ไปใช้ STOCK_META (ข้อมูลปลอม) ทุกครั้งที่หน้าโหลดจนกว่า API stocks จะมาถึง (ไม่ใช่แค่ mock mode) — แก้ให้รอข้อมูลจริงแทน พร้อมเพิ่ม `stocksLoading`/`stocksError`/`retryStocks` + ผูก `ApiErrorBanner` ในหน้า Exposure Trend
+- ลบ `FundCompareChart.vue` (dead code ไม่มีที่ไหนเรียกใช้ fabricate กราฟด้วย `Math.sin`)
+- Verify สดผ่านเบราว์เซอร์จริงหลายหน้า (list/filter/detail/exposure trend) — ระหว่างเทสต์เจอ backend 502 ชั่วคราวจริง (ngrok tunnel สะดุด) แอปโชว์ "ไม่พบข้อมูลกองทุน" แทนที่จะพัง แล้วโหลดข้อมูลถูกต้องเมื่อ backend กลับมา — error handling ทำงานตามที่ตั้งใจ
+
+### เอกสารประกอบโปรเจกต์
+- อัปเดต `CLAUDE.md`/`AGENTS.md`/`context.md`/`.env.example` จาก "three-mode API layer" เป็น "two-mode" ลบคำแนะนำเก่าที่บอกให้รักษา mock mode ไว้เสมอทิ้ง (ไฟล์เหล่านี้ gitignore ไว้ไม่เข้า git)
+
+### ยังไม่ได้แก้ (พบระหว่างทาง รอตัดสินใจ)
+- `trendSeries`/`performanceSeries` ใน `MarketLensSection.vue`/`ExposureTrendSection.vue`/`InsightCompareSection.vue` — เส้นกราฟยัง fabricate รูปทรงเส้นระหว่างจุด (ปลายเส้นเป็นค่าจริง แต่เส้นทางระหว่างจุดสุ่มจาก seed ไม่ใช่ราคาจริงรายวัน)
+- 3 จาก 34 themes ใน `/insights/themes` ยังหลุดจาก mapping เพราะ id มีอักขระ `/` ไม่ผ่าน `THEME_ID_PATTERN`
+
 ## 2026-08-27 — Fundinfo: sync กับ API ตัวใหม่ + แก้บั๊ก UI หลายจุด
 
 ### API integration (fundinfoApi.js, useFundAnalytics.js, useFundinfoInsight.js, useFundinfoRanking.js)

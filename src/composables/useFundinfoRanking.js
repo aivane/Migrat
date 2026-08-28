@@ -1,7 +1,6 @@
 import { computed, reactive, watch } from 'vue'
-import { FUND_TYPES, STOCK_META } from '../data/fundinfoData'
+import { FUND_TYPES, STOCK_META } from '../data/fundinfoConstants'
 import { useFundinfoStore } from '../stores/fundinfoStore'
-import { fundinfoApiMode } from '../services/fundinfoApi'
 
 // ==========================================================================
 // Section ② Ranking Cards
@@ -24,49 +23,8 @@ import { fundinfoApiMode } from '../services/fundinfoApi'
 
 const MAX_SELECTED = 7
 
-function isDirectEquityFund(fund) {
-  return (fund.top5 || []).some((h) => STOCK_META[h.name])
-}
-
 function isStockTab(type) {
   return type === 'offshore' || type === 'thai'
-}
-
-// หุ้นรายตัวที่พบใน Top Holdings ของกองทุน — ใช้เป็น entity สำหรับจัดอันดับของ Offshore/Thai
-function buildStockRankEntities(funds) {
-  const g = {}
-  funds.forEach((f) => {
-    ;(f.top5 || []).forEach((h) => {
-      const meta = STOCK_META[h.name]
-      if (!meta) return
-      const x = g[h.name] || (g[h.name] = { name: h.name, meta, membersMap: new Map(), totalWeight: 0 })
-      x.membersMap.set(f.id, f)
-      x.totalWeight += h.percent
-    })
-  })
-  return Object.values(g).map((x, idx) => {
-    const ret = x.meta.ret
-    return {
-      idx,
-      kind: 'stock',
-      id: x.name,
-      title: `${x.meta.ticker} · ${x.name}`,
-      // ฟิลด์ต่อไปนี้ Section 2 เองไม่ได้ใช้ แต่ Section 3 (เปรียบเทียบหุ้น) ต้องใช้ต่อ
-      name: x.name,
-      ticker: x.meta.ticker,
-      sector: x.meta.sector,
-      country: x.meta.country,
-      meta: x.meta,
-      perf: ret,
-      fundCount: x.membersMap.size,
-      totalWeight: +x.totalWeight.toFixed(1),
-      // ผลตอบแทนย่อยตามช่วงเวลาของหุ้น อิงสัดส่วนเดียวกับที่ต้นแบบใช้ในการประมาณจากผลตอบแทน 1 ปี
-      retP: { m1: +(ret * 0.16).toFixed(1), q1: +(ret * 0.42).toFixed(1), y1: ret },
-      // ปันผลหุ้นสูงสุด (การ์ดที่ 3 ฝั่ง "หุ้น") — ใช้ค่า div จาก STOCK_META ถ้ามี ถ้ายังไม่มีข้อมูลปันผลรายหุ้น
-      // ใน mock ให้ fallback ไปใช้ ret แทนไปก่อน เพื่อให้การ์ดมีตัวเลขแสดงผลได้เหมือนต้นแบบ
-      div: x.meta.div ?? ret,
-    }
-  })
 }
 
 // API Contract — /stocks/top aggregates actual holdings across funds, and
@@ -86,8 +44,12 @@ function buildApiStockRankEntities(stocks) {
     // API Compatibility — the rank endpoint still has no valuation/dividend/
     // drawdown fields. Keep the existing comparison selection shape safe.
     meta: { dd: null, pe: null, pb: null, div: null, cap: null },
-    perf: 0,
-    retP: { m1: 0, q1: 0, y1: 0 },
+    // retP follows the same "0-for-missing" convention as fund.retP elsewhere
+    // (see fund.retPRaw for the null-aware counterpart) — /stocks/top now
+    // publishes return_1m/return_1y (no q1/y3/y5), so the return ranking card
+    // below only offers 1M/1Y pills for this data source.
+    perf: stock.return1y ?? 0,
+    retP: { m1: stock.return1m ?? 0, q1: 0, y1: stock.return1y ?? 0 },
     // Null-aware raw returns (see fund.retPRaw for the same pattern) — lets
     // useFundinfoInsight tell "0% return" apart from "API hasn't got this yet".
     return1m: stock.return1m,
@@ -151,11 +113,19 @@ function buildMasterFundEntities(funds) {
     const finite = a.filter((v) => typeof v === 'number' && Number.isFinite(v))
     return finite.length ? +(sum(finite) / finite.length).toFixed(1) : null
   }
+  // Null-aware sum — plain sum() coerces null to 0 in the reduce, so a group
+  // whose members all lack this flow period (e.g. flowP.w1 in direct/API
+  // mode, which has no real weekly-flow source) would silently show "0"
+  // instead of "no data". Only null out the group when every member is.
+  const sumNullAware = (a) => {
+    const finite = a.filter((v) => typeof v === 'number' && Number.isFinite(v))
+    return finite.length ? sum(finite) : null
+  }
   return Object.entries(groups).map(([master, members], idx) => {
     const flowP = {}
     const retP = {}
     const retPRaw = {}
-    ;['w1', 'm1', 'y1'].forEach((p) => (flowP[p] = sum(members.map((m) => m.flowP[p]))))
+    ;['w1', 'm1', 'y1'].forEach((p) => (flowP[p] = sumNullAware(members.map((m) => m.flowP[p]))))
     ;['m1', 'q1', 'y1', 'y3', 'y5'].forEach((p) => (retP[p] = avg(members.map((m) => m.retP[p]))))
     ;['m1', 'q1', 'y1', 'y3', 'y5', 'y10'].forEach((p) => (retPRaw[p] = avgRaw(members.map((m) => m.retPRaw?.[p]))))
     return {
@@ -188,19 +158,11 @@ function buildMixedFundEntities(funds) {
   }))
 }
 
-function buildEntities(type, allFunds, topStocks, useApiStocks) {
+function buildEntities(type, allFunds, topStocks) {
   if (isStockTab(type)) {
-    if (useApiStocks) {
-      // API lists omit holdings: use the ranking endpoint for stocks, while
-      // retaining the real fund list for the fund Ranking Card view.
-      return [...buildApiStockRankEntities(topStocks), ...buildFundHolderEntities(allFunds)]
-    }
-
-    const funds = allFunds.filter(isDirectEquityFund)
-    // รวมหุ้นรายตัว (kind: 'stock') กับกองทุนไทยที่ถือหุ้นเหล่านั้นโดยตรง (kind: 'holder') ไว้ใน pool
-    // เดียวกัน ให้ทั้งสองแบบ "เท่าเทียมกัน" ตามที่ heading ด้านล่างสื่อไว้อยู่แล้ว
-    // ("หุ้น...และกองทุนไทยที่ถือหุ้น...ในกลุ่มที่เลือก")
-    return [...buildStockRankEntities(funds), ...buildFundHolderEntities(funds)]
+    // API lists omit holdings: use the ranking endpoint for stocks, while
+    // retaining the real fund list for the fund Ranking Card view.
+    return [...buildApiStockRankEntities(topStocks), ...buildFundHolderEntities(allFunds)]
   }
   if (type === 'mixed') return buildMixedFundEntities(allFunds)
   return buildMasterFundEntities(allFunds) // feeder
@@ -220,14 +182,16 @@ export function useFundinfoRanking(type = 'feeder') {
 }
 
 function createFundinfoRanking(type) {
-  // Store-backed (fundinfoStore.js -> fundinfoApi.js): reads local mock data
-  // today, will read the real backend once VITE_FUNDINFO_API_MODE flips.
+  // Store-backed (fundinfoStore.js -> fundinfoApi.js): reads the real backend.
   const fundinfoStore = useFundinfoStore()
   fundinfoStore.loadFundsByType(type)
   const funds = computed(() => fundinfoStore.getFundsByType(type))
   const stock = isStockTab(type)
   const stockMarket = type === 'thai' ? 'TH' : 'FOREIGN'
-  const usesApiStocks = stock && fundinfoApiMode !== 'mock'
+  // Real-API-only: stock tabs always rank via /stocks/top now (no mock/
+  // STOCK_META fallback left) — kept as its own flag since several branches
+  // below read it as a readability marker, not a mode switch anymore.
+  const usesApiStocks = stock
 
   if (usesApiStocks) fundinfoStore.loadTopStocksByMarket(stockMarket)
 
@@ -236,7 +200,7 @@ function createFundinfoRanking(type) {
   const stockRankingError = computed(() => (usesApiStocks ? fundinfoStore.getError(`stocks:${stockMarket}`) : null))
   const fundsLoading = computed(() => fundinfoStore.isLoading(type))
 
-  const entities = computed(() => buildEntities(type, funds.value, topStocks.value, usesApiStocks))
+  const entities = computed(() => buildEntities(type, funds.value, topStocks.value))
   const accent = FUND_TYPES[type]?.accent || '#2456d8'
 
   const state = reactive({
@@ -290,7 +254,17 @@ function createFundinfoRanking(type) {
 
   const byFundCount = computed(() => [...entities.value].sort((a, b) => b.fundCount - a.fundCount || b.totalWeight - a.totalWeight))
   const byTotalWeight = computed(() => [...entities.value].sort((a, b) => b.totalWeight - a.totalWeight))
-  const byFlow = computed(() => [...entities.value].sort((a, b) => b.flowP[state.rk.flow] - a.flowP[state.rk.flow]))
+  // Null-aware — 1W flow has no source field in direct/API mode (flowP.w1 is
+  // null there), so a plain numeric subtract would NaN and silently no-op the
+  // sort. Push missing values to the bottom instead of letting them float.
+  const byFlow = computed(() => [...entities.value].sort((a, b) => {
+    const av = a.flowP[state.rk.flow]
+    const bv = b.flowP[state.rk.flow]
+    if (av == null && bv == null) return 0
+    if (av == null) return 1
+    if (bv == null) return -1
+    return bv - av
+  }))
   const byReturn = computed(() => [...entities.value].sort((a, b) => b.retP[state.rk.ret] - a.retP[state.rk.ret]))
   const byDividend = computed(() => [...entities.value].sort((a, b) => b.div - a.div))
 
@@ -384,71 +358,44 @@ function createFundinfoRanking(type) {
   const stockCards = computed(() => {
     if (!stock) return []
     const rows = stockRankEntities.value
-
-    if (usesApiStocks) {
-      const rowsByWeight = (field) =>
-        rows
-          .map((row) => ({ ...row, totalWeight: row[field] }))
-          .sort((left, right) => right.totalWeight - left.totalWeight)
-
-      return [
-        {
-          key: 'stock-count',
-          emoji: '🏦',
-          title: 'ถือโดยกองทุนมากที่สุด',
-          desc: 'จำนวนกองทุนที่ถือหุ้นนั้น ตามข้อมูลการถือครองที่ API สรุปไว้',
-          caption: 'ไม่ใช่คำแนะนำซื้อหรือขาย',
-          list: sortRanked(rows, (a, b) => b.fundCount - a.fundCount),
-          valueType: 'count',
-        },
-        {
-          key: 'stock-average-weight',
-          emoji: '⚖️',
-          title: 'น้ำหนักเฉลี่ยสูงสุด',
-          desc: 'สัดส่วนการถือครองเฉลี่ยของกองทุนที่ถือหุ้นนั้น',
-          caption: 'อ้างอิงข้อมูลการถือครองที่ API สรุปไว้',
-          list: rowsByWeight('avgHoldingWeight'),
-          valueType: 'weight',
-        },
-        {
-          key: 'stock-max-weight',
-          emoji: '⚖️',
-          title: 'น้ำหนักสูงสุด',
-          desc: 'สัดส่วนการถือครองสูงสุดที่พบในกองทุน',
-          caption: 'ไม่ใช่ผลตอบแทนของหุ้น',
-          list: rowsByWeight('maxHoldingWeight'),
-          valueType: 'weight',
-        },
-      ]
-    }
+    const rowsByWeight = (field) =>
+      rows
+        .map((row) => ({ ...row, totalWeight: row[field] }))
+        .sort((left, right) => right.totalWeight - left.totalWeight)
 
     return [
       {
         key: 'stock-count',
         emoji: '🏦',
         title: 'ถือโดยกองทุนมากที่สุด',
-        desc: 'ช่วยดูว่าหุ้นใดปรากฏในหลายกองทุน ไม่ใช่คำแนะนำซื้อ',
-        caption: 'นับจำนวนกองทุนที่พบหุ้นใน Top Holdings',
-        list: sortRanked(rows, (a, b) => b.fundCount - a.fundCount || b.totalWeight - a.totalWeight),
+        desc: 'จำนวนกองทุนที่ถือหุ้นนั้น ตามข้อมูลการถือครองที่ API สรุปไว้',
+        caption: 'ไม่ใช่คำแนะนำซื้อหรือขาย',
+        list: sortRanked(rows, (a, b) => b.fundCount - a.fundCount),
         valueType: 'count',
       },
       {
-        key: 'stock-weight',
+        key: 'stock-average-weight',
         emoji: '⚖️',
-        title: 'น้ำหนักรวมสูงสุด',
-        desc: 'ช่วยให้เห็นหุ้นที่กองทุนให้น้ำหนักรวมสูง',
-        caption: 'ผลรวมน้ำหนักจากกองทุนตัวอย่าง',
-        list: sortRanked(rows, (a, b) => b.totalWeight - a.totalWeight),
+        title: 'น้ำหนักเฉลี่ยสูงสุด',
+        desc: 'สัดส่วนการถือครองเฉลี่ยของกองทุนที่ถือหุ้นนั้น',
+        caption: 'อ้างอิงข้อมูลการถือครองที่ API สรุปไว้',
+        list: rowsByWeight('avgHoldingWeight'),
         valueType: 'weight',
       },
       {
-        key: 'stock-dividend',
-        emoji: '💰',
-        title: 'ปันผลหุ้นสูงสุด',
-        desc: 'ดูรายการที่หุ้นให้ปันผลสูง',
-        caption: 'ย้อนหลัง 12 เดือน',
-        list: sortRanked(rows, (a, b) => b.div - a.div),
-        valueType: 'dividend',
+        key: 'stock-return',
+        emoji: '📈',
+        title: 'ผลตอบแทนสูงสุด',
+        desc: 'ผลตอบแทนของหุ้นรายตัว ตามข้อมูลที่ API สรุปไว้ ไม่ใช่ผลตอบแทนพอร์ตของท่าน',
+        list: sortRanked(rows, (a, b) => b.retP[state.rk.ret] - a.retP[state.rk.ret]),
+        valueType: 'percent',
+        pillKind: 'ret',
+        // /stocks/top only publishes return_1m/return_1y (no q1/y3/y5) — see
+        // buildApiStockRankEntities above.
+        pillOptions: [
+          ['m1', '1M'],
+          ['y1', '1Y'],
+        ],
       },
     ]
   })
@@ -513,11 +460,16 @@ function createFundinfoRanking(type) {
     state.rk[kind] = key
   }
 
+  function retryStockRanking() {
+    if (usesApiStocks) fundinfoStore.loadTopStocksByMarket(stockMarket, { force: true })
+  }
+
   return {
     stock,
     usesApiStocks,
     stockRankingLoading,
     stockRankingError,
+    retryStockRanking,
     accent,
     heading,
     itemLabel,

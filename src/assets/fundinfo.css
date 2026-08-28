@@ -1521,6 +1521,7 @@
 .fundinfo-scope .fund-detail-panel h3 { margin: 0 0 7px; color: var(--txt); font-size: 13px; font-weight: 800; }
 .fundinfo-scope .fund-detail-panel h3 small { color: var(--sub); font-size: 12px; font-weight: 400; }
 .fundinfo-scope .fund-detail-chart { height: 173px; }
+.fundinfo-scope .fund-detail-empty { display: flex; align-items: center; justify-content: center; height: 173px; margin: 0; padding: 0 10px; text-align: center; color: var(--sub); font-size: 12px; border: 1px dashed var(--line); border-radius: 10px; }
 .fundinfo-scope .fund-detail-bars { display: grid; gap: 6px; padding-top: 3px; }
 .fundinfo-scope .fund-detail-bar { display: grid; grid-template-columns: minmax(58px, .72fr) minmax(70px, 1.25fr) 30px; align-items: center; gap: 7px; color: var(--sub); font-size: 13px; line-height: 1.15; }
 .fundinfo-scope .fund-detail-bar span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

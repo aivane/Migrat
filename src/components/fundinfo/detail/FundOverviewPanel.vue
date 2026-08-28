@@ -17,7 +17,6 @@
 // drawn to <canvas> via the Chart.js API (never innerHTML).
 import { ref, onMounted, onUnmounted, watch } from 'vue'
 import Chart from 'chart.js/auto'
-import { fundinfoApiMode } from '../../../services/fundinfoApi'
 
 const props = defineProps({
   fund: { type: Object, required: true },
@@ -40,10 +39,10 @@ const MODES = [
   { key: 'return', label: 'ผลตอบแทน (%)' },
 ]
 
-// API Compatibility — direct mode has no real currency NAV series (only
-// checkpoint return percentages), so "ผลตอบแทน (%)" is the honest default;
-// mock mode keeps the original NAV-price default.
-const mode = ref(fundinfoApiMode === 'mock' ? 'nav' : 'return')
+// API Compatibility — no real currency NAV series by default (only
+// checkpoint return percentages until the daily series loads), so
+// "ผลตอบแทน (%)" is the honest default mode.
+const mode = ref('return')
 const range = ref('1Y')
 const chartRef = ref(null)
 const usingDailySeries = ref(false)
@@ -219,11 +218,9 @@ watch([mode, range, () => props.fund?.id, () => props.isDark, () => props.navHis
     </div>
 
     <p class="text-[10px] sub text-right">
-      {{ fundinfoApiMode === 'mock'
-        ? '* หมายเหตุ: กราฟนี้เคลื่อนไหวโดยอ้างอิงจากลักษณะสถิติความผันผวนย้อนหลังของกองทุนรวมจริง'
-        : usingDailySeries
-          ? '* หมายเหตุ: ราคา NAV ปิดจริงรายวันจาก API'
-          : '* หมายเหตุ: ยังไม่มีราคาปิดรายวันสำหรับกองทุน/ช่วงเวลานี้ กราฟนี้จึงคำนวณจากผลตอบแทนสะสมจริงตามช่วงเวลาที่ API เปิดเผย (1M/3M/1Y/3Y/5Y/10Y) แทน' }}
+      {{ usingDailySeries
+        ? '* หมายเหตุ: ราคา NAV ปิดจริงรายวันจาก API'
+        : '* หมายเหตุ: ยังไม่มีราคาปิดรายวันสำหรับกองทุน/ช่วงเวลานี้ กราฟนี้จึงคำนวณจากผลตอบแทนสะสมจริงตามช่วงเวลาที่ API เปิดเผย (1M/3M/1Y/3Y/5Y/10Y) แทน' }}
     </p>
   </section>
 </template>

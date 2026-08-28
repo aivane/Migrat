@@ -4,15 +4,16 @@ import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useFundinfoScreener } from '../../composables/useFundinfoScreener'
 import { useFundinfoWishlist } from '../../composables/useFundinfoWishlist'
 import { useFundinfoStore } from '../../stores/fundinfoStore'
-import { STOCK_META } from '../../data/fundinfoData'
+import { STOCK_META } from '../../data/fundinfoConstants'
 import { formatPercent } from '../../utils/fundinfoFormat'
 import FundCompareTable from './FundCompareTable.vue'
 import FundDetailRow from '../../views/fundinfo/FundDetailRow.vue'
 import InfoTooltip from '../common/InfoTooltip.vue'
+import ApiErrorBanner from '../common/ApiErrorBanner.vue'
 
 const props = defineProps({ type: { type: String, default: 'offshore' } })
 
-const { screenedFunds, toggleCompare, compareFunds, compareOrderOf } = useFundinfoScreener(props.type)
+const { screenedFunds, toggleCompare, compareFunds, compareOrderOf, loadError } = useFundinfoScreener(props.type)
 const { isWished, toggleWish } = useFundinfoWishlist()
 // API Compatibility — /funds/list never returns a fund's own holdings/
 // allocations (only /funds/{code} does, one fund at a time — there's no bulk
@@ -108,6 +109,7 @@ function toggleDetails(fundId) {
   if (opening && !fundinfoStore.hasFundDetail(fundId)) fundinfoStore.loadFundById(fundId)
 }
 function clearAllCompare() { selectedFundsList.value.forEach((fund) => toggleCompare(fund.id)) }
+function retryLoadFunds() { fundinfoStore.loadFundsByType(props.type, { force: true }) }
 
 // Lazy-load holdings for offshore/thai rows as they scroll into the table's
 // own scroll container — bounded, on-demand version of the eager fetch that
@@ -200,6 +202,8 @@ function handleToggleCompare(fundId) {
       </div>
       <button type="button" class="fund-sort-button" @click="sortRiskHighToLow">ความเสี่ยงสูง → ต่ำ</button>
     </div>
+
+    <ApiErrorBanner v-if="loadError" :message="loadError" @retry="retryLoadFunds" />
 
     <!-- เพิ่ม max-h-[300px] และ overflow-y-auto เพื่อให้แสดงประมาณ 3 กองแล้วที่เหลือให้เลื่อน -->
     <div ref="scrollContainerRef" class="fund-results-table overflow-x-auto max-h-[250px] overflow-y-auto relative ">

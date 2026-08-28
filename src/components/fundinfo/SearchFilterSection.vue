@@ -1,7 +1,7 @@
 <!-- SearchFilterSection.vue -->
 <script setup>
 import { computed } from 'vue'
-import { FUND_TYPES } from '../../data/fundinfoData'
+import { FUND_TYPES } from '../../data/fundinfoConstants'
 import { useFundinfoScreener } from '../../composables/useFundinfoScreener'
 import InfoTooltip from '../common/InfoTooltip.vue'
 

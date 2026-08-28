@@ -16,8 +16,8 @@
 // initializing Chart.js on a `display:none` element.
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { FUND_TYPES } from '../../data/fundinfoData'
-import { isValidFundId, fundinfoApiMode } from '../../services/fundinfoApi'
+import { FUND_TYPES } from '../../data/fundinfoConstants'
+import { isValidFundId } from '../../services/fundinfoApi'
 import { useFundinfoStore } from '../../stores/fundinfoStore'
 import { useFundinfoTheme } from '../../composables/useFundinfoTheme'
 import { useFundAnalytics } from '../../composables/useFundAnalytics'
@@ -106,22 +106,13 @@ const analytics = useFundAnalytics(fund)
 const dailyChange = computed(() => {
   if (!fund.value) return { diffBaht: 0, diffPct: 0 }
 
-  if (fundinfoApiMode !== 'mock') {
-    void analytics.apiNavHistoryVersion.value // reactivity trigger — see comment above
-    const history = analytics.navHistory('1M')
-    const nav = history?.isDaily ? history.navData : []
-    const last = nav.length - 1
-    if (last < 1) return { diffBaht: 0, diffPct: 0 } // Robustness: real series not loaded yet
-    const prevNav = nav[last - 1]
-    const diffBaht = nav[last] - prevNav
-    return { diffBaht, diffPct: prevNav ? (diffBaht / prevNav) * 100 : 0 }
-  }
-
-  const nav = analytics.navHistory('1Y')?.navData || []
+  void analytics.apiNavHistoryVersion.value // reactivity trigger — see comment above
+  const history = analytics.navHistory('1M')
+  const nav = history?.isDaily ? history.navData : []
   const last = nav.length - 1
-  if (last < 1) return { diffBaht: 0, diffPct: 0 } // Robustness: not enough points yet
-  const prevNav = nav[last - 1] || fund.value.nav
-  const diffBaht = fund.value.nav - prevNav
+  if (last < 1) return { diffBaht: 0, diffPct: 0 } // Robustness: real series not loaded yet
+  const prevNav = nav[last - 1]
+  const diffBaht = nav[last] - prevNav
   return { diffBaht, diffPct: prevNav ? (diffBaht / prevNav) * 100 : 0 }
 })
 </script>

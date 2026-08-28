@@ -17,12 +17,14 @@ import { useFundinfoCategory, sortFundsBy } from './useFundinfoCategory'
 // both sets of state/tags exist on every instance so switching is free and
 // harmless (an unused set just stays empty and never filters anything).
 //
-// Thai fund data (fundinfoData.js) doesn't carry these screener tags yet, so
-// they're derived deterministically per fund id (same seeded-hash approach
-// used throughout the other useFundinfo* composables) rather than invented
-// randomly on every render. Swap deriveScreenerTags() for real fields
-// whenever the data layer grows them — everything downstream (filters,
-// options, UI) reads through this one function.
+// Real-API-only: deriveScreenerTags() below reads each tag straight from the
+// API-backed fund object. Several dimensions (FX hedging, geography,
+// megatrend, style, investment style, size, min investment) have no
+// equivalent field published by the API at all as of this writing — those
+// come back null/[] rather than a fabricated guess, so filtering on them
+// honestly returns no/fewer matches instead of matching fake data. The
+// filter UI itself is unchanged; swap the null/[] fallback for a real field
+// read the moment the backend adds one.
 // ==========================================================================
 
 const MAX_COMPARE = 4
@@ -73,54 +75,41 @@ export const EXTRA_METRIC_OPTIONS = [
   { key: 'maxDrawdown', label: 'Max Drawdown', suffix: '%', hint: 'ขาดทุนหนักสุดจากจุดสูงสุด ไม่เกิน (ใส่เป็นค่าบวก)' },
 ]
 
-const TAX_BENEFIT_SEEDS = ['none', 'none', 'ssf', 'rmf', 'thaiesg', 'none']
-const MIN_INVESTMENT_SEEDS = [500, 1000, 1000, 5000, 10000, 50000]
-
-function seedFromId(id) {
-  return [...String(id)].reduce((sum, ch) => sum + ch.charCodeAt(0), 71)
-}
-
 const tagCache = new Map()
 
-// เดารายละเอียด "ตัวกรองขั้นสูง" ที่ยังไม่มีในโครงสร้างข้อมูลกองทุนจริง แบบ deterministic ต่อกองทุน
-// (id เดิม → ผลลัพธ์เดิมเสมอ) เพื่อให้ UI ใช้งานได้ทันทีโดยไม่ต้องแก้ fundinfoData.js ก่อน
+// อ่าน tag ของ "ตัวกรองขั้นสูง" จาก fund object ที่มาจาก API จริงเท่านั้น — มิติที่ API ยังไม่มี
+// field รองรับเลย (fxHedging/geography/megatrend/style/investmentStyle/size/minInvestment) จะได้
+// เป็น null/[] แทนการเดา ทำให้ filter เหล่านั้นกรองได้ตรงไปตรงมา (ไม่ match เลยถ้าไม่มีข้อมูลจริง)
+// แทนที่จะโชว์ผลลัพธ์ปลอมๆ
 function deriveScreenerTags(fund) {
   if (tagCache.has(fund.id)) return tagCache.get(fund.id)
 
-  const seed = seedFromId(fund.id)
-  // Bug fix — direct/API mode already parses real sharpe_ratio_1y/std_1y into
-  // fund.stats (see normalizeFund in fundinfoApi.js), but this only checked
-  // fund.csvStats (mock-CSV-only) and fell straight to fabricated seeded
-  // values, so the SD/Sharpe screener filters silently ignored real API data.
-  // Same fallback order maxDrawdown below already used — csvStats (mock) →
-  // stats (real API) → seeded fallback (only when neither source has it).
-  const sd = fund.csvStats?.sd ?? fund.stats?.sd ?? +(6 + (seed % 14)).toFixed(1)
-  const sharpe = fund.csvStats?.sharpe ?? fund.stats?.sharpe ?? +(((seed % 30) - 6) / 10).toFixed(2)
-  const maxDrawdown = Math.abs(fund.csvStats?.maxDrawdown ?? fund.stats?.maxdd ?? +(8 + (seed % 20)).toFixed(1))
+  // Real API fields (fund.stats, from sharpe_ratio_1y/std_1y/max_drawdown_1y
+  // in fundinfoApi.js normalizeFund) — null when the API hasn't published a
+  // value for this specific fund, never a fabricated number.
+  const sd = fund.stats?.sd ?? null
+  const sharpe = fund.stats?.sharpe ?? null
+  const maxDrawdown = fund.stats?.maxdd != null ? Math.abs(fund.stats.maxdd) : null
 
-  // Bug fix — this used to guess dividendPolicy from fund.div (dividend_yield),
-  // which direct/API mode always reports as 0 regardless of the fund's real
-  // policy (verified live — the API doesn't populate that field), silently
-  // falling through to a random seed%3 coin flip. The API now maps the real
-  // policy text (fund.dividendPolicy: "จ่าย"/"ไม่จ่าย") — read that when it
-  // exists; mock funds still have no such field, so they keep the old guess.
+  // Real dividend_policy text ("จ่าย"/"ไม่จ่าย") when the API has it; null
+  // (not a coin flip) for the small number of funds where it's blank.
   const dividendPolicy =
     fund.dividendPolicy === 'จ่าย' ? 'pay'
     : fund.dividendPolicy === 'ไม่จ่าย' ? 'accumulate'
-    : fund.div > 0 || seed % 3 === 0 ? 'pay' : 'accumulate'
+    : null
 
   const tags = {
-    taxBenefit: fund.taxBenefit || TAX_BENEFIT_SEEDS[seed % TAX_BENEFIT_SEEDS.length],
+    taxBenefit: fund.taxBenefit || 'none',
     dividendPolicy,
-    minInvestment: fund.minInvestment || MIN_INVESTMENT_SEEDS[seed % MIN_INVESTMENT_SEEDS.length],
-    // legacy (feeder/offshore)
-    fxHedging: fund.fxHedging || FX_HEDGING_OPTIONS[seed % FX_HEDGING_OPTIONS.length],
-    geography: fund.geography?.length ? fund.geography : [GEOGRAPHY_OPTIONS[seed % GEOGRAPHY_OPTIONS.length]],
-    megatrend: fund.megatrend?.length ? fund.megatrend : fund.themes?.length ? fund.themes : [MEGATREND_OPTIONS[(seed + 2) % MEGATREND_OPTIONS.length]],
-    style: fund.style || STYLE_OPTIONS[(seed + 1) % STYLE_OPTIONS.length],
-    // new (thai/mixed)
-    investmentStyle: fund.investmentStyle || INVESTMENT_STYLE_OPTIONS[seed % INVESTMENT_STYLE_OPTIONS.length],
-    size: fund.size || SIZE_OPTIONS[(seed + 2) % SIZE_OPTIONS.length],
+    minInvestment: fund.minInvestment ?? null,
+    // legacy (feeder/offshore) — no real API field for any of these yet
+    fxHedging: fund.fxHedging || null,
+    geography: fund.geography?.length ? fund.geography : [],
+    megatrend: fund.megatrend?.length ? fund.megatrend : fund.themes?.length ? fund.themes : [],
+    style: fund.style || null,
+    // new (thai/mixed) — no real API field for either yet
+    investmentStyle: fund.investmentStyle || null,
+    size: fund.size || null,
     metrics: { sd, sharpe, maxDrawdown },
   }
 
@@ -175,30 +164,30 @@ function createFundinfoScreener(type) {
     taggedFunds.value
       .filter(({ tags }) => !screener.taxBenefit || tags.taxBenefit === screener.taxBenefit)
       .filter(({ tags }) => !screener.dividendPolicy || tags.dividendPolicy === screener.dividendPolicy)
-      .filter(({ tags }) => {
-        if (!screener.minInvestment) return true
-        const opt = MIN_INVESTMENT_OPTIONS.find((o) => o.value === screener.minInvestment)
-        if (!opt) return true
-        if (opt.min != null && tags.minInvestment < opt.min) return false
-        if (opt.max != null && tags.minInvestment > opt.max) return false
-        return true
-      })
-      // legacy (no-op unless feeder/offshore UI populates these)
-      .filter(({ tags }) => !screener.fxHedging || tags.fxHedging === screener.fxHedging)
-      .filter(({ tags }) => !screener.geography.length || tags.geography.some((g) => screener.geography.includes(g)))
-      .filter(({ tags }) => !screener.megatrend.length || tags.megatrend.some((m) => screener.megatrend.includes(m)))
-      .filter(({ tags }) => !screener.style.length || screener.style.includes(tags.style))
-      // new (no-op unless thai/mixed UI populates these)
-      .filter(({ tags }) => !screener.investmentStyle.length || screener.investmentStyle.includes(tags.investmentStyle))
-      .filter(({ tags }) => !screener.sizeCharacteristic.length || screener.sizeCharacteristic.includes(tags.size))
+      // Bug fix — minInvestment/fxHedging/geography/megatrend/style/
+      // investmentStyle/size have no real API field at all (see
+      // deriveScreenerTags), so their tags are always null/[]. Filtering on
+      // them used to silently exclude every fund the moment an option was
+      // picked (`null < x` coerces to `0 < x`, `[].some(...)` is always
+      // false) — from the user's perspective, selecting any of these wiped
+      // the whole list. Left as a genuine no-op instead: the dropdown/chips
+      // stay fully interactive (so the UI is untouched) but don't narrow
+      // results, since there's no real data to narrow by yet. Swap back to
+      // an active filter the moment normalizeFund() maps a real field for
+      // any of these.
       .filter(({ fund, tags }) =>
         screener.activeExtraMetrics.every((key) => {
           const min = screener.extraMetricMin[key]
           if (min === '' || min == null) return true
           if (key === 'perf') return fund.perf >= min
-          if (key === 'maxDrawdown') return tags.metrics.maxDrawdown <= min // ยิ่งน้อยยิ่งดี เลยกรองแบบ "ไม่เกิน"
-          if (key === 'sd') return tags.metrics.sd <= min // ความผันผวน "ไม่เกิน"
-          return tags.metrics[key] >= min // sharpe: "ไม่ต่ำกว่า"
+          const value = tags.metrics[key]
+          // Bug fix — `null <= min` / `null >= min` coerce to `0`, so a fund
+          // with no real sd/sharpe/maxDrawdown value used to silently pass
+          // (or fail) every threshold instead of being excluded as unknown.
+          if (value == null) return false
+          if (key === 'maxDrawdown') return value <= min // ยิ่งน้อยยิ่งดี เลยกรองแบบ "ไม่เกิน"
+          if (key === 'sd') return value <= min // ความผันผวน "ไม่เกิน"
+          return value >= min // sharpe: "ไม่ต่ำกว่า"
         }),
       )
       .map(({ fund, tags }) => ({ ...fund, screenerTags: tags })),

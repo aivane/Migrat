@@ -2,7 +2,7 @@
 <script setup>
 import { computed, nextTick, ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { FUND_TYPES } from '../../data/fundinfoData'
+import { FUND_TYPES } from '../../data/fundinfoConstants'
 import { useFundinfoTheme } from '../../composables/useFundinfoTheme'
 import { useFundinfoWishlist } from '../../composables/useFundinfoWishlist'
 

@@ -1,5 +1,5 @@
 import { computed, reactive, watch } from 'vue'
-import { INSIGHT } from '../data/fundinfoData'
+import { INSIGHT } from '../data/fundinfoConstants'
 import { useFundinfoStore } from '../stores/fundinfoStore'
 
 // ==========================================================================

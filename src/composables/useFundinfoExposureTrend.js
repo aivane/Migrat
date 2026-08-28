@@ -6,9 +6,8 @@ import {
   THAI_INDUSTRY_GROUPS,
   OFFSHORE_REGION_GROUPS,
   OFFSHORE_THEME_GROUPS,
-} from '../data/fundinfoData'
+} from '../data/fundinfoConstants'
 import { useFundinfoStore } from '../stores/fundinfoStore'
-import { fundinfoApiMode } from '../services/fundinfoApi'
 import { performanceSeries, CMP_LABELS } from './useFundinfoThemeTrend'
 
 // ==========================================================================
@@ -64,10 +63,6 @@ export function holdingIcon(title) {
   return HOLDING_ICON[title] || '◼'
 }
 
-function isDirectEquityFund(fund) {
-  return (fund.top5 || []).some((h) => STOCK_META[h.name])
-}
-
 function seedFromId(id) {
   return [...String(id)].reduce((sum, ch) => sum + ch.charCodeAt(0), 71)
 }
@@ -80,75 +75,6 @@ export function trendSeries(scope) {
 function taxonomyFor(type, scopeMode) {
   if (type === 'thai') return THAI_INDUSTRY_GROUPS
   return scopeMode === 'theme' ? OFFSHORE_THEME_GROUPS : OFFSHORE_REGION_GROUPS
-}
-
-// รวมน้ำหนักหุ้น (exposure) และผลตอบแทนถ่วงน้ำหนักของหุ้นในแต่ละหมวด taxonomy
-function computeScopes(funds, type, scopeMode) {
-  const defs = taxonomyFor(type, scopeMode)
-
-  return defs.map((def, idx) => {
-    let members = []
-    let stockNames = []
-
-    if (def.fundIds) {
-      members = funds.filter((f) => def.fundIds.includes(f.id))
-      stockNames = [
-        ...new Set(members.flatMap((f) => (f.top5 || []).map((h) => h.name)).filter((name) => STOCK_META[name])),
-      ]
-    } else {
-      const wanted = new Set(def.stocks || [])
-      stockNames = [...wanted].filter(
-        (name) => STOCK_META[name] && funds.some((f) => (f.top5 || []).some((h) => h.name === name)),
-      )
-      members = funds.filter((f) => (f.top5 || []).some((h) => wanted.has(h.name)))
-    }
-
-    const memberIds = new Set(members.map((f) => f.id))
-    let exposure = 0
-    let weightedReturn = 0
-    funds.forEach((f) => {
-      ;(f.top5 || []).forEach((h) => {
-        if (!STOCK_META[h.name] || !stockNames.includes(h.name)) return
-        if (def.fundIds && !memberIds.has(f.id)) return
-        exposure += h.percent
-        weightedReturn += h.percent * STOCK_META[h.name].ret
-      })
-    })
-
-    const hasData = exposure > 0
-    return {
-      id: def.id,
-      title: def.title,
-      subtitle: def.subtitle,
-      idx,
-      members,
-      stocks: stockNames,
-      stockCount: stockNames.length,
-      exposure: +exposure.toFixed(1),
-      perf: hasData ? +(weightedReturn / exposure).toFixed(1) : null,
-      hasData,
-    }
-  })
-}
-
-// หุ้นทุกตัวที่พบใน Top Holdings ของกองทุนกลุ่มนี้ (ไม่กรองตาม scope) — ใช้หา "หุ้นที่หลายกองถือร่วมกัน"
-function buildStockEntities(funds) {
-  const g = {}
-  funds.forEach((f) => {
-    ;(f.top5 || []).forEach((h) => {
-      const meta = STOCK_META[h.name]
-      if (!meta) return
-      const x = g[h.name] || (g[h.name] = { name: h.name, ticker: meta.ticker, membersMap: new Map(), totalWeight: 0 })
-      x.membersMap.set(f.id, f)
-      x.totalWeight += h.percent
-    })
-  })
-  return Object.values(g).map((x) => ({
-    name: x.name,
-    ticker: x.ticker,
-    fundCount: x.membersMap.size,
-    totalWeight: +x.totalWeight.toFixed(1),
-  }))
 }
 
 // ---- Offshore-only persistence ----
@@ -200,30 +126,32 @@ function getOffshoreState() {
 }
 
 export function useFundinfoExposureTrend(type = 'offshore') {
-  // Store-backed (fundinfoStore.js -> fundinfoApi.js): reads local mock data
-  // today, will read the real backend once VITE_FUNDINFO_API_MODE flips.
+  // Store-backed (fundinfoStore.js -> fundinfoApi.js): reads the real backend.
   const fundinfoStore = useFundinfoStore()
   fundinfoStore.loadFundsByType(type)
   const allFunds = computed(() => fundinfoStore.getFundsByType(type))
   const stockMarket = type === 'thai' ? 'TH' : 'FOREIGN'
-  const shouldLoadApiStocks = fundinfoApiMode !== 'mock'
 
-  if (shouldLoadApiStocks) {
-    fundinfoStore.loadTopStocksByMarket(stockMarket)
-    fundinfoStore.loadPortfolioAllocation({ marketType: stockMarket })
+  fundinfoStore.loadTopStocksByMarket(stockMarket)
+  fundinfoStore.loadPortfolioAllocation({ marketType: stockMarket })
+
+  const apiStocks = computed(() => fundinfoStore.getTopStocksByMarket(stockMarket))
+  const portfolioAllocation = computed(() => fundinfoStore.getPortfolioAllocation({ marketType: stockMarket }))
+  // Bug fix — this used to also require apiStocks.value.length > 0, so every
+  // page load briefly (and any market with a genuinely empty response
+  // permanently) fell back to computeScopes()/buildStockEntities(), a
+  // STOCK_META-only path built for mock mode that fabricated exposure
+  // numbers from static sample data instead of the real API response. Now
+  // that path is gone entirely — real mode always computes scopes from
+  // whatever the API has returned so far (nothing yet while loading, which
+  // stocksLoading/stocksError below surface properly instead of silently
+  // substituting fake data).
+  const stocksLoading = computed(() => fundinfoStore.isLoading(`stocks:${stockMarket}`))
+  const stocksError = computed(() => fundinfoStore.getError(`stocks:${stockMarket}`))
+  function retryStocks() {
+    fundinfoStore.loadTopStocksByMarket(stockMarket, { force: true })
+    fundinfoStore.loadPortfolioAllocation({ marketType: stockMarket }, { force: true })
   }
-
-  const apiStocks = computed(() => (
-    shouldLoadApiStocks ? fundinfoStore.getTopStocksByMarket(stockMarket) : []
-  ))
-  const portfolioAllocation = computed(() => (
-    shouldLoadApiStocks ? fundinfoStore.getPortfolioAllocation({ marketType: stockMarket }) : []
-  ))
-  const usesApiExposure = computed(() => shouldLoadApiStocks && apiStocks.value.length > 0)
-  // Mock mode retains the original STOCK_META-only behavior exactly.
-  const funds = computed(() => (
-    usesApiExposure.value ? allFunds.value : allFunds.value.filter(isDirectEquityFund)
-  ))
 
   const bench = BENCHMARKS[type] || BENCHMARKS.offshore
   const accent = FUND_TYPES[type]?.accent || '#2456d8'
@@ -233,9 +161,7 @@ export function useFundinfoExposureTrend(type = 'offshore') {
   const state = foreign ? getOffshoreState() : reactive({ scopeMode: 'region', selected: [] })
 
   function scopesFor(scopeMode) {
-    return usesApiExposure.value
-      ? computeApiScopes(allFunds.value, apiStocks.value, portfolioAllocation.value, type, scopeMode)
-      : computeScopes(funds.value, type, scopeMode)
+    return computeApiScopes(allFunds.value, apiStocks.value, portfolioAllocation.value, type, scopeMode)
   }
 
   const allScopes = computed(() => scopesFor(state.scopeMode))
@@ -243,9 +169,7 @@ export function useFundinfoExposureTrend(type = 'offshore') {
   const unavailable = computed(() => allScopes.value.filter((s) => !s.hasData))
   const maxExposure = computed(() => Math.max(...scopes.value.map((s) => s.exposure), 1))
 
-  const stockEntities = computed(() => (
-    usesApiExposure.value ? buildApiStockEntities(apiStocks.value) : buildStockEntities(funds.value)
-  ))
+  const stockEntities = computed(() => buildApiStockEntities(apiStocks.value))
   const mostHeld = computed(
     () => [...stockEntities.value].sort((a, b) => b.fundCount - a.fundCount || b.totalWeight - a.totalWeight)[0],
   )
@@ -371,6 +295,9 @@ export function useFundinfoExposureTrend(type = 'offshore') {
     toggle,
     clear,
     setScopeMode,
+    stocksLoading,
+    stocksError,
+    retryStocks,
   }
 }
 

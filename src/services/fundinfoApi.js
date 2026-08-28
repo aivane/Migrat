@@ -1,5 +1,5 @@
 import { reconGet, wpGet } from './apiClient'
-import { FUNDS, FUND_TYPES, fundsByType } from '../data/fundinfoData'
+import { FUND_TYPES } from '../data/fundinfoConstants'
 
 // Input Validation — whitelist enums/patterns, reused by router guards & stores.
 export const VALID_FUND_TYPES = Object.freeze(Object.keys(FUND_TYPES))
@@ -46,9 +46,10 @@ export function isValidThemeId(themeId) {
   return typeof themeId === 'string' && THEME_ID_PATTERN.test(themeId)
 }
 
-// Feature switch — mock data remains untouched. Direct mode targets the supplied
-// Mutual Fund Data API; wordpress keeps the legacy adapter contract intact.
-export const fundinfoApiMode = import.meta.env.VITE_FUNDINFO_API_MODE || 'mock'
+// Feature switch — direct mode targets the supplied Mutual Fund Data API;
+// wordpress routes the same real backend through admin-ajax.php. No mock
+// mode: local fabricated fund data was removed, this feature is real-API-only.
+export const fundinfoApiMode = import.meta.env.VITE_FUNDINFO_API_MODE || 'direct'
 
 function toSafeError(fallbackMessage) {
   // Error Handling — never propagate backend payloads, Axios objects, or stack traces to UI/state.
@@ -255,7 +256,10 @@ function normalizeFund(record, requestedType, details = {}) {
     isFeederFund: asFlag(record.is_feeder_fund),
     isEtf: asFlag(record.is_etf),
     taxBenefit: mapTaxBenefit(record),
-    retP: { m1: rounded(safePercent(record.return_1m)), q1: rounded(safePercent(record.return_3m)), y1: return1y, y3: return3y, y5: return5y, y10: return10y },
+    // Bug fix — m6 (return_6m) added: FundPerformancePanel.vue's "6 เดือน" row
+    // used to fabricate this as y1*0.6 because retP had no real slot for it,
+    // even though the API has published return_6m all along.
+    retP: { m1: rounded(safePercent(record.return_1m)), q1: rounded(safePercent(record.return_3m)), m6: rounded(safePercent(record.return_6m)), y1: return1y, y3: return3y, y5: return5y, y10: return10y },
     // Distinct from retP above — retP defaults a missing period to 0% for safe
     // display everywhere else. Anything that needs to tell "genuinely 0%
     // return" apart from "no data for this period" (e.g. building a real
@@ -263,12 +267,17 @@ function normalizeFund(record, requestedType, details = {}) {
     retPRaw: {
       m1: optionalNumber(record.return_1m),
       q1: optionalNumber(record.return_3m),
+      m6: optionalNumber(record.return_6m),
       y1: optionalNumber(record.return_1y),
       y3: optionalNumber(record.return_3y),
       y5: optionalNumber(record.return_5y),
       y10: optionalNumber(record.return_10y),
     },
-    flowP: { w1: rounded(safeNumber(record.unit_change_1w)), m1: flow1m, y1: flow1y },
+    // API Data Quality — there is no estimated_flow_1w_m_thb from this API,
+    // only 1m/1y. unit_change_1w is a % unit-price change (a completely
+    // different unit from the THB-millions m1/y1 below) — never substitute
+    // it here, it previously showed e.g. "-1 ลบ." for a -1.1% price move.
+    flowP: { w1: null, m1: flow1m, y1: flow1y },
     managementFee: optionalNumber(record.management_fee),
     frontEndFee: optionalNumber(record.front_end_fee),
     backEndFee: optionalNumber(record.back_end_fee),
@@ -291,6 +300,30 @@ function normalizeFund(record, requestedType, details = {}) {
       sharpe: optionalNumber(record.sharpe_ratio_1y),
       sd: optionalNumber(record.std_1y),
       maxdd: maxDrawdown,
+    },
+    // Bug fix — the risk-metric table (FundPerformancePanel.vue) used to
+    // fabricate every period (3M/6M/1Y/3Y/5Y/10Y) by multiplying `stats`
+    // above by a hardcoded per-period ratio table ("mock illustrative
+    // figures only", per its own comment) even in direct mode. The API only
+    // ever publishes 1Y (stats above) and 3Y (here) period-specific figures
+    // — no 3M/6M/5Y/10Y equivalent exists for SD/Sharpe/MaxDrawdown at all,
+    // so those periods have no real replacement and are dropped, not faked.
+    stats3y: {
+      sharpe: optionalNumber(record.sharpe_ratio_3y),
+      sd: optionalNumber(record.std_3y),
+      maxdd: optionalNumber(record.max_drawdown_3y),
+    },
+    // Real peer/category averages the API publishes — used to replace the
+    // "เฉลี่ยกลุ่ม" (group average) column, which used to be either a mock
+    // formula (mock mode) or silently `null` -> blank "%" (direct mode, see
+    // useFundAnalytics.js groupAverage). Only these periods exist: no 3Y/5Y/
+    // 10Y peer-return average, and no peer SD at all.
+    categoryAvg: {
+      return3m: optionalNumber(record.category_avg_return_3m),
+      return6m: optionalNumber(record.category_avg_return_6m),
+      return1y: optionalNumber(record.category_avg_return_1y),
+      sharpe1y: optionalNumber(record.category_avg_sharpe_1y),
+      maxdd1y: optionalNumber(record.category_avg_max_drawdown_1y),
     },
   }
 }
@@ -365,28 +398,28 @@ function mapPortfolioAllocation(record) {
   }
 }
 
+// Bug fix — this read record.icon/master_fund/sample_symbols, which never
+// exist on a real /insights/themes record (verified live across all 34
+// themes, v1/v2 identical schema) — those three always came out blank/[].
+// Meanwhile the real payload's theme_name/funds_count/total_aum_m_thb/
+// avg_return_1m/avg_return_1y were silently dropped entirely. Read the
+// fields the API actually sends instead of the ones a stale schema assumed.
 function mapTheme(record) {
   if (!isRecord(record)) return null
 
   const id = safeText(record.id, 64).toLowerCase()
   if (!isValidThemeId(id)) return null
 
-  const label = safeText(record.label, 120)
+  const label = safeText(record.label || record.theme_name, 120)
   if (!label) return null
 
   return {
     id,
     label,
-    // Anti-XSS — rendered as interpolation only; bound the icon to a short
-    // plain-text token rather than accepting an arbitrary HTML fragment.
-    icon: safeText(record.icon, 8),
-    masterFund: safeText(record.master_fund, 180),
-    sampleSymbols: Array.isArray(record.sample_symbols)
-      ? record.sample_symbols
-        .slice(0, 20)
-        .map((symbol) => safeText(symbol, 32))
-        .filter((symbol) => /^[A-Za-z0-9._-]{1,32}$/.test(symbol))
-      : [],
+    fundsCount: Math.max(0, Math.min(Math.round(safeNumber(record.funds_count)), 1000000)),
+    totalAumMThb: Math.max(0, rounded(safeNumber(record.total_aum_m_thb))),
+    avgReturn1m: optionalNumber(record.avg_return_1m),
+    avgReturn1y: optionalNumber(record.avg_return_1y),
   }
 }
 
@@ -396,46 +429,70 @@ function extractThemes(payload) {
   return []
 }
 
-function mapThemeFund(record) {
+// Bug fix — this required record.theme_id to be a valid theme id or it
+// returned null, silently dropping every record — but /insights/theme-funds
+// never echoes theme_id (or theme_name/theme_weight/theme_value_thb/
+// matched_stocks*/theme_exposure_score) back on a fund record, confirmed
+// live with and without the ?themes= filter, identical on v1/v2/v3. That
+// made fetchThemeFunds() always resolve to [] before a single caller ever
+// used it. The API's own request param is the only source of which theme(s)
+// were asked for, so the caller passes it in explicitly (see fetchThemeFunds
+// below) instead of expecting the response to say so. The fields with no
+// real source are dropped rather than defaulted to a fabricated 0/[].
+function mapThemeFund(record, themeId) {
   if (!isRecord(record)) return null
 
-  const id = safeText(record.theme_id, 64).toLowerCase()
   const fundCode = safeText(record.fund_code, 64)
-  if (!isValidThemeId(id) || !isValidFundId(fundCode)) return null
+  if (!isValidFundId(fundCode)) return null
 
   return {
-    themeId: id,
-    themeName: safeText(record.theme_name, 120),
+    themeId: themeId || null,
     fundCode,
     fundName: safeText(record.fund_name_th || record.fund_name_en || fundCode),
     amc: safeText(record.amc_name, 120),
     category: safeText(record.aimc_category_name_en || record.aimc_category_name_th, 160),
     masterFund: safeText(record.main_feeder_fund, 180),
     marketType: safeText(record.market_type, 16).toUpperCase(),
-    aum: Math.max(0, rounded(safeNumber(record.aum))),
+    aum: Math.max(0, rounded(safeNumber(record.aum_m_thb))),
     return1m: rounded(safePercent(record.return_1m)),
     return3m: rounded(safePercent(record.return_3m)),
     return1y: rounded(safePercent(record.return_1y)),
-    themeWeight: rounded(safePercent(record.theme_weight)),
-    themeValueThb: Math.max(0, rounded(safeNumber(record.theme_value_thb))),
-    matchedStocksCount: Math.max(0, Math.min(Math.round(safeNumber(record.matched_stocks_count)), 1000)),
-    matchedStocks: Array.isArray(record.matched_stocks)
-      ? record.matched_stocks
-        .slice(0, 50)
-        .map((symbol) => safeText(symbol, 32))
-        .filter((symbol) => /^[A-Za-z0-9._-]{1,32}$/.test(symbol))
-      : [],
-    exposureScore: Math.max(0, rounded(safeNumber(record.theme_exposure_score))),
+    flow1m: optionalNumber(record.estimated_flow_1m_m_thb),
   }
 }
 
-async function fetchDirectFundsByType(type) {
-  const payload = await reconGet('/api/v1/funds/list', {
-    ...DIRECT_LIST_PARAMS[type],
-    limit: API_LIST_LIMIT,
-  })
+// API Data Quality — /api/v1/funds/list caps out at 1000 rows per REQUEST
+// (limit > 1000 silently returns 0, not an error — verified live, this is a
+// hard server-side ceiling, not something the client can raise) and never
+// sends a total count, so this loops on offset until a short page confirms
+// the end. The TH market alone has ~4000 non-feeder funds; a single-page
+// fetch used to return only whatever the API's default ordering put in the
+// first 1000 — for 'thai' that was entirely Fixed Income/Miscellaneous
+// funds, so every real Equity fund (and therefore the whole screener)
+// silently showed 0 results. MAX_LIST_PAGES is only a runaway guard (in case
+// the API never returns a short final page), not a real cap — at 1000/page
+// it covers up to 100,000 funds, comfortably above any known fund universe.
+const MAX_LIST_PAGES = 100
 
-  return extractFundList(payload)
+async function fetchAllDirectFunds(type) {
+  const pages = []
+  for (let page = 0; page < MAX_LIST_PAGES; page++) {
+    const payload = await reconGet('/api/v1/funds/list', {
+      ...DIRECT_LIST_PARAMS[type],
+      limit: API_LIST_LIMIT,
+      offset: page * API_LIST_LIMIT,
+    })
+    const records = extractFundList(payload)
+    pages.push(...records)
+    if (records.length < API_LIST_LIMIT) break
+  }
+  return pages
+}
+
+async function fetchDirectFundsByType(type) {
+  const records = await fetchAllDirectFunds(type)
+
+  return records
     .filter((record) => isFundInType(record, type))
     .map((record) => normalizeFund(record, type))
     .filter(Boolean)
@@ -471,8 +528,6 @@ export async function fetchFundNavHistory(id, { days = 365 } = {}) {
     throw new Error('Invalid fund id requested')
   }
 
-  if (fundinfoApiMode === 'mock') return []
-
   const safeDays = Math.min(Math.max(Math.round(safeNumber(days, 365)), 1), 3650)
 
   try {
@@ -489,14 +544,18 @@ export async function fetchFundNavHistory(id, { days = 365 } = {}) {
   }
 }
 
-export async function fetchTopStocksByMarket(marketType, { limit = 100 } = {}) {
+// API Data Quality — /api/v1/stocks/top rejects (422) any limit above 500
+// (verified live — a hard server-side ceiling, no offset/pagination on this
+// endpoint), and the previous default of 100 was silently truncating real
+// results: TH market has 197 ranked stocks, so only the top 100 ever loaded.
+// Default to the API's actual max instead — 500 comfortably covers both
+// markets today (TH 197, FOREIGN 67) with room to grow.
+export async function fetchTopStocksByMarket(marketType, { limit = 500 } = {}) {
   if (!isValidStockMarket(marketType)) {
     throw new Error('Invalid stock market requested')
   }
 
-  const safeLimit = Math.min(Math.max(Math.round(safeNumber(limit, 100)), 1), 500)
-
-  if (fundinfoApiMode === 'mock') return []
+  const safeLimit = Math.min(Math.max(Math.round(safeNumber(limit, 500)), 1), 500)
 
   try {
     if (fundinfoApiMode === 'wordpress') {
@@ -537,8 +596,6 @@ export async function fetchPortfolioAllocation({ marketType, fundCodes = [], all
     ...(normalizedAllocationType ? { allocation_type: normalizedAllocationType } : {}),
   }
 
-  if (fundinfoApiMode === 'mock') return []
-
   try {
     const payload = fundinfoApiMode === 'wordpress'
       ? await wpGet('fundinfo_portfolio_allocation', params)
@@ -551,8 +608,6 @@ export async function fetchPortfolioAllocation({ marketType, fundCodes = [], all
 }
 
 export async function fetchInsightThemes() {
-  if (fundinfoApiMode === 'mock') return []
-
   try {
     const payload = fundinfoApiMode === 'wordpress'
       ? await wpGet('fundinfo_insight_themes')
@@ -574,15 +629,18 @@ export async function fetchThemeFunds({ themeIds = [], limit = 100, offset = 0 }
   const safeLimit = Math.min(Math.max(Math.round(safeNumber(limit, 100)), 1), 500)
   const safeOffset = Math.min(Math.max(Math.round(safeNumber(offset)), 0), 100000)
 
-  if (fundinfoApiMode === 'mock') return []
-
   try {
     const params = { limit: safeLimit, offset: safeOffset, ...(themes.length ? { themes: themes.join(',') } : {}) }
     const payload = fundinfoApiMode === 'wordpress'
       ? await wpGet('fundinfo_theme_funds', params)
       : await reconGet('/api/v1/insights/theme-funds', params)
 
-    return extractFundList(payload).map(mapThemeFund).filter(Boolean)
+    // API Contract — the response never says which requested theme a fund
+    // matched (see mapThemeFund above), so only attribute themeId when the
+    // call asked for exactly one; a multi-theme call can't attribute it
+    // without guessing, so themeId comes back null there.
+    const singleThemeId = themes.length === 1 ? themes[0] : null
+    return extractFundList(payload).map((record) => mapThemeFund(record, singleThemeId)).filter(Boolean)
   } catch {
     throw toSafeError('ไม่สามารถโหลดข้อมูลกองทุนตามธีมได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง')
   }
@@ -591,10 +649,6 @@ export async function fetchThemeFunds({ themeIds = [], limit = 100, offset = 0 }
 export async function fetchFundsByType(type) {
   if (!isValidFundType(type)) {
     throw new Error('Invalid fund type requested')
-  }
-
-  if (fundinfoApiMode === 'mock') {
-    return fundsByType(type)
   }
 
   try {
@@ -611,10 +665,6 @@ export async function fetchFundsByType(type) {
 export async function fetchFundById(id) {
   if (!isValidFundId(id)) {
     throw new Error('Invalid fund id requested')
-  }
-
-  if (fundinfoApiMode === 'mock') {
-    return FUNDS.find((fund) => fund.id === id) || null
   }
 
   try {
