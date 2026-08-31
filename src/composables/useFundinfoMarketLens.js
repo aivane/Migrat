@@ -1,6 +1,6 @@
 import { computed, reactive, watch } from 'vue'
 import { useFundinfoStore } from '../stores/fundinfoStore'
-import { performanceSeries, CMP_LABELS } from './useFundinfoThemeTrend'
+import { membersTrendSeries, CMP_LABELS } from './useFundinfoThemeTrend'
 
 // ==========================================================================
 // Section ① Market Lens — แนวโน้มสินทรัพย์ (Mixed Fund)
@@ -15,12 +15,12 @@ import { performanceSeries, CMP_LABELS } from './useFundinfoThemeTrend'
 const MAX_LINES = 5
 const BENCH = { name: 'พอร์ตผสม 60/40', ret: 5.4 }
 
-function seedFromId(id) {
-  return [...String(id)].reduce((sum, ch) => sum + ch.charCodeAt(0), 71)
-}
-
+// Real checkpoint returns averaged across the scope's member funds — see
+// useFundinfoThemeTrend.js's membersTrendSeries()/checkpointSeries() for how
+// this replaces the old seeded-noise fabrication. Falls back to a flat
+// 0%-change line only if literally no member fund has any real checkpoint.
 export function trendSeries(scope) {
-  return performanceSeries(seedFromId(scope.id), scope.perf, CMP_LABELS.length)
+  return membersTrendSeries(scope.members, CMP_LABELS.length) || new Array(CMP_LABELS.length).fill(100)
 }
 
 // จัดกลุ่มกองทุนผสมตามสินทรัพย์ที่มีน้ำหนัก >= 10% ในพอร์ต (กองเดียวอยู่ได้หลายหมวด)

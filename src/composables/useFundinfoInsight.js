@@ -1,6 +1,6 @@
 import { computed } from 'vue'
 import { useFundinfoRanking } from './useFundinfoRanking'
-import { CMP_LABELS } from './useFundinfoThemeTrend'
+import { CMP_LABELS, checkpointSeries } from './useFundinfoThemeTrend'
 
 // ==========================================================================
 // Section ③ Master Fund / Stock Comparison (deep-dive)
@@ -27,52 +27,6 @@ const BENCHMARKS = {
   thai: { name: 'SET TRI', ret: 3.2, short: 'SET' },
   offshore: { name: 'MSCI ACWI', ret: GLOBAL_RETURN, short: 'Global' },
   feeder: { name: 'MSCI ACWI', ret: GLOBAL_RETURN, short: 'Global' },
-}
-
-// ==========================================================================
-// Direct API mode has no daily price series, but it does publish real
-// cumulative returns at fixed checkpoints (1M/3M/1Y/3Y/5Y/10Y — retPRaw,
-// null when genuinely unavailable rather than fudged to 0). Turn those into
-// an index series (base 100 = today) sampled onto the same CMP_LABELS.length
-// timeline the mock series use, so real and mock cards can share one chart.
-// Between checkpoints this is linear interpolation, not real daily data —
-// every anchor point is real, the line between two anchors is not.
-// ==========================================================================
-const RETURN_CHECKPOINT_DAYS = { m1: 30, q1: 90, y1: 365, y3: 1095, y5: 1825, y10: 3650 }
-const CMP_STEP_DAYS = 365 / 12 // CMP_LABELS spans ~12 months in 13 points
-
-function apiCheckpointSeries(retPRaw) {
-  if (!retPRaw) return null
-
-  const anchors = Object.entries(RETURN_CHECKPOINT_DAYS)
-    .map(([key, days]) => ({ days, ret: retPRaw[key] }))
-    .filter((p) => typeof p.ret === 'number' && Number.isFinite(p.ret))
-    .sort((a, b) => b.days - a.days) // oldest (largest days-ago) first
-    .map((p) => ({ days: p.days, value: 100 / (1 + p.ret / 100) }))
-
-  if (!anchors.length) return null
-  anchors.push({ days: 0, value: 100 }) // today
-
-  const n = CMP_LABELS.length
-  const series = []
-  for (let i = 0; i < n; i++) {
-    const targetDays = (n - 1 - i) * CMP_STEP_DAYS
-    series.push(interpolateAnchors(anchors, targetDays))
-  }
-  return series
-}
-
-function interpolateAnchors(anchors, targetDays) {
-  if (targetDays >= anchors[0].days) return +anchors[0].value.toFixed(1)
-  for (let i = 0; i < anchors.length - 1; i++) {
-    const a = anchors[i]
-    const b = anchors[i + 1]
-    if (targetDays <= a.days && targetDays >= b.days) {
-      const ratio = (a.days - targetDays) / (a.days - b.days)
-      return +(a.value + (b.value - a.value) * ratio).toFixed(1)
-    }
-  }
-  return +anchors[anchors.length - 1].value.toFixed(1)
 }
 
 function finiteNumber(value) {
@@ -163,7 +117,7 @@ export function useFundinfoInsight(type = 'feeder') {
             .join(' · '),
           fundCount: ent.fundCount,
           totalWeight: ent.totalWeight,
-          series: apiCheckpointSeries(ent.fund.retPRaw),
+          series: checkpointSeries(ent.fund.retPRaw),
         }
       }
 
@@ -197,7 +151,7 @@ export function useFundinfoInsight(type = 'feeder') {
         aum: sumAum(ent.members),
         memberCount: ent.members.length,
         benchName,
-        series: apiCheckpointSeries(ent.retPRaw),
+        series: checkpointSeries(ent.retPRaw),
       }
     }),
   )

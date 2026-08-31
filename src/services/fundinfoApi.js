@@ -9,7 +9,11 @@ export const VALID_FUND_TYPES = Object.freeze(Object.keys(FUND_TYPES))
 export const FUND_ID_PATTERN = /^[A-Za-z0-9()& _-]{1,64}$/
 export const VALID_STOCK_MARKETS = Object.freeze(['TH', 'FOREIGN'])
 export const VALID_ALLOCATION_TYPES = Object.freeze(['ASSET_CLASS', 'SECTOR', 'REGIONAL'])
-export const THEME_ID_PATTERN = /^[a-z0-9_-]{1,64}$/
+// Allows `/` — confirmed live that 3 of 34 real theme ids contain it (e.g.
+// "global_bond_fully_f/x_hedge", from "F/X" in the label). theme_id is only
+// ever sent as a query-param value (never a URL path segment, never CSV-
+// joined on anything but comma), so `/` is safe here.
+export const THEME_ID_PATTERN = /^[a-z0-9_/-]{1,64}$/
 
 const API_LIST_LIMIT = 1000
 const MAX_TEXT_LENGTH = 300

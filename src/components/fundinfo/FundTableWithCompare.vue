@@ -218,7 +218,7 @@ function handleToggleCompare(fundId) {
 
             <!-- แสดงทั้ง Thai Fund และ Offshore Fund -->
             <th v-if="type === 'offshore' || type === 'thai'" class="w-[13%]">หุ้นที่ถือเยอะ</th>
-            <th v-if="type === 'offshore' || type === 'thai'" class="text-right w-[7%]">น้ำหนักรวม</th>
+            <th v-if="type === 'offshore' || type === 'thai'" class="text-center w-[7%]">น้ำหนักรวม</th>
 
             <!-- นำ <th>บลจ.</th> ออกไปแล้ว -->
 

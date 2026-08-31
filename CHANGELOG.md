@@ -2,6 +2,23 @@
 
 บันทึกงานที่ทำในแต่ละวัน เรียงจากล่าสุดไปเก่าสุด
 
+## 2026-08-30 — Fundinfo: แก้ 2 TODO ที่ค้างจากวันที่ 28 (theme id `/`, เส้นกราฟ fabricate)
+
+### Theme id มี `/` หลุดจาก mapping ([fundinfoApi.js:12](src/services/fundinfoApi.js))
+- ยืนยันสาเหตุจริงจาก live `/insights/themes`: 3 จาก 34 theme มี `/` ในชื่อ (เช่น `global_bond_fully_f/x_hedge` จากคำว่า "F/X") — เช็คแล้วว่า `theme_id` ถูกใช้แค่เป็น query param value (`?themes=a,b,c`) ไม่เคยเป็น URL path segment เลย จึงไม่มีความเสี่ยง path-injection จากการอนุญาต `/`
+- แก้ `THEME_ID_PATTERN` จาก `/^[a-z0-9_-]{1,64}$/` เป็น `/^[a-z0-9_/-]{1,64}$/`
+
+### เส้นกราฟ trend/performance ยัง fabricate รูปทรงระหว่างจุด ([useFundinfoThemeTrend.js](src/composables/useFundinfoThemeTrend.js), [useFundinfoMarketLens.js](src/composables/useFundinfoMarketLens.js), [useFundinfoExposureTrend.js](src/composables/useFundinfoExposureTrend.js), [useFundinfoInsight.js](src/composables/useFundinfoInsight.js))
+- `useFundinfoInsight.js` มี pattern ที่ถูกต้องอยู่แล้ว (`apiCheckpointSeries`/`interpolateAnchors`): ใช้ real checkpoint returns (`retPRaw.{m1,q1,y1,y3,y5,y10}` — ค่าจริงจาก API) เป็น anchor แล้ว linear-interpolate ระหว่างจุดจริงเพื่อ sample ลงบน timeline 13 จุด — anchor ทุกจุดเป็นของจริง มีแค่เส้นระหว่างจุดที่เป็นเส้นตรงประมาณ
+- ย้าย pattern นี้ไปเป็น shared export (`checkpointSeries`) ใน `useFundinfoThemeTrend.js` แล้วเพิ่ม `averageRetPRaw()`/`membersTrendSeries()` เพื่อเฉลี่ย `retPRaw` ของกองทุนสมาชิกในแต่ละ scope (theme/asset-class/region) ก่อนสร้าง series — แทนที่ `performanceSeries()` (seeded `Math.sin` fabrication) ในทั้ง 3 composable ที่กลุ่มกองทุนเป็น scope (Theme Pulse, Market Lens, Exposure Trend)
+- ลบ `seedFromId()` (dead code) ออกจากทั้ง 3 ไฟล์
+- **ไม่ได้แตะ:** เส้น "จุดอ้างอิง" (benchmark line, SET TRI/MSCI ACWI/พอร์ตผสม 60/40) ใน 4 component (`ThemeTrendSection.vue`, `MarketLensSection.vue`, `ExposureTrendSection.vue`, `InsightCompareSection.vue`) ยังใช้ `performanceSeries()` เดิม เพราะ benchmark return เป็นค่า hardcode คงที่ ไม่มี field จริงจาก API รองรับ — เป็นปัญหาแยกที่พบระหว่างทาง ยังไม่ได้แก้
+- verify สดผ่านเบราว์เซอร์จริง: Feeder (Theme Pulse), Mixed (Market Lens), Offshore (Exposure Trend) — กราฟขึ้นเส้นจริงจากค่า retPRaw เฉลี่ยของแต่ละ scope ไม่มี error ใน console (เจอแค่ backend 502 ชั่วคราวที่รู้อยู่แล้วจาก ngrok tunnel สะดุด ไม่เกี่ยวกับโค้ดที่แก้)
+
+### ยังไม่ได้แก้ (พบระหว่างทาง)
+- `CMP_LABELS` ใน `useFundinfoThemeTrend.js` เป็น array ชื่อเดือนแบบ hardcode ปฏิทินตายตัว ("ก.ค. 68"–"ก.ค. 69") ตอนนี้ล้าสมัยแล้ว ควรคำนวณ label แบบ relative จากวันที่ปัจจุบันแทน
+- เส้น "จุดอ้างอิง" (benchmark) ยังใช้ค่า return แบบ hardcode ไม่ใช่ real data — ดูหัวข้อด้านบน
+
 ## 2026-08-28 — Fundinfo: ลบ Mock Mode ทั้งหมด + ไล่แก้ fabricated data ที่เหลือ
 
 ### ตัวกรองเพิ่มเติม (FX Hedging/Geography/Megatrend/Style/Investment Style/Size/เงินลงทุนขั้นต่ำ) โชว์ 0 กองทุนเสมอ — regression จากการแก้ mock ตอนบ่าย ([useFundinfoScreener.js](src/composables/useFundinfoScreener.js))

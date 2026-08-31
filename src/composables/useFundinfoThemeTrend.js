@@ -19,6 +19,10 @@ const MAX_SELECTED = 7
 
 // Deterministic pseudo-random walk, seeded so charts are stable across
 // renders/reloads instead of re-randomizing (same approach as the prototype).
+// Still used for the fixed benchmark reference line drawn on these charts
+// (SET TRI / MSCI ACWI / พอร์ตผสม 60/40) — those returns are hardcoded
+// constants with no live API field backing them yet, a separate open item
+// from the real per-scope lines below.
 export function performanceSeries(seed, fin, n = CMP_LABELS.length) {
   let s = seed
   const noise = [0]
@@ -30,12 +34,76 @@ export function performanceSeries(seed, fin, n = CMP_LABELS.length) {
   return noise.map((v, i) => +(100 + (fin * i) / (n - 1) + v - (end * i) / (n - 1)).toFixed(1))
 }
 
-function seedFromId(id) {
-  return [...String(id)].reduce((sum, ch) => sum + ch.charCodeAt(0), 71)
+// ==========================================================================
+// Real cumulative-return checkpoints (fund.retPRaw — m1/q1/y1/y3/y5/y10, null
+// when genuinely unavailable rather than fudged) turned into an index series
+// (base 100 = today), sampled onto the CMP_LABELS timeline via linear
+// interpolation between real anchors. Every anchor point is real; the line
+// between two anchors is a straight-line approximation, not real daily data.
+// Shared by useFundinfoInsight.js (single fund/master) and the scope-based
+// composables below (averaged across each scope's member funds).
+// ==========================================================================
+const RETURN_CHECKPOINT_DAYS = { m1: 30, q1: 90, y1: 365, y3: 1095, y5: 1825, y10: 3650 }
+const CMP_STEP_DAYS = 365 / 12 // CMP_LABELS spans ~12 months in 13 points
+
+export function checkpointSeries(retPRaw, n = CMP_LABELS.length) {
+  if (!retPRaw) return null
+
+  const anchors = Object.entries(RETURN_CHECKPOINT_DAYS)
+    .map(([key, days]) => ({ days, ret: retPRaw[key] }))
+    .filter((p) => typeof p.ret === 'number' && Number.isFinite(p.ret))
+    .sort((a, b) => b.days - a.days) // oldest (largest days-ago) first
+    .map((p) => ({ days: p.days, value: 100 / (1 + p.ret / 100) }))
+
+  if (!anchors.length) return null
+  anchors.push({ days: 0, value: 100 }) // today
+
+  const series = []
+  for (let i = 0; i < n; i++) {
+    const targetDays = (n - 1 - i) * CMP_STEP_DAYS
+    series.push(interpolateAnchors(anchors, targetDays))
+  }
+  return series
+}
+
+function interpolateAnchors(anchors, targetDays) {
+  if (targetDays >= anchors[0].days) return +anchors[0].value.toFixed(1)
+  for (let i = 0; i < anchors.length - 1; i++) {
+    const a = anchors[i]
+    const b = anchors[i + 1]
+    if (targetDays <= a.days && targetDays >= b.days) {
+      const ratio = (a.days - targetDays) / (a.days - b.days)
+      return +(a.value + (b.value - a.value) * ratio).toFixed(1)
+    }
+  }
+  return +anchors[anchors.length - 1].value.toFixed(1)
+}
+
+// Averages member funds' real checkpoint returns (skipping funds missing a
+// given period) into one scope-level retPRaw, then builds its series — used
+// by the scope-grouped charts (Theme Pulse / Market Lens / Exposure Trend)
+// in place of the old seeded-noise fabrication.
+function averageRetPRaw(members) {
+  const result = {}
+  for (const key of Object.keys(RETURN_CHECKPOINT_DAYS)) {
+    const values = (members || [])
+      .map((m) => m.retPRaw?.[key])
+      .filter((v) => typeof v === 'number' && Number.isFinite(v))
+    result[key] = values.length ? values.reduce((sum, v) => sum + v, 0) / values.length : null
+  }
+  return result
+}
+
+export function membersTrendSeries(members, n = CMP_LABELS.length) {
+  return checkpointSeries(averageRetPRaw(members), n)
 }
 
 function trendSeries(scope) {
-  return performanceSeries(seedFromId(scope.id), scope.perf)
+  // Real data can't fill every scope for every horizon (a niche theme with
+  // only a couple of very new member funds) — fall back to a flat 0%-change
+  // line rather than leaving the sparkline/chart with nothing, same "default
+  // a missing period to a neutral value" convention retP already uses below.
+  return membersTrendSeries(scope.members) || new Array(CMP_LABELS.length).fill(100)
 }
 
 // Group feeder funds by theme (master fund's INSIGHT theme, or first tag).
