@@ -2,6 +2,42 @@
 
 บันทึกงานที่ทำในแต่ละวัน เรียงจากล่าสุดไปเก่าสุด
 
+## 2026-09-03 — Fundinfo: audit บั๊ก backend, ต่อสาย 7 ตัวกรอง screener แบบ exact-match, แก้ N+1 ที่ทำหน้า Mixed ล่ม, สลับ API host
+
+### Audit บั๊ก backend จริง (ไม่ใช่สมมติฐาน) — เช็คสดกับ live API แล้วรายงานให้ backend team
+- `is_feeder_fund` ผิดสำหรับกอง TH-market ล้วน 839 กอง (K-EQUITY/K-SET50/ES-SET50-A ฯลฯ ติด `is_feeder_fund=1` ทั้งที่ไม่ใช่ feeder จริง) — ทำให้กองหุ้นไทย/ผสมหลักหายจากทั้งแท็บ Thai และ Mixed **backend แก้แล้ว วันเดียวกัน**, ยืนยันซ้ำ
+- `stocks/top?market_type=FOREIGN` ปนหุ้นไทยเข้ามาในอันดับ (10/15 เป็นหุ้นไทยอย่าง KKP/GULF/KBANK) **backend แก้แล้ว**, ยืนยันซ้ำ (เหลือ AAPL/NVDA/หุ้นจีน-เกาหลี-เวียดนามจริง)
+- `management_style` เพี้ยนเป็น `DIVIDEND_FOCUSED` เกือบทุกกอง (97–99%) ไม่ว่าจริงจะ active/passive **backend แก้แล้ว** (ACTIVE 92%/PASSIVE 3%/DIVIDEND 4% หลังแก้)
+- `nav_change_pct_1d` คำนวณผิดฐาน (K-GDBOND-A(A) โชว์ -8.88% จริง -0.29% จาก nav-history) **backend แก้แล้ว**
+- `fx_hedging` เปลี่ยนรูปแบบเงียบๆ 3 รอบใน session เดียว: ประโยคไทยเต็ม → หายไป → กลับมาเป็น enum ซ้ำกับ `fx_hedge_policy` เป๊ะ ไม่มีแจ้งเปลี่ยน schema — **ยังไม่นิ่ง แจ้ง backend ให้ยึด `fx_hedge_policy` เป็นตัวหลักแล้ว**
+
+### ต่อสาย 7 ตัวกรอง screener ที่เคยเป็น no-op ให้ใช้ field จริงแบบ exact-match id ([fundinfoApi.js](src/services/fundinfoApi.js), [useFundinfoScreener.js](src/composables/useFundinfoScreener.js), [SearchFilterSection.vue](src/components/fundinfo/SearchFilterSection.vue))
+- Backend เพิ่ม field ใหม่ครบ 100% ทุกกอง: `fx_hedge_policy`, `geographic_focus`, `thematic_category`, `management_style`, `market_cap_focus`, `minimum_initial_thb` — ปิด gap เดิมที่เคย hold ไว้เพราะ Geography/Size ต้อง join ข้าม endpoint แล้วแม่นแค่ ~16%
+- เพิ่ม `mapEnum()` whitelist validator ใน `fundinfoApi.js` — เก็บ enum string จาก backend เป็น id ตรงๆ (ไม่ hand-translate) กัน backend เปลี่ยน field เงียบๆ แบบ `fx_hedging` อีก
+- เปลี่ยน option list (Geography/Megatrend/Fund Style/Investment Style/Size) จาก string label ตกแต่งเฉยๆ เป็น `{id, label}` จริง, เพิ่ม filter clause จริงใน `screenedFunds` (เดิม comment บอกไว้ชัดว่าเป็น no-op ตั้งใจ)
+- Verify สดครบ: Offshore Geography=US 3,183→142 (ตรงกับ live distribution เป๊ะ), Thai Investment Style=Active→629→Size=Large-Cap→23, Feeder Style=Passive→55 กอง
+- **บั๊กที่เจอระหว่างทาง**: chip "เน้นจ่ายปันผล (Dividend Focused)" ให้ผลลัพธ์ปนกองที่ไม่จ่ายจริง — ไม่ใช่บั๊กข้อมูล `management_style=DIVIDEND_FOCUSED` คือกลยุทธ์ (เน้นซื้อหุ้นปันผลสูง) คนละมิติกับ `dividend_policy` (นโยบายจ่ายคืนผู้ถือหน่วย) เช่น `KFDIVRMF` เป็น RMF ห้ามจ่ายปันผลตามกฎหมายไม่ว่ากลยุทธ์จะเป็นแบบไหน — เปลี่ยน label เป็น "กองทุนปันผลสูง" ตัดความกำกวม
+
+### หน้า Mixed Fund ล่มตั้งแต่เปิดหน้า — N+1 backfill ยิงพร้อมกันเกินกว่า tunnel จะรับได้ ([useFundinfoMarketLens.js](src/composables/useFundinfoMarketLens.js))
+- `is_feeder_fund` fix ด้านบนทำให้กอง mixed พุ่งจาก "ไม่กี่สิบกอง" (assumption เดิม) เป็น 473 กอง — โค้ดเดิมยิง `funds/{code}` แบบไม่จำกัดพร้อมกันหมดเพื่อดึง asset allocation มาสร้างกราฟ Market Lens
+- เจอ error ตรงจาก dev proxy terminal: `Client network socket disconnected before secure TLS connection was established` — tunnel ตัด connection กลาง TLS handshake เอง เป็น connection-rate ceiling ไม่ใช่แค่ concurrency
+- แก้ 4 ชั้น: (1) จำกัด backfill แค่ 80 กองที่ AUM สูงสุด (Market Lens จัดกลุ่มตามน้ำหนัก asset class กองใหญ่ก็ครอบคลุมทุกกลุ่มอยู่แล้ว) (2) หน่วงเริ่ม 1.5s ไม่ให้แย่ง connection กับ request สำคัญตอนเปิดหน้า (3) concurrency 2 + delay 400ms ต่อ request (4) circuit breaker หยุดยิงถ้าพัง 6 ครั้งติด + retry with backoff สำหรับ error ชั่วคราว
+- Verify สด: backfill 80/80 สำเร็จไม่มี fail หลังสลับ API host (ดูหัวข้อถัดไป)
+
+### สลับ Fund API host จาก ngrok ที่ไม่เสถียรไปเป็นโดเมนจริง ([.env](.env), [.env.example](.env.example), [vite.config.js](vite.config.js))
+- `VITE_PROXY_FUND_API`: `isabella-hagiologic-rolland.ngrok-free.dev` → `https://api.ideatradefund.com`
+- Verify ก่อนสลับ: burst 20 concurrent request พร้อมกันบน host ใหม่ผ่านหมด 20/20 (host เดิมพังตั้งแต่ ~3 concurrent) — หลังสลับหน้า Mixed backfill 80/80 กองสำเร็จไม่มี error เลย
+- **ยังไม่แตะ** `VITE_PROXY_FUND_BACKEND` (auth service, คนละ ngrok tunnel `unexcusable-depreciatingly-lieselotte`) — เช็คแล้วว่า `api.ideatradefund.com` มีแค่ 2 service ตาม Swagger hub ของมันเอง (Fund Analytics API, IdeaTrade Analytics API) ไม่มี auth service เลย ลองทุก path ที่เป็นไปได้แล้ว 404 หมด — ถ้าเปลี่ยนตามที่ขอจะทำ login พังทันที รอ path/โดเมนที่ถูกต้องจากทีม backend ก่อน
+
+### แก้ label ที่เข้าใจผิดง่ายอีกจุด ([useFundinfoThemeTrend.js](src/composables/useFundinfoThemeTrend.js))
+- `CMP_LABELS` เดิม hardcode ตายตัว ("ก.ค. 68"–"ก.ค. 69") ล้าสมัยไปแล้ว 2 เดือนตอนที่เจอ (ปัจจุบันคือ ก.ย. 69) — เปลี่ยนเป็นคำนวณ relative จากวันที่ปัจจุบันเสมอ (label สุดท้าย = เดือนนี้, ถอยหลังทีละเดือน, โชว์ปี พ.ศ. ที่ label แรก/สุดท้าย/ทุก ม.ค.)
+
+### ยังไม่ได้แก้ / ยังขาดอยู่
+- **เส้น "จุดอ้างอิง" (SET TRI/MSCI ACWI/60-40)** ใน 4 component (`ThemeTrendSection.vue`, `MarketLensSection.vue`, `ExposureTrendSection.vue`, `InsightCompareSection.vue`) ยัง hardcode — **ติด backend**: ไม่มี field ดัชนีตลาดรวม (มีแค่ `benchmark_return_1y`/`category_avg_return_1y` ซึ่งเป็น benchmark ต่อ AIMC category ของกองนั้นๆ ไม่ใช่ดัชนีตลาด)
+- **N+1 backfill ของหน้า Mixed** แก้แค่ระดับ throttle/cap ไม่ได้แก้ที่ต้นตอ — ยังต้องยิง request แยกกันทีละกอง เสนอให้ backend เพิ่ม bulk-detail endpoint (`POST /funds/batch?codes=...`) หรือใส่ `asset`/`mix` allocation ลงใน `funds/list` เลย จะตัด N+1 ทิ้งได้ทั้งหมด
+- **`VITE_PROXY_FUND_BACKEND`** (auth) ยังอยู่บน ngrok เดิม ไม่รู้ path/โดเมนใหม่ที่ถูกต้อง — เสี่ยงเจอปัญหาความไม่เสถียรแบบเดียวกับที่เจอใน fund API ถ้ายังไม่ได้ย้าย
+- **Backend/ngrok tunnel เดิม** (ที่ auth ยังใช้อยู่) มีประวัติ SSL handshake ล้มเหลว/502 เป็นระยะตลอด session นี้ — ยังไม่มีใครแก้ที่ต้นตอ
+
 ## 2026-08-30 — Fundinfo: แก้ 2 TODO ที่ค้างจากวันที่ 28 (theme id `/`, เส้นกราฟ fabricate)
 
 ### Theme id มี `/` หลุดจาก mapping ([fundinfoApi.js:12](src/services/fundinfoApi.js))
