@@ -27,11 +27,15 @@ function normalizeFund(fund, targetType) {
   // Feeder Fund
   const feeder = fund.main_feeder_fund || fund.feeder_target || null
 
-  // Top Holdings (มักอยู่ใน detail endpoint เท่านั้น)
-  const top = (fund.top5 || fund.top_holdings || []).map((item) => ({
-    symbol: item.symbol || '',
-    name: item.name || '',
-    percent: Number(item.percent || item.weight || 0),
+  // Top Holdings — รองรับทุก field format:
+  // - API ใหม่: stock_symbol / clean_holding_name / holding_percent
+  // - Normalized: symbol / name / percent
+  // - WordPress: s / n / p
+  const rawTop = fund.top_holdings || fund.top5 || []
+  const top = rawTop.map((item) => ({
+    symbol: item.stock_symbol || item.symbol || item.s || '',
+    name: item.clean_holding_name || item.raw_holding_name || item.name || item.n || '',
+    percent: Number(item.holding_percent ?? item.percent ?? item.p ?? item.weight ?? 0),
   }))
 
   return {

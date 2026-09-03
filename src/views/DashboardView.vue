@@ -1,7 +1,8 @@
 <script setup>
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useDashboardStore } from '../stores/dashboardStore'
+import { getFundDetail, normalizeFund } from '../services/fundApi'
 
 const dashboardStore = useDashboardStore()
 const router = useRouter()
@@ -39,6 +40,99 @@ const selectedForCompare = ref([])
 const compareModalOpen = ref(false)
 const showBackToTop = ref(false)
 const jumpPageInput = ref('')
+
+// ── Inline expand (เหมือน WordPress S.expandedSet) ─────────────────────────
+const expandedSet = ref({})
+
+// สีพาสเทลชุดเดียวกับ WordPress
+const PIE_COLORS = ['#4B543B', '#DCE2AA', '#B57F50', '#8ED081', '#B4D2BA']
+const pieInstances = {}
+
+function drawExpandPie(fund) {
+  const canvasId = `fd-pe-${fund.code}`
+  const canvas = document.getElementById(canvasId)
+  if (!canvas || typeof window.Chart === 'undefined') return
+  if (pieInstances[canvasId]) { pieInstances[canvasId].destroy() }
+
+  const top5 = (fund.top || []).slice(0, 5)
+  const data = top5.map(h => ({ name: h.s || h.symbol || '-', value: Number(h.p ?? h.percent ?? 0) }))
+  const visualData = data.map(x => Math.max(Number(x.value || 0), 4))
+
+  pieInstances[canvasId] = new window.Chart(canvas, {
+    type: 'doughnut',
+    data: {
+      labels: data.map(x => x.name),
+      datasets: [{
+        data: visualData,
+        backgroundColor: PIE_COLORS.slice(0, data.length),
+        borderWidth: 2,
+        borderColor: '#fff',
+      }],
+    },
+    options: {
+      responsive: false,
+      maintainAspectRatio: true,
+      cutout: '65%',
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: () => '',
+            label: (ctx) => {
+              const i = ctx.dataIndex
+              return ` ${Number(data[i].value).toFixed(2)}% : ${data[i].name}`
+            },
+          },
+        },
+      },
+    },
+  })
+}
+
+async function toggleExpand(code) {
+  // ปิด row ที่กำลัง expand อยู่
+  if (expandedSet.value[code]) {
+    delete expandedSet.value[code]
+    if (pieInstances[`fd-pe-${code}`]) {
+      pieInstances[`fd-pe-${code}`].destroy()
+      delete pieInstances[`fd-pe-${code}`]
+    }
+    expandedSet.value = { ...expandedSet.value }
+    return
+  }
+
+  // เปิด row — แสดงก่อน แล้วโหลด top holdings ทีหลัง
+  expandedSet.value = { ...expandedSet.value, [code]: true }
+
+  // หา fund object จาก state
+  const allFunds = [...(state.funds.FOREIGN || []), ...(state.funds.TH || [])]
+  const fund = allFunds.find(f => f.code === code)
+  if (!fund) return
+
+  // ถ้ายังไม่มี top holdings → fetch detail endpoint
+  if (!fund.top || !fund.top.length) {
+    try {
+      const detail = await getFundDetail(code)
+      if (detail) {
+        // Response structure: { status, fund_code, profile: {...}, top_holdings: [...], allocations: [...] }
+        // top_holdings อยู่ที่ root level ของ response ไม่ใช่ใน profile
+        const topHoldings = detail.top_holdings || detail?.data?.top_holdings || []
+        fund.top = topHoldings.map(item => ({
+          symbol: item.stock_symbol || item.symbol || item.s || '',
+          name: item.clean_holding_name || item.raw_holding_name || item.name || item.n || '',
+          percent: Number(item.holding_percent ?? item.percent ?? item.p ?? 0),
+        }))
+      }
+    } catch (e) {
+      console.warn('getFundDetail failed:', code, e)
+    }
+  }
+
+  // วาด Pie หลัง DOM update (เหมือน WordPress setTimeout + F.dpie)
+  await nextTick()
+  if (fund.top && fund.top.length) drawExpandPie(fund)
+}
+
 
 const loading = reactive({ page: true, funds: true, search: false })
 const errorMessage = ref('')
@@ -666,7 +760,7 @@ onUnmounted(() => {
 })
 
 // ── Actions ───────────────────────────────────────────────────────────────────
-function resetPaging() { state.page = 1 }
+function resetPaging() { state.page = 1; expandedSet.value = {} }
 
 function setSort(col) {
   if (state.sortBy === col) {
@@ -1318,34 +1412,69 @@ onMounted(loadInitialDashboard)
                 <tr v-else-if="!pagedForeignFunds.length">
                   <td colspan="7" class="fi-td--center">ไม่พบข้อมูล</td>
                 </tr>
-                <tr v-for="fund in pagedForeignFunds" :key="`F-${fund.code}`" class="fi-tr">
-                  <td class="fi-td--center">
-                    <button
-                      class="fi-star-btn"
-                      :class="{ 'fi-star-btn--active': isFavorite(fund.code) }"
-                      title="ติดดาวกองทุนโปรด"
-                      @click.stop="toggleFavorite(fund.code)"
-                    >{{ isFavorite(fund.code) ? '★' : '☆' }}</button>
-                  </td>
-                  <td class="fi-td--center">
-                    <input
-                      type="checkbox"
-                      class="fi-compare-check"
-                      :checked="isInCompare(fund.code)"
-                      title="เลือกเพื่อเปรียบเทียบ"
-                      @click.stop="toggleCompare(fund.code)"
-                    />
-                  </td>
-                  <td class="fi-td--fund">
-                    <strong>{{ fund.code || '-' }}</strong>
-                    <span>{{ fund.name || '-' }}</span>
-                    <em v-if="fund.amc">{{ fund.amc }}</em>
-                  </td>
-                  <td><span class="fi-risk" :class="riskClass(fund.risk)">{{ fund.risk || '-' }}</span></td>
-                  <td :class="fund.ret >= 0 ? 'fi-pos' : 'fi-neg'">{{ formatPercent(fund.ret) }}</td>
-                  <td>฿{{ formatCurrency(fund.nav) }}</td>
-                  <td>฿{{ formatCompact(fund.aum) }}</td>
-                </tr>
+                <template v-for="fund in pagedForeignFunds" :key="`F-${fund.code}`">
+                  <tr
+                    class="fi-tr"
+                    :class="{ 'fi-tr--expanded': expandedSet[fund.code] }"
+                    style="cursor:pointer"
+                    @click="!state.searchMode && toggleExpand(fund.code)"
+                  >
+                    <td class="fi-td--center">
+                      <button
+                        class="fi-star-btn"
+                        :class="{ 'fi-star-btn--active': isFavorite(fund.code) }"
+                        title="ติดดาวกองทุนโปรด"
+                        @click.stop="toggleFavorite(fund.code)"
+                      >{{ isFavorite(fund.code) ? '★' : '☆' }}</button>
+                    </td>
+                    <td class="fi-td--center">
+                      <input
+                        type="checkbox"
+                        class="fi-compare-check"
+                        :checked="isInCompare(fund.code)"
+                        title="เลือกเพื่อเปรียบเทียบ"
+                        @click.stop="toggleCompare(fund.code)"
+                      />
+                    </td>
+                    <td class="fi-td--fund">
+                      <strong>{{ fund.code || '-' }}</strong>
+                      <span>{{ fund.name || '-' }}</span>
+                      <em v-if="fund.amc">{{ fund.amc }}</em>
+                    </td>
+                    <td><span class="fi-risk" :class="riskClass(fund.risk)">{{ fund.risk || '-' }}</span></td>
+                    <td :class="fund.ret >= 0 ? 'fi-pos' : 'fi-neg'">{{ formatPercent(fund.ret) }}</td>
+                    <td>฿{{ formatCurrency(fund.nav) }}</td>
+                    <td>฿{{ formatCompact(fund.aum) }}</td>
+                  </tr>
+                  <!-- Inline Expand Row (เหมือน WordPress fd-exp) -->
+                  <tr v-if="expandedSet[fund.code] && !state.searchMode" class="fi-tr-expand">
+                    <td colspan="7" class="fi-exp-cell">
+                      <div class="fi-exp-inner">
+                        <template v-if="fund.top && fund.top.length">
+                          <div class="fi-exp-pie-wrap">
+                            <div class="fi-exp-pie-label">Top 5 Holdings</div>
+                            <canvas :id="`fd-pe-${fund.code}`" width="120" height="120"></canvas>
+                          </div>
+                          <div class="fi-exp-list">
+                            <div
+                              v-for="(h, j) in fund.top.slice(0, 5)"
+                              :key="h.s || h.symbol || j"
+                              class="fi-exp-row"
+                            >
+                              <div class="fi-exp-row-left">
+                                <span class="fi-exp-dot" :style="{ background: ['#4B543B','#DCE2AA','#B57F50','#8ED081','#B4D2BA'][j] }"></span>
+                                <span class="fi-exp-sym">{{ h.s || h.symbol || '-' }}</span>
+                                <span class="fi-exp-name">{{ h.n || h.name || '' }}</span>
+                              </div>
+                              <span class="fi-exp-pct">{{ Number(h.p ?? h.percent ?? 0).toFixed(2) }}%</span>
+                            </div>
+                          </div>
+                        </template>
+                        <span v-else class="fi-exp-empty">ไม่พบข้อมูลสัดส่วนหุ้น</span>
+                      </div>
+                    </td>
+                  </tr>
+                </template>
               </tbody>
             </table>
           </div>
@@ -1382,34 +1511,69 @@ onMounted(loadInitialDashboard)
                 <tr v-else-if="!pagedThaiFunds.length">
                   <td colspan="7" class="fi-td--center">ไม่พบข้อมูล</td>
                 </tr>
-                <tr v-for="fund in pagedThaiFunds" :key="`T-${fund.code}`" class="fi-tr">
-                  <td class="fi-td--center">
-                    <button
-                      class="fi-star-btn"
-                      :class="{ 'fi-star-btn--active': isFavorite(fund.code) }"
-                      title="ติดดาวกองทุนโปรด"
-                      @click.stop="toggleFavorite(fund.code)"
-                    >{{ isFavorite(fund.code) ? '★' : '☆' }}</button>
-                  </td>
-                  <td class="fi-td--center">
-                    <input
-                      type="checkbox"
-                      class="fi-compare-check"
-                      :checked="isInCompare(fund.code)"
-                      title="เลือกเพื่อเปรียบเทียบ"
-                      @click.stop="toggleCompare(fund.code)"
-                    />
-                  </td>
-                  <td class="fi-td--fund">
-                    <strong>{{ fund.code || '-' }}</strong>
-                    <span>{{ fund.name || '-' }}</span>
-                    <em v-if="fund.amc">{{ fund.amc }}</em>
-                  </td>
-                  <td><span class="fi-risk" :class="riskClass(fund.risk)">{{ fund.risk || '-' }}</span></td>
-                  <td :class="fund.ret >= 0 ? 'fi-pos' : 'fi-neg'">{{ formatPercent(fund.ret) }}</td>
-                  <td>฿{{ formatCurrency(fund.nav) }}</td>
-                  <td>฿{{ formatCompact(fund.aum) }}</td>
-                </tr>
+                <template v-for="fund in pagedThaiFunds" :key="`T-${fund.code}`">
+                  <tr
+                    class="fi-tr"
+                    :class="{ 'fi-tr--expanded': expandedSet[fund.code] }"
+                    style="cursor:pointer"
+                    @click="!state.searchMode && toggleExpand(fund.code)"
+                  >
+                    <td class="fi-td--center">
+                      <button
+                        class="fi-star-btn"
+                        :class="{ 'fi-star-btn--active': isFavorite(fund.code) }"
+                        title="ติดดาวกองทุนโปรด"
+                        @click.stop="toggleFavorite(fund.code)"
+                      >{{ isFavorite(fund.code) ? '★' : '☆' }}</button>
+                    </td>
+                    <td class="fi-td--center">
+                      <input
+                        type="checkbox"
+                        class="fi-compare-check"
+                        :checked="isInCompare(fund.code)"
+                        title="เลือกเพื่อเปรียบเทียบ"
+                        @click.stop="toggleCompare(fund.code)"
+                      />
+                    </td>
+                    <td class="fi-td--fund">
+                      <strong>{{ fund.code || '-' }}</strong>
+                      <span>{{ fund.name || '-' }}</span>
+                      <em v-if="fund.amc">{{ fund.amc }}</em>
+                    </td>
+                    <td><span class="fi-risk" :class="riskClass(fund.risk)">{{ fund.risk || '-' }}</span></td>
+                    <td :class="fund.ret >= 0 ? 'fi-pos' : 'fi-neg'">{{ formatPercent(fund.ret) }}</td>
+                    <td>฿{{ formatCurrency(fund.nav) }}</td>
+                    <td>฿{{ formatCompact(fund.aum) }}</td>
+                  </tr>
+                  <!-- Inline Expand Row (เหมือน WordPress fd-exp) -->
+                  <tr v-if="expandedSet[fund.code] && !state.searchMode" class="fi-tr-expand">
+                    <td colspan="7" class="fi-exp-cell">
+                      <div class="fi-exp-inner">
+                        <template v-if="fund.top && fund.top.length">
+                          <div class="fi-exp-pie-wrap">
+                            <div class="fi-exp-pie-label">Top 5 Holdings</div>
+                            <canvas :id="`fd-pe-${fund.code}`" width="120" height="120"></canvas>
+                          </div>
+                          <div class="fi-exp-list">
+                            <div
+                              v-for="(h, j) in fund.top.slice(0, 5)"
+                              :key="h.s || h.symbol || j"
+                              class="fi-exp-row"
+                            >
+                              <div class="fi-exp-row-left">
+                                <span class="fi-exp-dot" :style="{ background: ['#4B543B','#DCE2AA','#B57F50','#8ED081','#B4D2BA'][j] }"></span>
+                                <span class="fi-exp-sym">{{ h.s || h.symbol || '-' }}</span>
+                                <span class="fi-exp-name">{{ h.n || h.name || '' }}</span>
+                              </div>
+                              <span class="fi-exp-pct">{{ Number(h.p ?? h.percent ?? 0).toFixed(2) }}%</span>
+                            </div>
+                          </div>
+                        </template>
+                        <span v-else class="fi-exp-empty">ไม่พบข้อมูลสัดส่วนหุ้น</span>
+                      </div>
+                    </td>
+                  </tr>
+                </template>
               </tbody>
             </table>
           </div>
@@ -1419,15 +1583,15 @@ onMounted(loadInitialDashboard)
 
       <!-- Pagination -->
       <div class="fi-pagination">
-        <button class="fi-page-btn" :disabled="state.page <= 1" @click="state.page -= 1">PREVIOUS</button>
+        <button class="fi-page-btn" :disabled="state.page <= 1" @click="state.page -= 1; expandedSet = {}">PREVIOUS</button>
         <button
           v-for="p in visiblePages"
           :key="p"
           class="fi-page-btn"
           :class="{ 'fi-page-btn--active': p === state.page }"
-          @click="state.page = p"
+          @click="state.page = p; expandedSet = {}"
         >{{ p }}</button>
-        <button class="fi-page-btn" :disabled="state.page >= totalPages" @click="state.page += 1">ถัดไป</button>
+        <button class="fi-page-btn" :disabled="state.page >= totalPages" @click="state.page += 1; expandedSet = {}">ถัดไป</button>
 
         <!-- Quick Page Jump -->
         <form class="fi-page-jump" @submit.prevent="jumpToPage">
@@ -2255,6 +2419,60 @@ onMounted(loadInitialDashboard)
 .fi-tr:hover td { background: #f8fafc; }
 .fi-tr--clickable { cursor: pointer; }
 .fi-tr--clickable:hover td { background: #eff6ff; }
+.fi-tr--expanded td { background: #f0f9ff !important; border-bottom: none; }
+
+/* ── Inline Expand Row (ตรง WordPress .fd-exp / .fd-exp-inner) ── */
+.fi-tr-expand td { padding: 0; border-bottom: 2px solid #e8edf2; }
+.fi-exp-cell { padding: 16px 24px !important; background: #f9fafb; }
+.fi-exp-inner {
+  display: flex;
+  align-items: flex-start;   /* WordPress ใช้ flex-start */
+  gap: 24px;                 /* WordPress gap: 24px */
+}
+.fi-exp-pie-wrap {
+  text-align: center;
+  width: 120px;
+  flex-shrink: 0;
+}
+.fi-exp-pie-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #475569;
+  margin-bottom: 8px;
+}
+.fi-exp-list { flex: 1; }   /* WordPress .fd-exp-leg { flex:1 } */
+.fi-exp-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 15px;           /* WordPress font-size: 15px */
+  align-items: center;
+}
+.fi-exp-row:last-child { border-bottom: none; }
+.fi-exp-row-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.fi-exp-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+  flex-shrink: 0;
+}
+.fi-exp-sym {
+  color: #0f172a;
+  font-weight: 700;
+  font-size: 14px;           /* WordPress font-size: 14px */
+}
+.fi-exp-name {
+  color: #6b7280;
+  font-size: 11px;
+}
+.fi-exp-pct { font-weight: 700; color: #0f172a; font-size: 15px; }
+.fi-exp-empty { color: #94a3b8; font-size: 13px; }
 
 .fi-td--fund {
   text-align: left;
