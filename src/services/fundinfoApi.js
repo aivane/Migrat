@@ -15,22 +15,32 @@ export const VALID_ALLOCATION_TYPES = Object.freeze(['ASSET_CLASS', 'SECTOR', 'R
 // joined on anything but comma), so `/` is safe here.
 export const THEME_ID_PATTERN = /^[a-z0-9_/-]{1,64}$/
 
-// API Data Quality — `fx_hedging` is a full Thai sentence, not a stable
-// enum (e.g. "ป้องกันความเสี่ยงอัตราแลกเปลี่ยนทั้งหมดหรือเกือบทั้งหมด"), so
-// screener filter chips compare against a short id here instead of matching
-// that raw text directly against a differently-worded UI label (would never
-// match). An unrecognized raw string maps to null, not a guess.
-const FX_HEDGING_MAP = {
-  'ป้องกันความเสี่ยงอัตราแลกเปลี่ยนทั้งหมดหรือเกือบทั้งหมด': 'full',
-  'ป้องกันความเสี่ยงอัตราแลกเปลี่ยนตามดุลยพินิจของผู้จัดการกองทุนรวม': 'discretionary',
-  'ป้องกันความเสี่ยงอัตราแลกเปลี่ยนบางส่วน': 'partial',
-  'ไม่ป้องกันความเสี่ยงอัตราแลกเปลี่ยน': 'none',
+// API Data Quality — screener filter dimensions the API added after the
+// mock-removal audit (context.md §3 originally listed these as fully
+// missing). Confirmed live 2026-09-03 that all five now ship as stable
+// UPPER_SNAKE_CASE enums, 100% populated across feeder/offshore/thai. Store
+// the backend's own enum string as the id (no hand-translated lookup table)
+// so a future backend rename fails loud (mapEnum returns null, filter goes
+// no-op safely) instead of silently mismatching like the old Thai-sentence
+// `FX_HEDGING_MAP` did when the API swapped `fx_hedging` from free text to
+// this same enum shape without warning.
+const FX_HEDGING_VALUES = new Set(['FULLY_HEDGED', 'DISCRETIONARY', 'PARTIALLY_HEDGED', 'UNHEDGED', 'UNSPECIFIED', 'NOT_APPLICABLE'])
+const GEOGRAPHY_VALUES = new Set(['GLOBAL', 'US', 'JAPAN', 'CHINA', 'VIETNAM', 'INDIA', 'EUROPE', 'EMERGING_MARKETS', 'ASIA_EX_JAPAN', 'THAILAND'])
+const THEMATIC_VALUES = new Set(['BROAD_MARKET', 'TECHNOLOGY_AI', 'COMMODITIES_GOLD', 'HIGH_DIVIDEND', 'PROPERTY_INFRA', 'HEALTHCARE', 'ESG_CLEAN_ENERGY'])
+const MANAGEMENT_STYLE_VALUES = new Set(['ACTIVE', 'PASSIVE_INDEX', 'DIVIDEND_FOCUSED'])
+const MARKET_CAP_VALUES = new Set(['ALL_CAP', 'MID_SMALL_CAP', 'LARGE_CAP'])
+
+function mapEnum(raw, validValues) {
+  const text = safeText(raw, 64).toUpperCase()
+  return validValues.has(text) ? text : null
 }
 
-function mapFxHedging(raw) {
-  const text = safeText(raw, 200)
-  if (!text) return 'na' // ไม่มี field จริง (มักเป็นกองในประเทศ ไม่มี FX exposure)
-  return FX_HEDGING_MAP[text] ?? null
+// API Contract — `fx_hedge_policy` is the documented field; `fx_hedging` was
+// briefly a raw Thai sentence, vanished, then came back as an exact alias of
+// fx_hedge_policy (same enum values) — prefer the documented name, fall back
+// to the alias so this survives either one disappearing again.
+function mapFxHedging(record) {
+  return mapEnum(record.fx_hedge_policy ?? record.fx_hedging, FX_HEDGING_VALUES)
 }
 
 const API_LIST_LIMIT = 1000
@@ -266,7 +276,15 @@ function normalizeFund(record, requestedType, details = {}) {
     fee: rounded(expenseRatio),
     div: rounded(safePercent(record.dividend_yield)),
     dividendPolicy: safeText(record.dividend_policy),
-    fxHedging: mapFxHedging(record.fx_hedging),
+    fxHedging: mapFxHedging(record),
+    // Screener dimensions — real enums as of 2026-09-03 (see mapEnum above).
+    // One value per fund (not a tag list), so screener filters match by
+    // membership in the user's selected id set, not array overlap.
+    geography: mapEnum(record.geographic_focus, GEOGRAPHY_VALUES),
+    megatrend: mapEnum(record.thematic_category, THEMATIC_VALUES),
+    managementStyle: mapEnum(record.management_style, MANAGEMENT_STYLE_VALUES),
+    marketCapFocus: mapEnum(record.market_cap_focus, MARKET_CAP_VALUES),
+    minInvestment: optionalNumber(record.minimum_initial_thb),
     hasDividend: asFlag(record.has_dividend),
     master,
     masterFund: master,

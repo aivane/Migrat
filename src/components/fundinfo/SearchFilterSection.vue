@@ -136,11 +136,11 @@ function handleToggleAdvanced() {
       <div v-if="usesInvestmentStyleFilters" class="screener-advanced">
         <div>
           <h3>Investment Style</h3>
-          <div class="screener-pills"><button v-for="option in investmentStyleOptions" :key="option" type="button" :class="{ active: screener.investmentStyle.includes(option) }" @click="toggleInvestmentStyle(option)">{{ option }}</button></div>
+          <div class="screener-pills"><button v-for="option in investmentStyleOptions" :key="option.id" type="button" :class="{ active: screener.investmentStyle.includes(option.id) }" @click="toggleInvestmentStyle(option.id)">{{ option.label }}</button></div>
         </div>
         <div>
           <h3>Size & Characteristic</h3>
-          <div class="screener-pills"><button v-for="option in sizeOptions" :key="option" type="button" :class="{ active: screener.sizeCharacteristic.includes(option) }" @click="toggleSize(option)">{{ option }}</button></div>
+          <div class="screener-pills"><button v-for="option in sizeOptions" :key="option.id" type="button" :class="{ active: screener.sizeCharacteristic.includes(option.id) }" @click="toggleSize(option.id)">{{ option.label }}</button></div>
         </div>
       </div>
 
@@ -151,15 +151,15 @@ function handleToggleAdvanced() {
         </div>
         <div>
           <h3>Geography <small>(ภูมิภาค/ประเทศ)</small></h3>
-          <div class="screener-pills"><button v-for="option in geographyOptions" :key="option" type="button" :class="{ active: screener.geography.includes(option) }" @click="toggleGeography(option)">{{ option }}</button></div>
+          <div class="screener-pills"><button v-for="option in geographyOptions" :key="option.id" type="button" :class="{ active: screener.geography.includes(option.id) }" @click="toggleGeography(option.id)">{{ option.label }}</button></div>
         </div>
         <div>
           <h3>Megatrends / Thematic</h3>
-          <div class="screener-pills"><button v-for="option in megatrendOptions" :key="option" type="button" :class="{ active: screener.megatrend.includes(option) }" @click="toggleMegatrend(option)">{{ option }}</button></div>
+          <div class="screener-pills"><button v-for="option in megatrendOptions" :key="option.id" type="button" :class="{ active: screener.megatrend.includes(option.id) }" @click="toggleMegatrend(option.id)">{{ option.label }}</button></div>
         </div>
         <div>
           <h3>Fund Style</h3>
-          <div class="screener-pills"><button v-for="option in styleOptions" :key="option" type="button" :class="{ active: screener.style.includes(option) }" @click="toggleStyle(option)">{{ option }}</button></div>
+          <div class="screener-pills"><button v-for="option in styleOptions" :key="option.id" type="button" :class="{ active: screener.style.includes(option.id) }" @click="toggleStyle(option.id)">{{ option.label }}</button></div>
         </div>
       </div>
     </div>

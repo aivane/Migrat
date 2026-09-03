@@ -49,33 +49,69 @@ export const MIN_INVESTMENT_OPTIONS = [
   { value: '50000+', label: 'มากกว่า 50,000 บาท', min: 50000 },
 ]
 
-// Legacy advanced filters — feeder / offshore only, unchanged.
-// fxHedging is now a real API-backed filter (fund.fxHedging, mapped to a
-// stable id in fundinfoApi.js's mapFxHedging()) — compare by id, not label,
-// so relabeling these options never breaks the filter. Funds with no FX
-// exposure ('na') or an unrecognized raw value (null) simply don't match
-// any of these chips, same as picking no filter shows everyone.
+// Advanced filters below compare by id (the API's own UPPER_SNAKE_CASE enum
+// string, mapped in fundinfoApi.js's mapEnum()) instead of matching a UI
+// label against fund data — exact-match, so relabeling an option never
+// breaks the filter, and a future backend enum addition just shows up as an
+// unmatched chip rather than silently corrupting an existing one. A value
+// the API doesn't publish for a given fund (null) simply excludes it from
+// every chip, same as before — never guessed.
+//
+// Each list deliberately omits its enum's "no real signal" bucket as a
+// selectable chip (nothing to search FOR): FX Hedging skips UNSPECIFIED/
+// NOT_APPLICABLE, Megatrend skips BROAD_MARKET (means "no specific theme").
 export const FX_HEDGING_OPTIONS = [
-  { id: 'full', label: 'Fully Hedged (100%)' },
-  { id: 'discretionary', label: 'ตามดุลยพินิจ' },
-  { id: 'partial', label: 'บางส่วน' },
-  { id: 'none', label: 'Unhedged (ไม่ป้องกัน)' },
+  { id: 'FULLY_HEDGED', label: 'ป้องกันความเสี่ยงเต็มจำนวน (Fully Hedged)' },
+  { id: 'DISCRETIONARY', label: 'ตามดุลยพินิจผู้จัดการกองทุน' },
+  { id: 'PARTIALLY_HEDGED', label: 'ป้องกันความเสี่ยงบางส่วน' },
+  { id: 'UNHEDGED', label: 'ไม่ป้องกันความเสี่ยง (Unhedged)' },
 ]
-export const GEOGRAPHY_OPTIONS = ['Global Equity', 'US Equity', 'China Equity', 'Europe', 'Asia ex-Japan', 'Emerging Markets']
-export const MEGATREND_OPTIONS = ['Technology', 'AI & Robotics', 'Semiconductor', 'Healthcare', 'ESG / ยั่งยืน', 'Gold / Commodities']
-export const STYLE_OPTIONS = ['Passive (ดัชนี)', 'Active (เชิงรุก)', 'Dividend (ปันผล)']
+export const GEOGRAPHY_OPTIONS = [
+  { id: 'GLOBAL', label: 'ทั่วโลก (Global)' },
+  { id: 'US', label: 'สหรัฐฯ (US)' },
+  { id: 'CHINA', label: 'จีน (China)' },
+  { id: 'JAPAN', label: 'ญี่ปุ่น (Japan)' },
+  { id: 'INDIA', label: 'อินเดีย (India)' },
+  { id: 'EUROPE', label: 'ยุโรป (Europe)' },
+  { id: 'VIETNAM', label: 'เวียดนาม (Vietnam)' },
+  { id: 'EMERGING_MARKETS', label: 'ตลาดเกิดใหม่ (Emerging Markets)' },
+  { id: 'ASIA_EX_JAPAN', label: 'เอเชีย (ไม่รวมญี่ปุ่น)' },
+]
+export const MEGATREND_OPTIONS = [
+  { id: 'TECHNOLOGY_AI', label: 'เทคโนโลยี / AI' },
+  { id: 'COMMODITIES_GOLD', label: 'ทองคำ / สินค้าโภคภัณฑ์' },
+  { id: 'HIGH_DIVIDEND', label: 'หุ้นปันผลสูง' },
+  { id: 'PROPERTY_INFRA', label: 'อสังหาริมทรัพย์ / โครงสร้างพื้นฐาน' },
+  { id: 'HEALTHCARE', label: 'สุขภาพ' },
+  { id: 'ESG_CLEAN_ENERGY', label: 'ESG / พลังงานสะอาด' },
+]
+// Same underlying field (fund.managementStyle, from the API's
+// management_style) powers both "Fund Style" (feeder/offshore) and
+// "Investment Style" (thai/mixed) — one option list shared between them.
+//
+// Bug fix — DIVIDEND_FOCUSED describes the fund's stock-picking universe
+// (invests in high dividend-yield stocks), not whether the fund itself pays
+// out to unitholders — that's the separate, already-correct "นโยบายปันผล"
+// filter (fund.dividendPolicy, from dividend_policy). Confirmed live: 13 of
+// 43 TH DIVIDEND_FOCUSED-style funds have dividend_policy "ไม่จ่าย" (e.g.
+// KFDIVRMF — an RMF, which by regulation can never distribute regardless of
+// strategy). The original label "เน้นจ่ายปันผล (Dividend Focused)" read as a
+// payout promise and collided with that filter's "จ่ายปันผล" option, so
+// picking this chip alone looked like a bug when a non-paying RMF matched
+// it. Reworded to name the strategy, not a payout outcome.
+export const MANAGEMENT_STYLE_OPTIONS = [
+  { id: 'ACTIVE', label: 'บริหารเชิงรุก (Active)' },
+  { id: 'PASSIVE_INDEX', label: 'อิงดัชนี (Passive / Index)' },
+  { id: 'DIVIDEND_FOCUSED', label: 'กองทุนปันผลสูง' },
+]
+export const STYLE_OPTIONS = MANAGEMENT_STYLE_OPTIONS
 
 // New advanced filters — thai / mixed only.
-export const INVESTMENT_STYLE_OPTIONS = [
-  'Index / Passive (SET50/100)',
-  'Active (เชิงรุก)',
-  'High Dividend (SETHD)',
-  'ESG / Thai ESG',
-]
+export const INVESTMENT_STYLE_OPTIONS = MANAGEMENT_STYLE_OPTIONS
 export const SIZE_OPTIONS = [
-  'Large-Cap (ใหญ่)',
-  'Mid/Small-Cap (เล็ก-กลาง)',
-  'Value / ปันผล',
+  { id: 'LARGE_CAP', label: 'หุ้นใหญ่ (Large-Cap)' },
+  { id: 'MID_SMALL_CAP', label: 'หุ้นกลาง-เล็ก (Mid/Small-Cap)' },
+  { id: 'ALL_CAP', label: 'ทุกขนาด (All-Cap)' },
 ]
 
 export const EXTRA_METRIC_OPTIONS = [
@@ -87,10 +123,10 @@ export const EXTRA_METRIC_OPTIONS = [
 
 const tagCache = new Map()
 
-// อ่าน tag ของ "ตัวกรองขั้นสูง" จาก fund object ที่มาจาก API จริงเท่านั้น — มิติที่ API ยังไม่มี
-// field รองรับเลย (fxHedging/geography/megatrend/style/investmentStyle/size/minInvestment) จะได้
-// เป็น null/[] แทนการเดา ทำให้ filter เหล่านั้นกรองได้ตรงไปตรงมา (ไม่ match เลยถ้าไม่มีข้อมูลจริง)
-// แทนที่จะโชว์ผลลัพธ์ปลอมๆ
+// อ่าน tag ของ "ตัวกรองขั้นสูง" จาก fund object ที่มาจาก API จริงเท่านั้น — ทุก dimension
+// ด้านล่างตอนนี้มี field จริงรองรับแล้ว (2026-09-03) เป็นค่าเดียวต่อกอง (ไม่ใช่ array of tags)
+// จึงเทียบแบบ "ค่าตรงกับตัวไหนใน id ที่เลือกไว้" — กองที่ backend ยังไม่มีค่า (null) จะไม่ match
+// chip ไหนเลย ไม่ใช่การเดา
 function deriveScreenerTags(fund) {
   if (tagCache.has(fund.id)) return tagCache.get(fund.id)
 
@@ -112,14 +148,14 @@ function deriveScreenerTags(fund) {
     taxBenefit: fund.taxBenefit || 'none',
     dividendPolicy,
     minInvestment: fund.minInvestment ?? null,
-    // legacy (feeder/offshore)
-    fxHedging: fund.fxHedging ?? null, // real API field now — see fundinfoApi.js mapFxHedging()
-    geography: fund.geography?.length ? fund.geography : [],
-    megatrend: fund.megatrend?.length ? fund.megatrend : fund.themes?.length ? fund.themes : [],
-    style: fund.style || null,
-    // new (thai/mixed) — no real API field for either yet
-    investmentStyle: fund.investmentStyle || null,
-    size: fund.size || null,
+    // legacy (feeder/offshore) — real API fields, see fundinfoApi.js mapEnum()/normalizeFund()
+    fxHedging: fund.fxHedging ?? null,
+    geography: fund.geography ?? null,
+    megatrend: fund.megatrend ?? null,
+    style: fund.managementStyle ?? null,
+    // new (thai/mixed) — same underlying field as `style` above
+    investmentStyle: fund.managementStyle ?? null,
+    size: fund.marketCapFocus ?? null,
     metrics: { sd, sharpe, maxDrawdown },
   }
 
@@ -131,6 +167,20 @@ function toggleInArray(arr, value) {
   const at = arr.indexOf(value)
   if (at > -1) arr.splice(at, 1)
   else arr.push(value)
+}
+
+// A fund with no real minimum_initial_thb (value === null) never matches a
+// selected bucket — excluded as unknown, same convention as the id filters
+// above. max is exclusive (so 1000 lands in the "1,000-10,000" bucket, not
+// "below 1,000") to keep buckets from double-counting their shared boundary.
+function matchesMinInvestment(value, rangeId) {
+  if (!rangeId) return true
+  const range = MIN_INVESTMENT_OPTIONS.find((option) => option.value === rangeId)
+  if (!range) return true
+  if (value == null) return false
+  if (range.min != null && value < range.min) return false
+  if (range.max != null && value >= range.max) return false
+  return true
 }
 
 // cache ต่อ type เหมือน useFundinfoCategory/useFundinfoRanking — เผื่ออนาคตมีมากกว่าหนึ่งจุด
@@ -175,17 +225,19 @@ function createFundinfoScreener(type) {
       .filter(({ tags }) => !screener.taxBenefit || tags.taxBenefit === screener.taxBenefit)
       .filter(({ tags }) => !screener.dividendPolicy || tags.dividendPolicy === screener.dividendPolicy)
       .filter(({ tags }) => !screener.fxHedging || tags.fxHedging === screener.fxHedging)
-      // Bug fix — minInvestment/geography/megatrend/style/investmentStyle/
-      // size have no real API field at all (see deriveScreenerTags), so
-      // their tags are always null/[]. Filtering on them used to silently
-      // exclude every fund the moment an option was picked (`null < x`
-      // coerces to `0 < x`, `[].some(...)` is always false) — from the
-      // user's perspective, selecting any of these wiped the whole list.
-      // Left as a genuine no-op instead: the dropdown/chips stay fully
-      // interactive (so the UI is untouched) but don't narrow results,
-      // since there's no real data to narrow by yet. Swap back to an active
-      // filter the moment normalizeFund() maps a real field for any of
-      // these (fxHedging above already made that switch).
+      // Bug fix — geography/megatrend/style/investmentStyle/size now have
+      // real single-value API fields (see deriveScreenerTags): a fund
+      // matches when no chip is selected, or its one real value is among the
+      // selected ids. A fund the API hasn't classified (tag === null) still
+      // never matches any chip — excluded as unknown, not guessed.
+      .filter(({ tags }) => !screener.geography.length || (tags.geography != null && screener.geography.includes(tags.geography)))
+      .filter(({ tags }) => !screener.megatrend.length || (tags.megatrend != null && screener.megatrend.includes(tags.megatrend)))
+      .filter(({ tags }) => !screener.style.length || (tags.style != null && screener.style.includes(tags.style)))
+      .filter(({ tags }) => !screener.investmentStyle.length || (tags.investmentStyle != null && screener.investmentStyle.includes(tags.investmentStyle)))
+      .filter(({ tags }) => !screener.sizeCharacteristic.length || (tags.size != null && screener.sizeCharacteristic.includes(tags.size)))
+      // minInvestment is a real numeric field (minimum_initial_thb) matched
+      // against the UI's range buckets rather than an exact id.
+      .filter(({ tags }) => matchesMinInvestment(tags.minInvestment, screener.minInvestment))
       .filter(({ fund, tags }) =>
         screener.activeExtraMetrics.every((key) => {
           const min = screener.extraMetricMin[key]

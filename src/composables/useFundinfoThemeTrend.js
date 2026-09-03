@@ -12,7 +12,34 @@ import { useFundinfoStore } from '../stores/fundinfoStore'
 // ==========================================================================
 
 const GLOBAL_RETURN = 12.8
-export const CMP_LABELS = ['ก.ค. 68', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.', 'ม.ค. 69', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค. 69']
+const CMP_LABEL_COUNT = 13
+
+// Bug fix — this used to be a hardcoded array frozen at whatever month it was
+// written ("ก.ค. 68"–"ก.ค. 69"), so it silently drifted out of sync with the
+// real calendar the moment that window passed (e.g. by 2026-09-03 the "today"
+// end of that array already pointed at July, two months stale). Build the
+// 13-point month timeline relative to the current date instead — last label
+// is always the current month, each earlier one steps back a month. Buddhist
+// year is shown on the first/last label (to disambiguate the two ends, which
+// share the same month name a year apart) and on every January boundary,
+// matching the original array's own labeling convention.
+const THAI_MONTH_ABBR = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.']
+
+function buddhistYear2Digit(gregorianYear) {
+  return String((gregorianYear + 543) % 100).padStart(2, '0')
+}
+
+function buildCmpLabels(n = CMP_LABEL_COUNT, today = new Date()) {
+  return Array.from({ length: n }, (_, i) => {
+    const monthsAgo = n - 1 - i
+    const date = new Date(today.getFullYear(), today.getMonth() - monthsAgo, 1)
+    const monthAbbr = THAI_MONTH_ABBR[date.getMonth()]
+    const showYear = i === 0 || i === n - 1 || date.getMonth() === 0
+    return showYear ? `${monthAbbr} ${buddhistYear2Digit(date.getFullYear())}` : monthAbbr
+  })
+}
+
+export const CMP_LABELS = buildCmpLabels()
 export const COMPARE_COLORS = ['#2456d8', '#0e9f6e', '#e0a411', '#7a5af5', '#e2557a', '#0891b2', '#f04438']
 export const COMPARE_DASH = [[], [8, 3], [3, 2], [10, 3, 2, 3], [6, 2], [2, 2], [12, 3]]
 const MAX_SELECTED = 7

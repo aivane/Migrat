@@ -73,18 +73,75 @@ export function useFundinfoMarketLens(type = 'mixed') {
   // dozen funds)", firing every backfill request in one uncapped
   // Promise.all-shaped burst. That assumption broke the moment
   // fundinfoApi.js started including TH-market funds regardless of the
-  // (backend-buggy) is_feeder_fund flag: mixed jumped to 473 funds, and 473
-  // concurrent /funds/{code} calls started 502-ing the recon API/ngrok
-  // tunnel outright. Cap concurrency instead of firing every request at once.
-  const DETAIL_BACKFILL_CONCURRENCY = 8
+  // (backend-buggy) is_feeder_fund flag: mixed jumped to 473 funds.
+  //
+  // Bug fix #2 — capping *concurrency* alone (originally 8, then 3) wasn't
+  // enough: verified live (dev proxy terminal) that requests were failing
+  // not with a clean HTTP error but "Client network socket disconnected
+  // before secure TLS connection was established" — the recon API/ngrok
+  // tunnel is resetting the connection mid-handshake, before any HTTP layer
+  // is even reached. That's consistent with a hard connection-RATE ceiling
+  // (e.g. ngrok free tier), not a concurrency one.
+  //
+  // Bug fix #3 — the user reported the page itself feeling like it "crashes"
+  // right on open. Two compounding causes: (a) this backfill used to start
+  // `immediate: true` at the exact same moment as every other request the
+  // page fires (funds list, stocks/top, portfolio-allocation, nav-history
+  // charts elsewhere) — the worst possible instant to also open 473 more
+  // connections; (b) it targeted literally every mixed fund with no ceiling,
+  // so even a healthy tunnel would be busy for minutes. Fixed by: capping
+  // the backfill to the BACKFILL_MAX_FUNDS largest funds by AUM (Market Lens
+  // groups by asset-class weight — the biggest funds already cover every
+  // real scope; the long tail of small funds barely changes which groups
+  // show up), delaying the start so it never competes with the page's own
+  // first paint, and a circuit breaker that stops the whole backfill after
+  // several failures in a row instead of grinding through hundreds of
+  // certain-to-fail requests against a tunnel that's clearly down. Retry
+  // with backoff still covers the common case of one fund's request landing
+  // in a bad moment (loadFundById() allows a retry: it only marks
+  // detailLoaded on success, so a plain re-call after a failure re-fetches).
+  // This only slows/eventually-fills-in how fast Market Lens groups appear —
+  // the page and chart already render whatever's loaded so far (see the
+  // `scopes`/`watch` below), never blocks on the full backfill finishing.
+  const BACKFILL_MAX_FUNDS = 80
+  const BACKFILL_START_DELAY_MS = 1500
+  const DETAIL_BACKFILL_CONCURRENCY = 2
+  const DETAIL_BACKFILL_DELAY_MS = 400
+  const DETAIL_BACKFILL_RETRY_DELAYS_MS = [1000, 3000]
+  const CIRCUIT_BREAKER_MAX_CONSECUTIVE_FAILURES = 6
   let detailBackfillStarted = false
+
+  async function loadFundWithRetry(id) {
+    for (const retryDelay of [0, ...DETAIL_BACKFILL_RETRY_DELAYS_MS]) {
+      if (retryDelay) await new Promise((resolve) => setTimeout(resolve, retryDelay))
+      const fund = await fundinfoStore.loadFundById(id).catch(() => null)
+      if (fund) return true
+    }
+    return false
+  }
+
   async function backfillDetails(list) {
-    const queue = list.filter((fund) => !fundinfoStore.hasFundDetail(fund.id))
+    const queue = [...list]
+      .sort((a, b) => (b.aum || 0) - (a.aum || 0))
+      .slice(0, BACKFILL_MAX_FUNDS)
+      .filter((fund) => !fundinfoStore.hasFundDetail(fund.id))
     let cursor = 0
+    let consecutiveFailures = 0
+    let circuitOpen = false
     async function worker() {
-      while (cursor < queue.length) {
+      while (cursor < queue.length && !circuitOpen) {
         const fund = queue[cursor++]
-        await fundinfoStore.loadFundById(fund.id).catch(() => null)
+        const ok = await loadFundWithRetry(fund.id)
+        consecutiveFailures = ok ? 0 : consecutiveFailures + 1
+        if (consecutiveFailures >= CIRCUIT_BREAKER_MAX_CONSECUTIVE_FAILURES) {
+          // Backend/tunnel is clearly down right now — stop hammering it.
+          // Whatever loaded so far stays; the rest just won't have a
+          // scope-level asset mix this session. Nothing else on the page
+          // depends on this finishing.
+          circuitOpen = true
+          return
+        }
+        await new Promise((resolve) => setTimeout(resolve, DETAIL_BACKFILL_DELAY_MS))
       }
     }
     await Promise.all(Array.from({ length: DETAIL_BACKFILL_CONCURRENCY }, worker))
@@ -94,7 +151,7 @@ export function useFundinfoMarketLens(type = 'mixed') {
     (list) => {
       if (detailBackfillStarted || !list.length) return
       detailBackfillStarted = true
-      backfillDetails(list)
+      setTimeout(() => backfillDetails(list), BACKFILL_START_DELAY_MS)
     },
     { immediate: true },
   )
