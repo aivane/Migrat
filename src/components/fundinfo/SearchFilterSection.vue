@@ -147,7 +147,7 @@ function handleToggleAdvanced() {
       <div v-else class="screener-advanced">
         <div>
           <h3>FX Hedging <small>(นโยบายป้องกันความเสี่ยงค่าเงิน)</small></h3>
-          <div class="screener-pills"><button v-for="option in fxHedgingOptions" :key="option" type="button" :class="{ active: screener.fxHedging === option }" @click="setFxHedging(option)">{{ option }}</button></div>
+          <div class="screener-pills"><button v-for="option in fxHedgingOptions" :key="option.id" type="button" :class="{ active: screener.fxHedging === option.id }" @click="setFxHedging(option.id)">{{ option.label }}</button></div>
         </div>
         <div>
           <h3>Geography <small>(ภูมิภาค/ประเทศ)</small></h3>

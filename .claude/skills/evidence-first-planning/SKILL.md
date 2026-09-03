@@ -1,6 +1,6 @@
 ---
 name: evidence-first-planning
-description: Use when starting a new task, feature, or bug fix, or about to write a plan or hypothesis based on memory/assumption instead of checking the real system — including when picking up prior work, when unsure how an API/data/behavior actually works, or when a bug's cause "seems obvious" but hasn't been confirmed against real logs, data, or output.
+description: Use when starting a new task, feature, or bug fix, or about to write a plan or hypothesis based on memory/assumption instead of checking the real system — including when picking up prior work, when unsure how an API/data/behavior actually works, when a bug's cause "seems obvious" but hasn't been confirmed against real logs, data, or output, or when about to say a change is done/fixed/working without having run and observed it.
 ---
 
 # Evidence-First Planning
@@ -40,6 +40,14 @@ INVESTIGATE → PLAN → ACT
 2. **Gather evidence before hypothesizing.** Read the actual data flowing through (API response, DB row, prop value) at the point closest to the symptom.
 3. **State the hypothesis and the evidence for it, explicitly.** "Probably a null field" is not a hypothesis until you've checked that the field is actually null.
 4. **Verify the fix against real data**, not "the code compiles" or "it looks right now."
+
+## Before Declaring Work Done
+
+**REQUIRED SUB-SKILL:** superpowers:verification-before-completion — before saying a change is complete, fixed, or passing:
+
+1. **Run the actual verification** — the build, the affected page in a real browser, the real command — not "the diff looks right."
+2. **Confirm against real output**, the same evidence bar as Investigate above (a screenshot, a console log, a command's actual output) — not an assumption of what it should show.
+3. **State what you verified**, not what you expect now works. If you couldn't verify something (no browser, no test suite), say so explicitly instead of implying it passed.
 
 ## This Project
 

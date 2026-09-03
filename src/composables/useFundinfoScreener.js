@@ -50,7 +50,17 @@ export const MIN_INVESTMENT_OPTIONS = [
 ]
 
 // Legacy advanced filters — feeder / offshore only, unchanged.
-export const FX_HEDGING_OPTIONS = ['Fully Hedged (100%)', 'ตามดุลยพินิจ (บางส่วน)', 'Unhedged (ไม่ป้องกัน)']
+// fxHedging is now a real API-backed filter (fund.fxHedging, mapped to a
+// stable id in fundinfoApi.js's mapFxHedging()) — compare by id, not label,
+// so relabeling these options never breaks the filter. Funds with no FX
+// exposure ('na') or an unrecognized raw value (null) simply don't match
+// any of these chips, same as picking no filter shows everyone.
+export const FX_HEDGING_OPTIONS = [
+  { id: 'full', label: 'Fully Hedged (100%)' },
+  { id: 'discretionary', label: 'ตามดุลยพินิจ' },
+  { id: 'partial', label: 'บางส่วน' },
+  { id: 'none', label: 'Unhedged (ไม่ป้องกัน)' },
+]
 export const GEOGRAPHY_OPTIONS = ['Global Equity', 'US Equity', 'China Equity', 'Europe', 'Asia ex-Japan', 'Emerging Markets']
 export const MEGATREND_OPTIONS = ['Technology', 'AI & Robotics', 'Semiconductor', 'Healthcare', 'ESG / ยั่งยืน', 'Gold / Commodities']
 export const STYLE_OPTIONS = ['Passive (ดัชนี)', 'Active (เชิงรุก)', 'Dividend (ปันผล)']
@@ -102,8 +112,8 @@ function deriveScreenerTags(fund) {
     taxBenefit: fund.taxBenefit || 'none',
     dividendPolicy,
     minInvestment: fund.minInvestment ?? null,
-    // legacy (feeder/offshore) — no real API field for any of these yet
-    fxHedging: fund.fxHedging || null,
+    // legacy (feeder/offshore)
+    fxHedging: fund.fxHedging ?? null, // real API field now — see fundinfoApi.js mapFxHedging()
     geography: fund.geography?.length ? fund.geography : [],
     megatrend: fund.megatrend?.length ? fund.megatrend : fund.themes?.length ? fund.themes : [],
     style: fund.style || null,
@@ -164,17 +174,18 @@ function createFundinfoScreener(type) {
     taggedFunds.value
       .filter(({ tags }) => !screener.taxBenefit || tags.taxBenefit === screener.taxBenefit)
       .filter(({ tags }) => !screener.dividendPolicy || tags.dividendPolicy === screener.dividendPolicy)
-      // Bug fix — minInvestment/fxHedging/geography/megatrend/style/
-      // investmentStyle/size have no real API field at all (see
-      // deriveScreenerTags), so their tags are always null/[]. Filtering on
-      // them used to silently exclude every fund the moment an option was
-      // picked (`null < x` coerces to `0 < x`, `[].some(...)` is always
-      // false) — from the user's perspective, selecting any of these wiped
-      // the whole list. Left as a genuine no-op instead: the dropdown/chips
-      // stay fully interactive (so the UI is untouched) but don't narrow
-      // results, since there's no real data to narrow by yet. Swap back to
-      // an active filter the moment normalizeFund() maps a real field for
-      // any of these.
+      .filter(({ tags }) => !screener.fxHedging || tags.fxHedging === screener.fxHedging)
+      // Bug fix — minInvestment/geography/megatrend/style/investmentStyle/
+      // size have no real API field at all (see deriveScreenerTags), so
+      // their tags are always null/[]. Filtering on them used to silently
+      // exclude every fund the moment an option was picked (`null < x`
+      // coerces to `0 < x`, `[].some(...)` is always false) — from the
+      // user's perspective, selecting any of these wiped the whole list.
+      // Left as a genuine no-op instead: the dropdown/chips stay fully
+      // interactive (so the UI is untouched) but don't narrow results,
+      // since there's no real data to narrow by yet. Swap back to an active
+      // filter the moment normalizeFund() maps a real field for any of
+      // these (fxHedging above already made that switch).
       .filter(({ fund, tags }) =>
         screener.activeExtraMetrics.every((key) => {
           const min = screener.extraMetricMin[key]

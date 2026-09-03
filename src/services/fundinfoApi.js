@@ -15,6 +15,24 @@ export const VALID_ALLOCATION_TYPES = Object.freeze(['ASSET_CLASS', 'SECTOR', 'R
 // joined on anything but comma), so `/` is safe here.
 export const THEME_ID_PATTERN = /^[a-z0-9_/-]{1,64}$/
 
+// API Data Quality — `fx_hedging` is a full Thai sentence, not a stable
+// enum (e.g. "ป้องกันความเสี่ยงอัตราแลกเปลี่ยนทั้งหมดหรือเกือบทั้งหมด"), so
+// screener filter chips compare against a short id here instead of matching
+// that raw text directly against a differently-worded UI label (would never
+// match). An unrecognized raw string maps to null, not a guess.
+const FX_HEDGING_MAP = {
+  'ป้องกันความเสี่ยงอัตราแลกเปลี่ยนทั้งหมดหรือเกือบทั้งหมด': 'full',
+  'ป้องกันความเสี่ยงอัตราแลกเปลี่ยนตามดุลยพินิจของผู้จัดการกองทุนรวม': 'discretionary',
+  'ป้องกันความเสี่ยงอัตราแลกเปลี่ยนบางส่วน': 'partial',
+  'ไม่ป้องกันความเสี่ยงอัตราแลกเปลี่ยน': 'none',
+}
+
+function mapFxHedging(raw) {
+  const text = safeText(raw, 200)
+  if (!text) return 'na' // ไม่มี field จริง (มักเป็นกองในประเทศ ไม่มี FX exposure)
+  return FX_HEDGING_MAP[text] ?? null
+}
+
 const API_LIST_LIMIT = 1000
 const MAX_TEXT_LENGTH = 300
 const MAX_HOLDINGS = 20
@@ -26,8 +44,14 @@ const DIRECT_LIST_PARAMS = Object.freeze({
   // API Contract — Thai feeder funds are categorised under FOREIGN market_type.
   feeder: Object.freeze({ market_type: 'FOREIGN', is_feeder_fund: 1 }),
   offshore: Object.freeze({ market_type: 'FOREIGN', is_feeder_fund: 0 }),
-  thai: Object.freeze({ market_type: 'TH', is_feeder_fund: 0 }),
-  mixed: Object.freeze({ market_type: 'TH', is_feeder_fund: 0 }),
+  // Bug fix — do not filter by is_feeder_fund here: confirmed live that it's
+  // unreliable under market_type TH (see inferFundType() above), so an
+  // is_feeder_fund:0 param here server-side-excluded 839 real domestic funds
+  // before isFundInType() ever got a chance to classify them correctly.
+  // Fetch every TH-market record and let isFundInType() (category-text based,
+  // not flag based) sort thai vs mixed vs neither.
+  thai: Object.freeze({ market_type: 'TH' }),
+  mixed: Object.freeze({ market_type: 'TH' }),
 })
 
 export function isValidFundType(type) {
@@ -124,9 +148,20 @@ function categoryText(record) {
     .join(' ')
 }
 
+// Bug fix — `is_feeder_fund` is unreliable under market_type TH: confirmed
+// live 2026-09-03 that 839 domestic-only funds (categories "Equity Large
+// Cap"/"Equity General"/"SET 50 Index Fund"/allocation funds — e.g.
+// K-EQUITY, K-SET50, ES-SET50-A) are flagged is_feeder_fund=1 despite never
+// routing through a foreign master fund, which used to make inferFundType()
+// call every one of them 'feeder' and drop them out of both the Thai and
+// Mixed catalogs entirely (they never surfaced in either tab, or in any
+// screener/exposure view scoped to those types). Real feeder funds are, by
+// this API's own convention (see DIRECT_LIST_PARAMS below), always under
+// market_type FOREIGN — so only trust is_feeder_fund there.
 function inferFundType(record) {
-  if (asFlag(record?.is_feeder_fund)) return 'feeder'
-  if (safeText(record?.market_type).toUpperCase() === 'FOREIGN') return 'offshore'
+  const marketType = safeText(record?.market_type).toUpperCase()
+  if (asFlag(record?.is_feeder_fund) && marketType === 'FOREIGN') return 'feeder'
+  if (marketType === 'FOREIGN') return 'offshore'
   if (MIXED_CATEGORY_PATTERN.test(categoryText(record))) return 'mixed'
   return 'thai'
 }
@@ -231,6 +266,7 @@ function normalizeFund(record, requestedType, details = {}) {
     fee: rounded(expenseRatio),
     div: rounded(safePercent(record.dividend_yield)),
     dividendPolicy: safeText(record.dividend_policy),
+    fxHedging: mapFxHedging(record.fx_hedging),
     hasDividend: asFlag(record.has_dividend),
     master,
     masterFund: master,
@@ -548,6 +584,20 @@ export async function fetchFundNavHistory(id, { days = 365 } = {}) {
   }
 }
 
+// API Data Quality — /api/v1/stocks/top?market_type=FOREIGN mixes in plain
+// domestic Thai SET stocks (confirmed live 2026-09-03: 10 of 15 FOREIGN-
+// tagged rows were names like KBANK/GULF/CPALL/BBL — every genuine foreign
+// holding in this dataset has industry/sector both null, while every
+// misclassified Thai one carries Thai SET's own industry/sector taxonomy
+// codes, e.g. GULF industry="RESOURC" sector="ENERG"). Left in, this made a
+// Thai bank top the offshore "most widely held stock" stat and starved every
+// Megatrend/Region scope of real matches (see useFundinfoExposureTrend.js).
+// Drop those rows rather than let a Thai stock masquerade as a foreign one;
+// remove this filter once the backend stops tagging domestic stocks FOREIGN.
+function isMisclassifiedThaiStock(record, marketType) {
+  return marketType === 'FOREIGN' && Boolean(record?.industry || record?.sector)
+}
+
 // API Data Quality — /api/v1/stocks/top rejects (422) any limit above 500
 // (verified live — a hard server-side ceiling, no offset/pagination on this
 // endpoint), and the previous default of 100 was silently truncating real
@@ -564,11 +614,13 @@ export async function fetchTopStocksByMarket(marketType, { limit = 500 } = {}) {
   try {
     if (fundinfoApiMode === 'wordpress') {
       return extractFundList(await wpGet('fundinfo_top_stocks', { market_type: marketType, limit: safeLimit }))
+        .filter((record) => !isMisclassifiedThaiStock(record, marketType))
         .map(mapTopStock)
         .filter(Boolean)
     }
 
     return extractFundList(await reconGet('/api/v1/stocks/top', { market_type: marketType, limit: safeLimit }))
+      .filter((record) => !isMisclassifiedThaiStock(record, marketType))
       .map(mapTopStock)
       .filter(Boolean)
   } catch {
