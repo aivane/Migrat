@@ -106,22 +106,20 @@ export const useDashboardStore = defineStore('dashboard', {
         return this.snapshot()
       }
 
+      // period/sort/page args below are no longer sent to the API — the real
+      // backend endpoints don't support them (see the comments in fundApi.js)
+      // — kept as call-site defaults only where a future redesigned endpoint
+      // might support them again.
       const tasks = {
         allocation: getPortfolioAllocation(),
-        statsForeign: getDashboardStats('FOREIGN', '1M'),
-        statsTH: getDashboardStats('TH', '1M'),
+        statsForeign: getDashboardStats('FOREIGN'),
+        statsTH: getDashboardStats('TH'),
         topForeign: getTopStocks('FOREIGN', 20),
         topTH: getTopStocks('TH', 20),
-        masterEtfs: getMasterEtfs('1M'),
-        thaiEtfs: getThaiEtfs('1M'),
-        fundsForeign: getFundList({
-          type: 'FOREIGN',
-          sort_by: 'aum',
-          sort_dir: 'desc',
-          per_page: 100,
-          page: 1,
-        }),
-        fundsTH: getFundList({ type: 'TH', sort_by: 'aum', sort_dir: 'desc', per_page: 100, page: 1 }),
+        masterEtfs: getMasterEtfs(),
+        thaiEtfs: getThaiEtfs(),
+        fundsForeign: getFundList({ type: 'FOREIGN' }),
+        fundsTH: getFundList({ type: 'TH' }),
       }
 
       const keys = Object.keys(tasks)

@@ -14,6 +14,6 @@ services:
       # Reuses the same proxy-target vars as .env.example (VITE_PROXY_*), read at
       # container start — change these and `docker compose up -d` without rebuilding.
       PROXY_FUND_API: ${VITE_PROXY_FUND_API:-https://api.ideatradefund.com}
-      PROXY_FUND_BACKEND: ${VITE_PROXY_FUND_BACKEND:-https://unexcusable-depreciatingly-lieselotte.ngrok-free.dev}
+      PROXY_FUND_BACKEND: ${VITE_PROXY_FUND_BACKEND:-https://api.ideatradefund.com}
       PROXY_WP_SITE: ${VITE_PROXY_WP_SITE:-https://ideatradefund.com}
     restart: unless-stopped

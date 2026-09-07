@@ -32,7 +32,7 @@ COPY --from=build /app/dist /usr/share/nginx/html
 # Runtime-only — substituted into nginx config on container start via envsubst,
 # so the proxy targets can change (e.g. a rotated ngrok URL) without rebuilding the image.
 ENV PROXY_FUND_API=https://api.ideatradefund.com \
-    PROXY_FUND_BACKEND=https://unexcusable-depreciatingly-lieselotte.ngrok-free.dev \
+    PROXY_FUND_BACKEND=https://api.ideatradefund.com \
     PROXY_WP_SITE=https://ideatradefund.com
 
 EXPOSE 80

@@ -8,7 +8,7 @@ export default defineConfig(({ mode }) => {
 
   // กำหนด Target URL สำหรับ Proxy โดยอ่านจาก .env ก่อน ถ้าไม่มีจะใช้ค่า Default
   const fundApiTarget = env.VITE_PROXY_FUND_API || 'https://api.ideatradefund.com'
-  const fundBackendTarget = env.VITE_PROXY_FUND_BACKEND || 'https://unexcusable-depreciatingly-lieselotte.ngrok-free.dev'
+  const fundBackendTarget = env.VITE_PROXY_FUND_BACKEND || 'https://api.ideatradefund.com'
   const wpSiteTarget = env.VITE_PROXY_WP_SITE || 'https://ideatradefund.com'
 
   return {

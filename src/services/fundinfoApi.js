@@ -616,18 +616,18 @@ function isMisclassifiedThaiStock(record, marketType) {
   return marketType === 'FOREIGN' && Boolean(record?.industry || record?.sector)
 }
 
-// API Data Quality — /api/v1/stocks/top rejects (422) any limit above 500
-// (verified live — a hard server-side ceiling, no offset/pagination on this
-// endpoint), and the previous default of 100 was silently truncating real
-// results: TH market has 197 ranked stocks, so only the top 100 ever loaded.
-// Default to the API's actual max instead — 500 comfortably covers both
-// markets today (TH 197, FOREIGN 67) with room to grow.
-export async function fetchTopStocksByMarket(marketType, { limit = 500 } = {}) {
+// API Data Quality — the 500-row ceiling this used to hard-cap at (422 above
+// it) is gone server-side as of 2026-09-07: limit=501+ now returns 200 with
+// the real count, no offset/pagination needed. That day FOREIGN had already
+// grown to 555 ranked stocks, so the old fixed 500 default was silently
+// truncating 55 real rows. Raise the ceiling well past current usage (TH 158,
+// FOREIGN 555) rather than hand-tuning it to today's exact count again.
+export async function fetchTopStocksByMarket(marketType, { limit = 2000 } = {}) {
   if (!isValidStockMarket(marketType)) {
     throw new Error('Invalid stock market requested')
   }
 
-  const safeLimit = Math.min(Math.max(Math.round(safeNumber(limit, 500)), 1), 500)
+  const safeLimit = Math.min(Math.max(Math.round(safeNumber(limit, 2000)), 1), 2000)
 
   try {
     if (fundinfoApiMode === 'wordpress') {

@@ -86,9 +86,18 @@ export async function getInsightTrend(params = {}) {
     return extractArray(await wpGet('fund_insights_trend', query))
   }
 
-  return extractArray(await reconGet('/insights/trend', query))
+  // API Endpoint — /insights/trend only exists under /api/v2 (confirmed live
+  // against /api/fund/openapi.json 2026-09-07); there is no v1 equivalent.
+  return extractArray(await reconGet('/api/v2/insights/trend', query))
 }
 
+// API Data Quality — /insights/valuation has never existed on the real
+// backend, under any API version (checked the full path list in
+// /api/fund/openapi.json 2026-09-07 — no match). This always 404s; left
+// calling the (nonexistent) endpoint rather than faking a result, so the
+// store's existing per-key error handling shows an honest "unavailable"
+// instead of fabricated valuation data. Remove/replace once the backend
+// ships a real valuation endpoint.
 export async function getInsightValuation(params = {}) {
   const query = { type: 'FOREIGN', sort_by: 'pe_discount', limit: 20, ...params }
 
@@ -99,6 +108,8 @@ export async function getInsightValuation(params = {}) {
   return extractArray(await reconGet('/insights/valuation', query))
 }
 
+// API Data Quality — /insights/popularity does not exist on the real backend
+// either (same check as getInsightValuation above). Same reasoning applies.
 export async function getInsightPopularity(params = {}) {
   const query = { type: 'FOREIGN', limit: 20, ...params }
 
@@ -114,9 +125,12 @@ export async function getInsightThemes(limit = 12) {
     return extractArray(await wpGet('fund_insights_themes', { limit }))
   }
 
-  return extractArray(await reconGet('/insights/themes', { limit }))
+  return extractArray(await reconGet('/api/v1/insights/themes', { limit }))
 }
 
+// API Data Quality — /insights/global-flow does not exist on the real
+// backend either (same check as getInsightValuation above). Same reasoning
+// applies — always 404s, kept honest rather than faked.
 export async function getGlobalFlow(period = '1M') {
   const payload =
     apiMode === 'wordpress'
@@ -132,13 +146,18 @@ export async function getGlobalFlow(period = '1M') {
 }
 
 export async function getFlowTrend(params = {}) {
-  const query = { type: 'FOREIGN', period: '1M', ...params }
+  // API Data Quality — /insights/flow-trend has no `period` filter (confirmed
+  // against /api/fund/openapi.json 2026-09-07: only type/market_type/limit/
+  // offset are accepted) — a `period` query param is silently ignored by the
+  // real backend, so it's dropped here rather than kept as a no-op.
+  const { period, ...rest } = params
+  const query = { type: 'FOREIGN', ...rest }
 
   if (apiMode === 'wordpress') {
-    return wpGet('fund_insights_flow_trend', query)
+    return wpGet('fund_insights_flow_trend', { ...query, period: params.period })
   }
 
-  return reconGet('/insights/flow-trend', query)
+  return reconGet('/api/v1/insights/flow-trend', query)
 }
 
 export async function getThemeFunds(themes = [], limit = 10, params = {}) {
@@ -150,7 +169,7 @@ export async function getThemeFunds(themes = [], limit = 10, params = {}) {
   const payload =
     apiMode === 'wordpress'
       ? await wpGet('fund_insights_theme_funds', query)
-      : await reconGet('/insights/theme-funds', query)
+      : await reconGet('/api/v1/insights/theme-funds', query)
 
   return normalizeThemeFunds(payload, themes)
 }
@@ -164,7 +183,7 @@ export async function getThemeFundsRaw(themes = [], limit = 10, params = {}) {
 
   return apiMode === 'wordpress'
     ? wpGet('fund_insights_theme_funds', query)
-    : reconGet('/insights/theme-funds', query)
+    : reconGet('/api/v1/insights/theme-funds', query)
 }
 
 export async function getFundTrend(code) {
@@ -174,5 +193,5 @@ export async function getFundTrend(code) {
     return wpGet('fund_fund_trend', { code })
   }
 
-  return reconGet(`/funds/${encodeURIComponent(code)}/trend`)
+  return reconGet(`/api/v1/funds/${encodeURIComponent(code)}/trend`)
 }
