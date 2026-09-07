@@ -7,9 +7,10 @@ import { formatFlow } from '../../composables/useFundinfoThemeTrend'
 import { COMPARE_COLORS } from '../../composables/useFundinfoInsight'
 import InfoTooltip from '../common/InfoTooltip.vue'
 import ApiErrorBanner from '../common/ApiErrorBanner.vue'
+import LoadingIndicator from '../common/LoadingIndicator.vue'
 
 const props = defineProps({ type: { type: String, default: 'offshore' } })
-const { accent, heading, itemLabel, stock, state, cards, stockCards, fundCards, selectedEntities, maxSelected, orderOf, select, clearSelection, setRank, stockRankingError, retryStockRanking } = useFundinfoRanking(props.type)
+const { accent, heading, itemLabel, stock, state, cards, stockCards, fundCards, selectedEntities, maxSelected, orderOf, select, clearSelection, setRank, stockRankingLoading, fundsLoading, stockRankingError, retryStockRanking } = useFundinfoRanking(props.type)
 const RANK_COLORS = ['#f0b429', '#94a3b8', '#c2793a']
 
 // มุมมอง "หุ้น" vs "กองทุนไทยที่ถือหุ้น" — เฉพาะแท็บที่เป็นหุ้น (Offshore/Thai)
@@ -21,6 +22,13 @@ const rankView = computed({
   get: () => state.rankView || 'stock',
   set: (value) => { state.rankView = value },
 })
+
+// The active card view's underlying fetch — non-stock tabs (feeder/mixed) and
+// the "fund" ranking view both read from fundinfoStore.getFundsByType(type),
+// which can take a while on a large market (see fetchAllDirectFunds).
+const isRankingLoading = computed(() => (
+  !stock || rankView.value === 'fund' ? fundsLoading.value : stockRankingLoading.value
+))
 
 const stockViewLabel = computed(() => itemLabel.value)
 const fundViewLabel = computed(() => (props.type === 'thai' ? 'กองทุนไทย' : 'กองทุนไทยถือหุ้นต่างประเทศ'))
@@ -78,8 +86,9 @@ function scrollToInsight() { document.getElementById(`insight-${props.type}`)?.s
     </div>
 
     <ApiErrorBanner v-if="stockRankingError" :message="stockRankingError" @retry="retryStockRanking" />
+    <LoadingIndicator v-else-if="isRankingLoading" label="กำลังโหลดข้อมูลจัดอันดับ..." />
 
-    <div class="ranking-section">
+    <div v-else class="ranking-section">
 
       <div class="ranking-card-grid">
         <article v-for="(card, cardIndex) in activeSection.cards" :key="card.key" class="ranking-card">

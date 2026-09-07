@@ -1,6 +1,6 @@
 <!-- FundTableWithCompare.vue -->
 <script setup>
-import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import { useFundinfoScreener } from '../../composables/useFundinfoScreener'
 import { useFundinfoWishlist } from '../../composables/useFundinfoWishlist'
 import { useFundinfoStore } from '../../stores/fundinfoStore'
@@ -10,10 +10,11 @@ import FundCompareTable from './FundCompareTable.vue'
 import FundDetailRow from '../../views/fundinfo/FundDetailRow.vue'
 import InfoTooltip from '../common/InfoTooltip.vue'
 import ApiErrorBanner from '../common/ApiErrorBanner.vue'
+import LoadingIndicator from '../common/LoadingIndicator.vue'
 
 const props = defineProps({ type: { type: String, default: 'offshore' } })
 
-const { screenedFunds, toggleCompare, compareFunds, compareOrderOf, loadError } = useFundinfoScreener(props.type)
+const { screenedFunds, toggleCompare, compareFunds, compareOrderOf, loadError, isLoading } = useFundinfoScreener(props.type)
 const { isWished, toggleWish } = useFundinfoWishlist()
 // API Compatibility — /funds/list never returns a fund's own holdings/
 // allocations (only /funds/{code} does, one fund at a time — there's no bulk
@@ -74,12 +75,27 @@ const displayFunds = computed(() => {
   return funds.sort((a, b) => (sortValue(a, localSortKey.value) - sortValue(b, localSortKey.value)) * dir)
 })
 
+// Perf: a screener match can run into the tens of thousands of rows (the real
+// offshore/thai fund universe) — rendering every <tr> at once made the table
+// itself freeze the page even after the data had loaded. Page the render
+// only; displayFunds.length (used for the "X กอง" count) still reflects the
+// full match count.
+const PAGE_SIZE = 50
+const currentPage = ref(1)
+const totalPages = computed(() => Math.max(1, Math.ceil(displayFunds.value.length / PAGE_SIZE)))
+const pagedFunds = computed(() => {
+  const start = (currentPage.value - 1) * PAGE_SIZE
+  return displayFunds.value.slice(start, start + PAGE_SIZE)
+})
+
+watch([screenedFunds, localSortKey, localSortDir], () => { currentPage.value = 1 })
+
 // Perf: badge/ticker/weight/tax-label are pure functions of `fund` alone, so
-// derive them once per displayFunds change instead of re-running them for
-// every visible row on every render (expand toggle, star toggle, compare
-// toggle previously re-evaluated all of these for all rows every click).
+// derive them once per page change instead of re-running them for every
+// visible row on every render (expand toggle, star toggle, compare toggle
+// previously re-evaluated all of these for all rows every click).
 const tableRows = computed(() =>
-  displayFunds.value.map((fund) => ({
+  pagedFunds.value.map((fund) => ({
     fund,
     badge: badgeLabel(fund),
     badgeCls: badgeTone(fund),
@@ -303,13 +319,36 @@ function handleToggleCompare(fundId) {
             <FundDetailRow v-if="expandedFundId === fund.id" :fund="fund" :colspan="columnCount" :in-compare="compareOrderOf(fund.id) > -1" @compare="handleToggleCompare(fund.id)" />
           </template>
 
-          <tr v-if="!displayFunds.length">
+          <tr v-if="isLoading">
+            <td :colspan="columnCount"><LoadingIndicator label="กำลังโหลดข้อมูลกองทุน..." /></td>
+          </tr>
+          <tr v-else-if="!displayFunds.length">
             <td :colspan="columnCount" class="fund-results-empty">ไม่พบกองทุนที่ตรงกับเงื่อนไข</td>
           </tr>
         </tbody>
       </table>
     </div>
-    
+
+    <div v-if="totalPages > 1" class="flex items-center justify-center gap-3 mt-3 text-sm">
+      <button
+        type="button"
+        class="px-3 py-1 rounded border border-slate-300 disabled:opacity-40 disabled:cursor-not-allowed"
+        :disabled="currentPage <= 1"
+        @click="currentPage--"
+      >
+        ← ก่อนหน้า
+      </button>
+      <span class="text-slate-500">หน้า {{ currentPage }} / {{ totalPages }}</span>
+      <button
+        type="button"
+        class="px-3 py-1 rounded border border-slate-300 disabled:opacity-40 disabled:cursor-not-allowed"
+        :disabled="currentPage >= totalPages"
+        @click="currentPage++"
+      >
+        ถัดไป →
+      </button>
+    </div>
+
     <!-- ไม่จำเป็นต้องแก้โค้ดคอมโพเนนต์เปรียบเทียบตาราง เพราะมันผูกกับ selectedFundsList อยู่แล้ว -->
     <FundCompareTable :id="`fund-compare-${props.type}`" :selected-funds="selectedFundsList" @clear-all="clearAllCompare" @remove-fund="toggleCompare" />
     <p class="fund-results-footnote">Fundinfo v3.2.1 · Master Fund Comparison Workspace · ข้อมูลเพื่อการออกแบบ ไม่ใช่คำแนะนำการลงทุน</p>

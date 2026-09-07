@@ -6,6 +6,7 @@ import { useFundinfoExposureTrend, holdingIcon, trendSeries } from '../../compos
 import { performanceSeries, CMP_LABELS, COMPARE_COLORS, COMPARE_DASH } from '../../composables/useFundinfoThemeTrend'
 import InfoTooltip from '../common/InfoTooltip.vue'
 import ApiErrorBanner from '../common/ApiErrorBanner.vue'
+import LoadingIndicator from '../common/LoadingIndicator.vue'
 
 const props = defineProps({ type: { type: String, default: 'offshore' } })
 
@@ -28,6 +29,7 @@ const {
   toggle,
   clear,
   setScopeMode,
+  stocksLoading,
   stocksError,
   retryStocks,
 } = useFundinfoExposureTrend(props.type)
@@ -174,6 +176,7 @@ onUnmounted(() => detailChart?.destroy())
       </header>
 
       <ApiErrorBanner v-if="stocksError" :message="stocksError" @retry="retryStocks" />
+      <LoadingIndicator v-else-if="stocksLoading" label="กำลังโหลดข้อมูลแนวโน้ม..." />
 
       <div class="industry-kpis">
         <button type="button" :disabled="!leaderPerf" @click="leaderPerf && toggle(leaderPerf.id)">

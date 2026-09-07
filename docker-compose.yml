@@ -1,0 +1,19 @@
+services:
+  web:
+    build:
+      context: .
+      args:
+        VITE_API_MODE: ${VITE_API_MODE:-direct}
+        VITE_FUNDINFO_API_MODE: ${VITE_FUNDINFO_API_MODE:-direct}
+        VITE_ARTICLES_DATA_SOURCE: ${VITE_ARTICLES_DATA_SOURCE:-ajax}
+        VITE_FEATURED_ARTICLE_ID: ${VITE_FEATURED_ARTICLE_ID:-511}
+        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
+    ports:
+      - "${PORT:-8080}:80"
+    environment:
+      # Reuses the same proxy-target vars as .env.example (VITE_PROXY_*), read at
+      # container start — change these and `docker compose up -d` without rebuilding.
+      PROXY_FUND_API: ${VITE_PROXY_FUND_API:-https://api.ideatradefund.com}
+      PROXY_FUND_BACKEND: ${VITE_PROXY_FUND_BACKEND:-https://unexcusable-depreciatingly-lieselotte.ngrok-free.dev}
+      PROXY_WP_SITE: ${VITE_PROXY_WP_SITE:-https://ideatradefund.com}
+    restart: unless-stopped

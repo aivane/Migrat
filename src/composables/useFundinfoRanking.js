@@ -468,6 +468,7 @@ function createFundinfoRanking(type) {
     stock,
     usesApiStocks,
     stockRankingLoading,
+    fundsLoading,
     stockRankingError,
     retryStockRanking,
     accent,
