@@ -140,7 +140,16 @@ function mapHoldings(holdings) {
     const name = safeText(holding.clean_holding_name || holding.raw_holding_name || holding.stock_symbol)
     if (!name) return []
 
-    return [{ name, percent: rounded(safePercent(holding.holding_percent)) }]
+    // API Contract — try multiple field names; different API versions may use different keys.
+    const rawPercent =
+      holding.holding_percent ??
+      holding.percent ??
+      holding.weight ??
+      holding.portfolio_percent ??
+      holding.net_asset_percent ??
+      0
+
+    return [{ name, percent: rounded(safePercent(rawPercent)) }]
   })
 }
 

@@ -64,6 +64,7 @@ function normalizeFund(fund, targetType) {
     return_5y: Number(fund.return_5y ?? 0),
     sharpe_1y: Number(fund.sharpe_ratio_1y ?? 0),
     max_drawdown_1y: Number(fund.max_drawdown_1y ?? 0),
+    expense_ratio: Number(fund.expense_ratio ?? fund.fee ?? 0),
     estimated_flow_1y: Number(fund.estimated_flow_1y_m_thb ?? 0),
     unit_change_1m: Number(fund.unit_change_1m ?? 0),
     unit_change_1y: Number(fund.unit_change_1y ?? 0),

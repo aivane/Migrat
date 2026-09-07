@@ -1,6 +1,7 @@
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import Chart from 'chart.js/auto'
 import { useDashboardStore } from '../stores/dashboardStore'
 import { getFundDetail, normalizeFund } from '../services/fundApi'
 
@@ -51,14 +52,14 @@ const pieInstances = {}
 function drawExpandPie(fund) {
   const canvasId = `fd-pe-${fund.code}`
   const canvas = document.getElementById(canvasId)
-  if (!canvas || typeof window.Chart === 'undefined') return
+  if (!canvas) return
   if (pieInstances[canvasId]) { pieInstances[canvasId].destroy() }
 
   const top5 = (fund.top || []).slice(0, 5)
   const data = top5.map(h => ({ name: h.s || h.symbol || '-', value: Number(h.p ?? h.percent ?? 0) }))
   const visualData = data.map(x => Math.max(Number(x.value || 0), 4))
 
-  pieInstances[canvasId] = new window.Chart(canvas, {
+  pieInstances[canvasId] = new Chart(canvas, {
     type: 'doughnut',
     data: {
       labels: data.map(x => x.name),
@@ -710,18 +711,17 @@ function clearCompare() {
   selectedForCompare.value = []
 }
 
-function openCompareModal() {
-  if (selectedForCompare.value.length < 2) {
-    alert('กรุณาเลือกอย่างน้อย 2 กองทุนเพื่อเปรียบเทียบ')
-    return
-  }
-  compareModalOpen.value = true
-  document.body.style.overflow = 'hidden'
-}
+// ── Compare Modal Charts ──────────────────────────────────────────────────
+const COMPARE_COLORS = ['#2563eb', '#10b981', '#f59e0b', '#8b5cf6']
+const COMPARE_COLORS_BG = ['rgba(37,99,235,0.18)', 'rgba(16,185,129,0.18)', 'rgba(245,158,11,0.18)', 'rgba(139,92,246,0.18)']
 
-function closeCompareModal() {
-  compareModalOpen.value = false
-  document.body.style.overflow = ''
+const compareReturnChartRef = ref(null)
+const compareRiskChartRef = ref(null)
+let compareChartInstances = {}
+
+function destroyCompareCharts() {
+  Object.values(compareChartInstances).forEach(chart => chart?.destroy())
+  compareChartInstances = {}
 }
 
 const comparedFundObjects = computed(() => {
@@ -730,6 +730,141 @@ const comparedFundObjects = computed(() => {
     return allLoaded.find(f => String(f.code || '').trim().toUpperCase() === code) || { code, name: code }
   })
 })
+
+function renderCompareCharts() {
+  destroyCompareCharts()
+  if (!compareModalOpen.value || !comparedFundObjects.value.length) return
+
+  const funds = comparedFundObjects.value
+
+  // 1. Chart ผลตอบแทน (%)
+  if (compareReturnChartRef.value) {
+    const returnPeriods = [
+      { key: 'r1m', label: '1 เดือน (1M)' },
+      { key: 'r3m', label: '3 เดือน (3M)' },
+      { key: 'ret', label: '1 ปี (1Y)' },
+    ]
+    const has3y = funds.some(f => Number(f.return_3y ?? 0) !== 0)
+    if (has3y) {
+      returnPeriods.push({ key: 'return_3y', label: '3 ปี (3Y)' })
+    }
+
+    const datasets = funds.map((f, i) => ({
+      label: f.code,
+      data: returnPeriods.map(p => Number((f[p.key] ?? 0).toFixed(2))),
+      backgroundColor: COMPARE_COLORS_BG[i % COMPARE_COLORS_BG.length],
+      borderColor: COMPARE_COLORS[i % COMPARE_COLORS.length],
+      borderWidth: 2,
+      borderRadius: 4,
+    }))
+
+    compareChartInstances.return = new Chart(compareReturnChartRef.value, {
+      type: 'bar',
+      data: {
+        labels: returnPeriods.map(p => p.label),
+        datasets,
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: true,
+            position: 'top',
+            labels: { boxWidth: 12, font: { family: 'Prompt', size: 11 }, color: '#334155' },
+          },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => ` ${ctx.dataset.label}: ${ctx.parsed.y >= 0 ? '+' : ''}${ctx.parsed.y.toFixed(2)}%`,
+            },
+          },
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { font: { family: 'Prompt', size: 11 }, color: '#64748b' } },
+          y: {
+            grid: { color: 'rgba(226, 232, 240, 0.8)' },
+            ticks: {
+              font: { family: 'Prompt', size: 11 },
+              color: '#64748b',
+              callback: (v) => `${v}%`,
+            },
+          },
+        },
+      },
+    })
+  }
+
+  // 2. Chart ความเสี่ยง & คุณภาพ
+  if (compareRiskChartRef.value) {
+    const riskMetrics = [
+      { key: 'risk', label: 'ระดับความเสี่ยง (1-8)' },
+      { key: 'sharpe_1y', label: 'Sharpe Ratio 1Y' },
+      { key: 'max_drawdown_1y', label: 'Max Drawdown (%)' },
+    ]
+
+    const datasets = funds.map((f, i) => ({
+      label: f.code,
+      data: [
+        Number(f.risk || 0),
+        Number((f.sharpe_1y ?? 0).toFixed(2)),
+        Number((f.max_drawdown_1y ?? 0).toFixed(2)),
+      ],
+      backgroundColor: COMPARE_COLORS_BG[i % COMPARE_COLORS_BG.length],
+      borderColor: COMPARE_COLORS[i % COMPARE_COLORS.length],
+      borderWidth: 2,
+      borderRadius: 4,
+    }))
+
+    compareChartInstances.risk = new Chart(compareRiskChartRef.value, {
+      type: 'bar',
+      data: {
+        labels: riskMetrics.map(m => m.label),
+        datasets,
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: true,
+            position: 'top',
+            labels: { boxWidth: 12, font: { family: 'Prompt', size: 11 }, color: '#334155' },
+          },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => ` ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(2)}`,
+            },
+          },
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { font: { family: 'Prompt', size: 11 }, color: '#64748b' } },
+          y: {
+            grid: { color: 'rgba(226, 232, 240, 0.8)' },
+            ticks: { font: { family: 'Prompt', size: 11 }, color: '#64748b' },
+          },
+        },
+      },
+    })
+  }
+}
+
+function openCompareModal() {
+  if (selectedForCompare.value.length < 2) {
+    alert('กรุณาเลือกอย่างน้อย 2 กองทุนเพื่อเปรียบเทียบ')
+    return
+  }
+  compareModalOpen.value = true
+  document.body.style.overflow = 'hidden'
+  nextTick(() => {
+    renderCompareCharts()
+  })
+}
+
+function closeCompareModal() {
+  compareModalOpen.value = false
+  document.body.style.overflow = ''
+  destroyCompareCharts()
+}
 
 // ── Back to Top & Page Jump ──────────────────────────────────────────────────
 function handleScroll() {
@@ -757,6 +892,7 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('scroll', handleScroll)
   document.body.style.overflow = ''
+  destroyCompareCharts()
 })
 
 // ── Actions ───────────────────────────────────────────────────────────────────
@@ -1785,11 +1921,28 @@ onMounted(loadInitialDashboard)
             <button class="fi-drawer__close" @click="closeCompareModal" aria-label="ปิด">✕</button>
           </div>
           <div class="fi-compare-modal__body">
+            <!-- ── Compare Charts Section ── -->
+            <div class="fi-compare-charts-grid">
+              <div class="fi-compare-chart-card">
+                <div class="fi-compare-chart-title">📈 เปรียบเทียบผลตอบแทน (%)</div>
+                <div class="fi-compare-chart-container">
+                  <canvas ref="compareReturnChartRef"></canvas>
+                </div>
+              </div>
+              <div class="fi-compare-chart-card">
+                <div class="fi-compare-chart-title">⚖️ ดัชนีความเสี่ยง & คุณภาพ (Risk / Sharpe / Drawdown)</div>
+                <div class="fi-compare-chart-container">
+                  <canvas ref="compareRiskChartRef"></canvas>
+                </div>
+              </div>
+            </div>
+
             <table class="fi-compare-table">
               <thead>
                 <tr>
                   <th class="fi-compare-th--head">หัวข้อเปรียบเทียบ</th>
-                  <th v-for="f in comparedFundObjects" :key="f.code" class="fi-compare-th">
+                  <th v-for="(f, idx) in comparedFundObjects" :key="f.code" class="fi-compare-th">
+                    <span class="fi-compare-color-bar" :style="{ backgroundColor: COMPARE_COLORS[idx % COMPARE_COLORS.length] }"></span>
                     <strong class="fi-compare-code">{{ f.code }}</strong>
                     <p class="fi-compare-name">{{ f.name }}</p>
                     <span class="fi-compare-amc">{{ f.amc }}</span>
@@ -1815,9 +1968,33 @@ onMounted(loadInitialDashboard)
                   </td>
                 </tr>
                 <tr>
+                  <td class="fi-compare-lbl">ผลตอบแทน 3 เดือน (3M)</td>
+                  <td v-for="f in comparedFundObjects" :key="f.code" :class="(f.r3m ?? 0) >= 0 ? 'fi-pos' : 'fi-neg'">
+                    <strong>{{ formatPercent(f.r3m) }}</strong>
+                  </td>
+                </tr>
+                <tr>
                   <td class="fi-compare-lbl">ผลตอบแทน 1 ปี (1Y)</td>
                   <td v-for="f in comparedFundObjects" :key="f.code" :class="(f.ret ?? 0) >= 0 ? 'fi-pos' : 'fi-neg'">
                     <strong>{{ formatPercent(f.ret) }}</strong>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="fi-compare-lbl">Sharpe Ratio (1Y)</td>
+                  <td v-for="f in comparedFundObjects" :key="f.code">
+                    <strong>{{ f.sharpe_1y ? f.sharpe_1y.toFixed(2) : '-' }}</strong>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="fi-compare-lbl">Max Drawdown (1Y)</td>
+                  <td v-for="f in comparedFundObjects" :key="f.code" class="fi-neg">
+                    <strong>{{ f.max_drawdown_1y ? f.max_drawdown_1y.toFixed(2) + '%' : '-' }}</strong>
+                  </td>
+                </tr>
+                <tr v-if="comparedFundObjects.some(f => f.expense_ratio)">
+                  <td class="fi-compare-lbl">ค่าธรรมเนียมรวม (TER)</td>
+                  <td v-for="f in comparedFundObjects" :key="f.code">
+                    <strong>{{ f.expense_ratio ? f.expense_ratio.toFixed(2) + '%' : '-' }}</strong>
                   </td>
                 </tr>
                 <tr>
@@ -3080,6 +3257,43 @@ onMounted(loadInitialDashboard)
 .fi-compare-modal__body {
   padding: 24px;
   overflow-y: auto;
+}
+.fi-compare-charts-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+@media (max-width: 768px) {
+  .fi-compare-charts-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.fi-compare-chart-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px 16px 12px;
+  display: flex;
+  flex-direction: column;
+}
+.fi-compare-chart-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 10px;
+}
+.fi-compare-chart-container {
+  position: relative;
+  height: 200px;
+  width: 100%;
+}
+.fi-compare-color-bar {
+  display: block;
+  height: 4px;
+  width: 36px;
+  border-radius: 2px;
+  margin: 0 auto 8px;
 }
 .fi-compare-table {
   width: 100%;
