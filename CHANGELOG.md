@@ -32,8 +32,9 @@
 
 ### เฉลี่ยกลุ่มไม่ปัดทศนิยม + audit ประวัติการปันผล/top holding % เกิน 100% ([fundinfoApi.js](src/services/fundinfoApi.js))
 - **แก้แล้ว (frontend)**: `categoryAvg` (เฉลี่ยกลุ่ม) ส่ง raw float จาก API ตรงๆ ไม่ปัดเลย (เช่น `0.700666` → โชว์ "+0.700666%") ต่างจากฟิลด์ผลตอบแทนอื่นที่ผ่าน `rounded()` ทั้งหมด — เพิ่ม `optionalRounded()` (null-safe, default 2 ตำแหน่ง) ครอบ 5 ค่าใน `categoryAvg` แทน `optionalNumber()` เดิม — verify สด: "+0.700666%" → "+0.7%", "-0.98926%" → "-0.99%"
+- **แก้แล้ว (frontend) — จุดเดียวกัน พบเพิ่มทีหลัง**: ตาราง "ตัวชี้วัดความเสี่ยง" (SD/Sharpe Ratio/Max Drawdown, ทั้งกองทุนนี้และเฉลี่ยกลุ่ม) เจอบั๊กแบบเดียวกันทุกช่อง — เปลี่ยน `stats`/`stats3y`/`maxDrawdown` จาก `optionalNumber()` เป็น `optionalRounded()` ด้วย — verify สดครบ 3 แท็บ: SD `7.418%/5.805%`→`7.42%/5.81%`, Sharpe `-1.057/-0.888625`→`-1.06/-0.89`, Max Drawdown `-8.818/-5.555531`→`-8.82/-5.56`
 - **บั๊กฝั่ง backend — ไม่ได้แก้ที่นี่**: "ประวัติการปันผล" ว่างเสมอเพราะ `/funds/{code}` ไม่มี field ประวัติวันที่/จำนวนเงินจ่ายจริงเลยสักช่อง (เช็คตรงกับ response แล้ว มีแค่ `status/fund_code/profile/top_holdings/allocations`) — ต้องรอ backend เพิ่ม endpoint ถึงจะมีข้อมูลจริงให้แสดง โค้ดฝั่งเราแสดงข้อความบอกสถานะตรงๆ อยู่แล้ว ไม่ใช่หน้าเสีย
-- **บั๊กฝั่ง backend — ไม่ได้แก้ที่นี่**: `/stocks/top` field `max_holding_weight` (top holding %) เกิน 100% จริงหลายตัวเช็คสดกับ TH market: KBANK 108.2%, BBL 100.29%, KTB 100.02%, SCB 100.12%, TTB 100.44%, BAY 100.04% — มาจาก backend ตรงๆ โค้ดฝั่งเราแค่ `Math.max(0, ...)` กันติดลบ ไม่เคยบวก/ปั้นเพิ่ม หุ้นตัวเดียวถือเกิน 100% ของพอร์ตไม่ได้ในทางตรรกะ ต้องแจ้ง backend แก้ที่ต้นทาง
+- **ไม่ใช่บั๊ก — แก้ความเข้าใจ**: `/stocks/top` field `max_holding_weight` (top holding %) เกิน 100% จริงหลายตัว (KBANK 108.2%, BBL/KTB/SCB/TTB/BAY ~100.0-100.4%) — ตอนแรกเข้าใจว่าเป็นบั๊ก backend แต่ **ยืนยันแล้วว่าเกิน 100% ได้จริงตามข้อมูล ไม่ใช่ error** — ไม่ต้อง clamp ค่านี้ที่ 100% หรือ report เป็นบั๊กซ้ำอีก (บันทึกไว้ใน [context.md §3](context.md))
 
 ### Git / Deployment
 - Merge fundinfoDev (ideatrade) ล่าสุดเข้า fundinfo (aivane/Migrat) → merge master ทับ (แก้ conflict ตามหัวข้อบน) → push ขึ้น `aivane/Migrat:fundinfo`
