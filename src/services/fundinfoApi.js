@@ -152,6 +152,16 @@ function rounded(value, decimals = 2) {
   return Math.round(value * scale) / scale
 }
 
+// Bug fix — categoryAvg (เฉลี่ยกลุ่ม) below used to pass the API's raw float
+// straight through optionalNumber() with no rounding at all (e.g.
+// category_avg_return_3m: 0.700666 rendered as "+0.700666%"), unlike every
+// other percent field in this file which goes through rounded(). Null-safe
+// wrapper so "no data" (null) doesn't get coerced into 0 by rounding it.
+function optionalRounded(value, decimals = 2) {
+  const number = optionalNumber(value)
+  return number == null ? null : rounded(number, decimals)
+}
+
 function asFlag(value) {
   return value === true || value === 1 || value === '1'
 }
@@ -276,7 +286,7 @@ function normalizeFund(record, requestedType, details = {}) {
   const flow1m = rounded(safeNumber(record.estimated_flow_1m_m_thb))
   const flow1y = rounded(safeNumber(record.estimated_flow_1y_m_thb))
   const expenseRatio = safeNumber(record.expense_ratio, safeNumber(record.management_fee))
-  const maxDrawdown = optionalNumber(record.max_drawdown_1y) ?? optionalNumber(record.max_drawdown_3y)
+  const maxDrawdown = optionalRounded(record.max_drawdown_1y) ?? optionalRounded(record.max_drawdown_3y)
   const amc = safeText(record.amc_name)
   const master = safeText(record.main_feeder_fund) || safeText(record.aimc_category_name_en) || category || id
   const themes = [safeText(record.aimc_broad_category_name_th), safeText(record.aimc_category_name_th), marketType]
@@ -374,8 +384,8 @@ function normalizeFund(record, requestedType, details = {}) {
     peRatio: optionalNumber(record.pe_ratio),
     pbRatio: optionalNumber(record.pb_ratio),
     stats: {
-      sharpe: optionalNumber(record.sharpe_ratio_1y),
-      sd: optionalNumber(record.std_1y),
+      sharpe: optionalRounded(record.sharpe_ratio_1y),
+      sd: optionalRounded(record.std_1y),
       maxdd: maxDrawdown,
     },
     // Bug fix — the risk-metric table (FundPerformancePanel.vue) used to
@@ -386,9 +396,9 @@ function normalizeFund(record, requestedType, details = {}) {
     // — no 3M/6M/5Y/10Y equivalent exists for SD/Sharpe/MaxDrawdown at all,
     // so those periods have no real replacement and are dropped, not faked.
     stats3y: {
-      sharpe: optionalNumber(record.sharpe_ratio_3y),
-      sd: optionalNumber(record.std_3y),
-      maxdd: optionalNumber(record.max_drawdown_3y),
+      sharpe: optionalRounded(record.sharpe_ratio_3y),
+      sd: optionalRounded(record.std_3y),
+      maxdd: optionalRounded(record.max_drawdown_3y),
     },
     // Real peer/category averages the API publishes — used to replace the
     // "เฉลี่ยกลุ่ม" (group average) column, which used to be either a mock
@@ -396,11 +406,11 @@ function normalizeFund(record, requestedType, details = {}) {
     // useFundAnalytics.js groupAverage). Only these periods exist: no 3Y/5Y/
     // 10Y peer-return average, and no peer SD at all.
     categoryAvg: {
-      return3m: optionalNumber(record.category_avg_return_3m),
-      return6m: optionalNumber(record.category_avg_return_6m),
-      return1y: optionalNumber(record.category_avg_return_1y),
-      sharpe1y: optionalNumber(record.category_avg_sharpe_1y),
-      maxdd1y: optionalNumber(record.category_avg_max_drawdown_1y),
+      return3m: optionalRounded(record.category_avg_return_3m),
+      return6m: optionalRounded(record.category_avg_return_6m),
+      return1y: optionalRounded(record.category_avg_return_1y),
+      sharpe1y: optionalRounded(record.category_avg_sharpe_1y),
+      maxdd1y: optionalRounded(record.category_avg_max_drawdown_1y),
     },
   }
 }

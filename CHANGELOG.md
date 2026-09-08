@@ -30,9 +30,15 @@
 ### ไม่ใช่บั๊ก — เพิ่ม comment กันเข้าใจผิดซ้ำ ([SearchFilterSection.vue:65](src/components/fundinfo/SearchFilterSection.vue))
 - Mixed Fund ไม่มีปุ่ม "ตัวกรองเพิ่มเติม" (Investment Style/Size) ทั้งที่ `useFundinfoScreener.js` เขียนรองรับไว้และมี field จริงครบ — เข้าใจผิดว่าเป็นบั๊กตอนแรก **user ยืนยันว่าเป็น design decision ตั้งใจ** ไม่ใช่ของค้าง — เพิ่ม comment อธิบายไว้กันงงซ้ำในอนาคต ไม่ได้แก้โค้ด
 
+### เฉลี่ยกลุ่มไม่ปัดทศนิยม + audit ประวัติการปันผล/top holding % เกิน 100% ([fundinfoApi.js](src/services/fundinfoApi.js))
+- **แก้แล้ว (frontend)**: `categoryAvg` (เฉลี่ยกลุ่ม) ส่ง raw float จาก API ตรงๆ ไม่ปัดเลย (เช่น `0.700666` → โชว์ "+0.700666%") ต่างจากฟิลด์ผลตอบแทนอื่นที่ผ่าน `rounded()` ทั้งหมด — เพิ่ม `optionalRounded()` (null-safe, default 2 ตำแหน่ง) ครอบ 5 ค่าใน `categoryAvg` แทน `optionalNumber()` เดิม — verify สด: "+0.700666%" → "+0.7%", "-0.98926%" → "-0.99%"
+- **บั๊กฝั่ง backend — ไม่ได้แก้ที่นี่**: "ประวัติการปันผล" ว่างเสมอเพราะ `/funds/{code}` ไม่มี field ประวัติวันที่/จำนวนเงินจ่ายจริงเลยสักช่อง (เช็คตรงกับ response แล้ว มีแค่ `status/fund_code/profile/top_holdings/allocations`) — ต้องรอ backend เพิ่ม endpoint ถึงจะมีข้อมูลจริงให้แสดง โค้ดฝั่งเราแสดงข้อความบอกสถานะตรงๆ อยู่แล้ว ไม่ใช่หน้าเสีย
+- **บั๊กฝั่ง backend — ไม่ได้แก้ที่นี่**: `/stocks/top` field `max_holding_weight` (top holding %) เกิน 100% จริงหลายตัวเช็คสดกับ TH market: KBANK 108.2%, BBL 100.29%, KTB 100.02%, SCB 100.12%, TTB 100.44%, BAY 100.04% — มาจาก backend ตรงๆ โค้ดฝั่งเราแค่ `Math.max(0, ...)` กันติดลบ ไม่เคยบวก/ปั้นเพิ่ม หุ้นตัวเดียวถือเกิน 100% ของพอร์ตไม่ได้ในทางตรรกะ ต้องแจ้ง backend แก้ที่ต้นทาง
+
 ### Git / Deployment
 - Merge fundinfoDev (ideatrade) ล่าสุดเข้า fundinfo (aivane/Migrat) → merge master ทับ (แก้ conflict ตามหัวข้อบน) → push ขึ้น `aivane/Migrat:fundinfo`
 - ย้ายกลับมาทำงานบน `fundinfoDev`: push โค้ดทั้งหมดของ session นี้ (fast-forward ล้วน ไม่มี conflict) ขึ้น `ideatrade/FundInfo:fundinfoDev` (`fc81c60→7629dde`) แล้ว merge ต่อขึ้น `ideatrade/FundInfo:main` (`ca18450→7629dde`)
+- **ยังไม่ push**: การแก้ `categoryAvg` rounding ด้านบน (ทำหลัง push รอบล่าสุด)
 
 ### ยังไม่ได้แก้ / รอ backend
 - (สืบเนื่องจาก 2026-09-03) เส้น "จุดอ้างอิง" ยัง hardcode, N+1 backfill หน้า Mixed ยังต้อง throttle ไม่ได้แก้ที่ต้นตอ, `VITE_PROXY_FUND_BACKEND` (auth) ยังไม่ได้ย้าย host
