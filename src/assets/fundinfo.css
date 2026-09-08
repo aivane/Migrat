@@ -828,6 +828,46 @@
 .fundinfo-scope .fund-matrix-table .positive { color: var(--pos); }
 .fundinfo-scope .fund-matrix-table .negative { color: var(--neg); }
 
+/* ---------- Compare Charts ---------- */
+.fundinfo-scope .fund-compare-charts {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.fundinfo-scope .fund-compare-chart-card {
+  background: var(--surf);
+  padding: 14px 16px 10px;
+}
+.fundinfo-scope .fund-compare-chart-title {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--sub);
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.fundinfo-scope .fund-compare-chart-wrap {
+  position: relative;
+  height: 180px;
+}
+/* Color dot next to fund code in compare table header */
+.fundinfo-scope .fund-compare-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  margin-right: 5px;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+@media (max-width: 767px) {
+  .fundinfo-scope .fund-compare-charts { grid-template-columns: 1fr; }
+  .fundinfo-scope .fund-compare-chart-wrap { height: 160px; }
+}
+
+
 @media (max-width: 767px) {
   .fundinfo-scope .screener-search-row { grid-template-columns: 1fr auto; }
   .fundinfo-scope .screener-search-input { grid-column: 1 / -1; }

@@ -1,6 +1,6 @@
 import { apiMode, reconGet, wpGet } from './apiClient'
 
-function extractArray(payload, keys = ['funds', 'themes', 'flows', 'data']) {
+function extractArray(payload, keys = ['funds', 'themes', 'flows', 'data', 'items']) {
   if (Array.isArray(payload)) return payload
 
   for (const key of keys) {
@@ -79,85 +79,110 @@ function normalizeThemeFunds(payload, requestedThemes = []) {
   }, {})
 }
 
-export async function getInsightTrend(params = {}) {
-  const query = { type: 'FOREIGN', sort_by: 'return_1y', limit: 20, ...params }
+// -----------------------------------------------------------------
+// Sector Trend APIs (Swagger: /api/v1/insights/sectors/*)
+// -----------------------------------------------------------------
 
+/** ภาพรวม Sector Trend ทั้ง 4 หมวด */
+export async function getInsightSectors(limit = 10) {
   if (apiMode === 'wordpress') {
-    return extractArray(await wpGet('fund_insights_trend', query))
+    return extractArray(await wpGet('fund_insights_sectors', { limit }))
   }
 
-  // API Endpoint — /insights/trend only exists under /api/v2 (confirmed live
-  // against /api/fund/openapi.json 2026-09-07); there is no v1 equivalent.
-  return extractArray(await reconGet('/api/v2/insights/trend', query))
+  // Swagger: GET /api/v1/insights/sectors
+  return reconGet('/api/v1/insights/sectors', { limit })
 }
 
-// API Data Quality — /insights/valuation has never existed on the real
-// backend, under any API version (checked the full path list in
-// /api/fund/openapi.json 2026-09-07 — no match). This always 404s; left
-// calling the (nonexistent) endpoint rather than faking a result, so the
-// store's existing per-key error handling shows an honest "unavailable"
-// instead of fabricated valuation data. Remove/replace once the backend
-// ships a real valuation endpoint.
-export async function getInsightValuation(params = {}) {
-  const query = { type: 'FOREIGN', sort_by: 'pe_discount', limit: 20, ...params }
+/** หุ้นไทยที่กองทุนไทยถือครองมากที่สุด */
+export async function getInsightSectorsThai(params = {}) {
+  const query = { sort_by: 'holding_value', limit: 20, ...params }
 
   if (apiMode === 'wordpress') {
-    return extractArray(await wpGet('fund_insights_valuation', query))
+    return extractArray(await wpGet('fund_insights_sectors_thai', query))
   }
 
-  return extractArray(await reconGet('/insights/valuation', query))
+  // Swagger: GET /api/v1/insights/sectors/thai
+  return extractArray(await reconGet('/api/v1/insights/sectors/thai', query))
 }
 
-// API Data Quality — /insights/popularity does not exist on the real backend
-// either (same check as getInsightValuation above). Same reasoning applies.
-export async function getInsightPopularity(params = {}) {
-  const query = { type: 'FOREIGN', limit: 20, ...params }
+/** หุ้น US/Global ที่กองทุนต่างประเทศถือครองมากที่สุด */
+export async function getInsightSectorsForeign(params = {}) {
+  const query = { sort_by: 'holding_value', limit: 20, ...params }
 
   if (apiMode === 'wordpress') {
-    return extractArray(await wpGet('fund_insights_popularity', query))
+    return extractArray(await wpGet('fund_insights_sectors_foreign', query))
   }
 
-  return extractArray(await reconGet('/insights/popularity', query))
+  // Swagger: GET /api/v1/insights/sectors/foreign
+  return extractArray(await reconGet('/api/v1/insights/sectors/foreign', query))
 }
 
-export async function getInsightThemes(limit = 12) {
+/** Sector ของ Foreign Master Funds ตาม AUM/Flow */
+export async function getInsightSectorsFeeder(params = {}) {
+  const query = { sort_by: 'aum', limit: 20, ...params }
+
   if (apiMode === 'wordpress') {
-    return extractArray(await wpGet('fund_insights_themes', { limit }))
+    return extractArray(await wpGet('fund_insights_sectors_feeder', query))
   }
 
-  return extractArray(await reconGet('/api/v1/insights/themes', { limit }))
+  // Swagger: GET /api/v1/insights/sectors/feeder
+  return extractArray(await reconGet('/api/v1/insights/sectors/feeder', query))
 }
 
-// API Data Quality — /insights/global-flow does not exist on the real
-// backend either (same check as getInsightValuation above). Same reasoning
-// applies — always 404s, kept honest rather than faked.
-export async function getGlobalFlow(period = '1M') {
+/** สัดส่วนสินทรัพย์กองทุนผสม Mixed Fund */
+export async function getInsightSectorsMixed(params = {}) {
+  const query = { sort_by: 'aum', limit: 20, ...params }
+
+  if (apiMode === 'wordpress') {
+    return extractArray(await wpGet('fund_insights_sectors_mixed', query))
+  }
+
+  // Swagger: GET /api/v1/insights/sectors/mixed
+  return extractArray(await reconGet('/api/v1/insights/sectors/mixed', query))
+}
+
+// -----------------------------------------------------------------
+// Flow Trend API (Swagger: /api/v1/insights/flow-trend)
+// -----------------------------------------------------------------
+
+export async function getFlowTrend(params = {}) {
+  const query = { type: 'FOREIGN', limit: 50, ...params }
+
+  if (apiMode === 'wordpress') {
+    return wpGet('fund_insights_flow_trend', query)
+  }
+
+  // Swagger: GET /api/v1/insights/flow-trend
+  return reconGet('/api/v1/insights/flow-trend', query)
+}
+
+export async function getGlobalFlow(params = {}) {
+  const query = { limit: 50, ...params }
+
   const payload =
     apiMode === 'wordpress'
-      ? await wpGet('fund_insights_global_flow', { period })
-      : await reconGet('/insights/global-flow', { period })
+      ? await wpGet('fund_insights_global_flow', query)
+      : await reconGet('/api/v1/insights/flow-trend', query)
 
   return {
-    flows: extractArray(payload, ['flows', 'themes', 'data']),
+    flows: extractArray(payload, ['flows', 'data', 'funds']),
     summary: payload?.summary || payload?.data?.summary || {},
     updatedAt: payload?.updated_at || payload?.data?.updated_at || null,
     raw: payload,
   }
 }
 
-export async function getFlowTrend(params = {}) {
-  // API Data Quality — /insights/flow-trend has no `period` filter (confirmed
-  // against /api/fund/openapi.json 2026-09-07: only type/market_type/limit/
-  // offset are accepted) — a `period` query param is silently ignored by the
-  // real backend, so it's dropped here rather than kept as a no-op.
-  const { period, ...rest } = params
-  const query = { type: 'FOREIGN', ...rest }
+// -----------------------------------------------------------------
+// Theme APIs (Swagger: /api/v1/insights/themes, /theme-funds)
+// -----------------------------------------------------------------
 
+export async function getInsightThemes() {
   if (apiMode === 'wordpress') {
-    return wpGet('fund_insights_flow_trend', { ...query, period: params.period })
+    return extractArray(await wpGet('fund_insights_themes', {}))
   }
 
-  return reconGet('/api/v1/insights/flow-trend', query)
+  // Swagger: GET /api/v1/insights/themes
+  return extractArray(await reconGet('/api/v1/insights/themes'))
 }
 
 export async function getThemeFunds(themes = [], limit = 10, params = {}) {
@@ -186,6 +211,10 @@ export async function getThemeFundsRaw(themes = [], limit = 10, params = {}) {
     : reconGet('/api/v1/insights/theme-funds', query)
 }
 
+// -----------------------------------------------------------------
+// Fund Trend (Swagger: /api/v1/funds/{code}/trend)
+// -----------------------------------------------------------------
+
 export async function getFundTrend(code) {
   if (!code) return {}
 
@@ -193,5 +222,25 @@ export async function getFundTrend(code) {
     return wpGet('fund_fund_trend', { code })
   }
 
+  // Swagger: GET /api/v1/funds/{code}/trend
   return reconGet(`/api/v1/funds/${encodeURIComponent(code)}/trend`)
+}
+
+// -----------------------------------------------------------------
+// Backward-compatible aliases (สำหรับ code เก่าที่อาจยังเรียกชื่อเหล่านี้)
+// -----------------------------------------------------------------
+
+/** @deprecated ใช้ getInsightSectorsForeign แทน */
+export async function getInsightTrend(params = {}) {
+  return getInsightSectorsForeign({ sort_by: 'holding_value', ...params })
+}
+
+/** @deprecated ใช้ getInsightSectorsForeign แทน */
+export async function getInsightPopularity(params = {}) {
+  return getInsightSectorsForeign({ sort_by: 'flow', ...params })
+}
+
+/** @deprecated ใช้ getInsightThemes แทน */
+export async function getInsightValuation(params = {}) {
+  return getInsightThemes()
 }
