@@ -24,9 +24,19 @@ export const THEME_ID_PATTERN = /^[a-z0-9_/-]{1,64}$/
 // no-op safely) instead of silently mismatching like the old Thai-sentence
 // `FX_HEDGING_MAP` did when the API swapped `fx_hedging` from free text to
 // this same enum shape without warning.
+// Bug fix — re-verified live 2026-09-08: the backend renamed 3 of these enum
+// strings again since the 2026-09-03 audit above (same "flapping" pattern the
+// FX Hedging alias already guards against), silently zeroing out 3 screener
+// chips (ทองคำ/สินค้าโภคภัณฑ์, สุขภาพ, เอเชีย(ไม่รวมญี่ปุ่น)) even though funds
+// tagged with the real values existed all along:
+//   thematic_category: 'COMMODITIES_GOLD' -> 'COMMODITIES', 'HEALTHCARE' -> 'HEALTHCARE_BIOTECH'
+//   geographic_focus: 'ASIA_EX_JAPAN' -> 'ASIA_PACIFIC'
+// Also added 2 new thematic values the backend now ships with real funds
+// behind them (11-19 each) that had no matching chip before at all:
+// 'CONSUMER_LIFESTYLE', 'FINTECH_FINANCE'.
 const FX_HEDGING_VALUES = new Set(['FULLY_HEDGED', 'DISCRETIONARY', 'PARTIALLY_HEDGED', 'UNHEDGED', 'UNSPECIFIED', 'NOT_APPLICABLE'])
-const GEOGRAPHY_VALUES = new Set(['GLOBAL', 'US', 'JAPAN', 'CHINA', 'VIETNAM', 'INDIA', 'EUROPE', 'EMERGING_MARKETS', 'ASIA_EX_JAPAN', 'THAILAND'])
-const THEMATIC_VALUES = new Set(['BROAD_MARKET', 'TECHNOLOGY_AI', 'COMMODITIES_GOLD', 'HIGH_DIVIDEND', 'PROPERTY_INFRA', 'HEALTHCARE', 'ESG_CLEAN_ENERGY'])
+const GEOGRAPHY_VALUES = new Set(['GLOBAL', 'US', 'JAPAN', 'CHINA', 'VIETNAM', 'INDIA', 'EUROPE', 'EMERGING_MARKETS', 'ASIA_PACIFIC', 'THAILAND'])
+const THEMATIC_VALUES = new Set(['BROAD_MARKET', 'TECHNOLOGY_AI', 'COMMODITIES', 'HIGH_DIVIDEND', 'PROPERTY_INFRA', 'HEALTHCARE_BIOTECH', 'ESG_CLEAN_ENERGY', 'CONSUMER_LIFESTYLE', 'FINTECH_FINANCE'])
 const MANAGEMENT_STYLE_VALUES = new Set(['ACTIVE', 'PASSIVE_INDEX', 'DIVIDEND_FOCUSED'])
 const MARKET_CAP_VALUES = new Set(['ALL_CAP', 'MID_SMALL_CAP', 'LARGE_CAP'])
 

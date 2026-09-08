@@ -44,6 +44,18 @@ function createFundinfoCategory(type, { defaultSortBy = 'perf' } = {}) {
   const isLoading = computed(() => fundinfoStore.isLoading(type))
   const loadError = computed(() => fundinfoStore.getError(type))
 
+  // Bug fix — the search box's own placeholder promises matching held stocks
+  // ("ค้นหาชื่อกองทุน / หุ้นที่ถือ (NVIDIA, ...)"), but the haystack below never
+  // read stock names, and `fund.top5` (a fund's own holdings) is always empty
+  // for list-fetched funds anyway (holdings only come back from the single-
+  // fund detail endpoint — see fundinfoApi.js). /stocks/top already publishes
+  // the reverse mapping (topHoldingFundCodes per stock) without an N+1 fetch,
+  // and this market's stock list is already loaded elsewhere on this same
+  // page (Ranking Cards / Exposure Trend), so this just reads that cache.
+  const stockMarket = type === 'thai' || type === 'mixed' ? 'TH' : 'FOREIGN'
+  fundinfoStore.loadTopStocksByMarket(stockMarket)
+  const topStocks = computed(() => fundinfoStore.getTopStocksByMarket(stockMarket))
+
   const state = reactive({
     search: '',
     selectedAmc: '',
@@ -55,8 +67,24 @@ function createFundinfoCategory(type, { defaultSortBy = 'perf' } = {}) {
 
   const amcOptions = computed(() => unique(funds.value.map((fund) => fund.amc)))
 
+  // Fund codes of every fund holding a stock whose name/symbol matches the
+  // query — merged into the search haystack below so "NVIDIA" finds funds
+  // that hold it, not just funds literally named "NVIDIA".
+  const stockMatchedFundIds = computed(() => {
+    const query = state.search.trim().toLowerCase()
+    if (!query) return null
+
+    const ids = new Set()
+    topStocks.value.forEach((stock) => {
+      const matches = stock.name.toLowerCase().includes(query) || stock.symbol.toLowerCase().includes(query)
+      if (matches) stock.topHoldingFundCodes.forEach((code) => ids.add(code))
+    })
+    return ids
+  })
+
   const filteredFunds = computed(() => {
     const query = state.search.trim().toLowerCase()
+    const stockMatches = stockMatchedFundIds.value
 
     let rows = funds.value.filter((fund) => {
       if (!query) return true
@@ -64,7 +92,7 @@ function createFundinfoCategory(type, { defaultSortBy = 'perf' } = {}) {
         .filter(Boolean)
         .join(' ')
         .toLowerCase()
-      return haystack.includes(query)
+      return haystack.includes(query) || stockMatches.has(fund.id)
     })
 
     if (state.selectedAmc) rows = rows.filter((fund) => fund.amc === state.selectedAmc)

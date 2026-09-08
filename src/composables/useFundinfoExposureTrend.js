@@ -19,7 +19,10 @@ import { membersTrendSeries, CMP_LABELS } from './useFundinfoThemeTrend'
 // exposure proportion bar instead of a 1Y sparkline.
 // ==========================================================================
 
-const MAX_SELECTED = 5
+// Matches the Feeder theme comparison and Ranking Card compare caps
+// (useFundinfoThemeTrend.js / useFundinfoRanking.js) — no reason for
+// Offshore/Thai's group comparison to cap 2 lower than everywhere else.
+const MAX_SELECTED = 7
 
 const BENCHMARKS = {
   thai: { name: 'SET TRI', ret: 3.2, short: 'SET' },

@@ -75,15 +75,17 @@ export const GEOGRAPHY_OPTIONS = [
   { id: 'EUROPE', label: 'ยุโรป (Europe)' },
   { id: 'VIETNAM', label: 'เวียดนาม (Vietnam)' },
   { id: 'EMERGING_MARKETS', label: 'ตลาดเกิดใหม่ (Emerging Markets)' },
-  { id: 'ASIA_EX_JAPAN', label: 'เอเชีย (ไม่รวมญี่ปุ่น)' },
+  { id: 'ASIA_PACIFIC', label: 'เอเชียแปซิฟิก (Asia Pacific)' },
 ]
 export const MEGATREND_OPTIONS = [
   { id: 'TECHNOLOGY_AI', label: 'เทคโนโลยี / AI' },
-  { id: 'COMMODITIES_GOLD', label: 'ทองคำ / สินค้าโภคภัณฑ์' },
+  { id: 'COMMODITIES', label: 'ทองคำ / สินค้าโภคภัณฑ์' },
   { id: 'HIGH_DIVIDEND', label: 'หุ้นปันผลสูง' },
   { id: 'PROPERTY_INFRA', label: 'อสังหาริมทรัพย์ / โครงสร้างพื้นฐาน' },
-  { id: 'HEALTHCARE', label: 'สุขภาพ' },
+  { id: 'HEALTHCARE_BIOTECH', label: 'สุขภาพ / เทคโนโลยีชีวภาพ' },
   { id: 'ESG_CLEAN_ENERGY', label: 'ESG / พลังงานสะอาด' },
+  { id: 'CONSUMER_LIFESTYLE', label: 'สินค้าอุปโภคบริโภค / ไลฟ์สไตล์' },
+  { id: 'FINTECH_FINANCE', label: 'ฟินเทค / การเงิน' },
 ]
 // Same underlying field (fund.managementStyle, from the API's
 // management_style) powers both "Fund Style" (feeder/offshore) and
