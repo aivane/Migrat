@@ -2,6 +2,41 @@
 
 บันทึกงานที่ทำในแต่ละวัน เรียงจากล่าสุดไปเก่าสุด
 
+## 2026-09-08 — Fundinfo: merge เข้า master/main + audit backend รอบ 2 + แก้บั๊ก filter/search 3 จุด
+
+### Merge `aivane/Migrat:master` เข้า `fundinfo` — สอง architecture ชนกันคนละแบบทั้งไฟล์
+- `fundApi.js`/`insightsApi.js`/`dashboardStore.js` เขียนใหม่คนละชุดพร้อมกันทั้งสองฝั่ง (ฝั่งเราแก้ field mapping ให้ตรง backend จริง, ฝั่ง master มีฟีเจอร์ Sector Hierarchy ที่เราไม่มี) — ตัดสินใจ (ยืนยันกับ user แล้ว): ใช้เวอร์ชัน master ทั้ง 3 ไฟล์ เพราะเป็นขอบเขตของทีมอื่น ไม่ใช่ fundinfo โดยตรง
+- `FundCompareTable.vue` ฝั่ง master เป็นกราฟแท่ง (Chart.js), ฝั่งเรา redesign เป็นตารางล้วน — ใช้เวอร์ชันตาราง (มี dividend-display bug fix ของวันนี้ติดไปด้วย)
+- **บั๊กที่เจอระหว่าง merge**: เอาไฟล์ master มาทั้งชุดแล้วดึง `apiClient.js`'s base URL มาด้วย (`/api/fund/api/v1` แทน `/api/fund`) — ถ้าปล่อยไว้จะชนกับ `fundinfoApi.js` ที่ hardcode `/api/v1/...` ในทุก call อยู่แล้ว กลายเป็น `/api/v1/api/v1/...` พังทั้ง feeder/offshore/thai/mixed ทันที — แก้โดยคง base URL เดิมไว้ (`/api/fund`) แล้วเติม `/api/v1/` prefix ให้ทุก `reconGet`/`reconPost` call ใน 2 ไฟล์ที่รับมาจาก master แทน (ปลายทางจริงเหมือนเดิมทุกตัว แค่ย้ายตำแหน่ง prefix)
+- Verify: `npm run build` ผ่าน, เปิด `/dashboard` จริงข้อมูลขึ้นครบ, `/fundinfo/*` ไม่กระทบ
+- Push: `aivane/Migrat:fundinfo` (`fc81c60→fafa241`) → **revert แล้ว push ใหม่อีกรอบ** (push รอบแรกไม่ได้รับ confirm ก่อน) → สุดท้าย merge fundinfoDev (ideatrade) ล่าสุดเข้า fundinfo (aivane) ก่อน ค่อย merge master ทับอีกที
+
+### Audit field/endpoint ทั้งหมดอีกรอบ — ส่วนใหญ่ backend แก้เองแล้วระหว่าง session
+- พบและรายงานเป็นบั๊กจริงตอนเช็ครอบแรก: `dividend_yield` เป็น `0` ทุกกองทุน 100% (แม้กองที่ `has_dividend=1`), `has_dividend` ขัดแย้งกับ `dividend_policy` เอง (94% ของกองทั้งหมด), `beta_1y` คงที่ `1` ทุกกอง, `estimated_flow_1m_m_thb` nonzero แค่ 2/2,241 กอง — **เช็คซ้ำภายหลัง backend แก้เองครบทุกจุด** (dividend_yield มีค่าจริงกระจาย, has_dividend mismatch เหลือ 0%, beta มี 74–154 distinct values/type, flow nonzero 99%+)
+- `minimum_initial_thb` เคยเป็น `1` ทุกกองทุน 100% — backend แก้แล้วเช่นกัน (กระจายค่าจริง 500/1,000/10,000/100,000/500,000)
+- `stocks/top?market_type=FOREIGN` เคยโดน cap เดิมที่ 500 แถว (backend ยกเลิก cap แล้วแต่ FOREIGN โตเกิน 500 เป็น 555+ ตัว) — เพิ่ม client-side limit เป็น 2000 ที่ [fundinfoApi.js:625](src/services/fundinfoApi.js:625) กัน truncate
+
+### Screener enum เปลี่ยนชื่อเงียบๆ อีกรอบ — 3 chip ใช้ไม่ได้เลย ([fundinfoApi.js](src/services/fundinfoApi.js), [useFundinfoScreener.js](src/composables/useFundinfoScreener.js))
+- `COMMODITIES_GOLD`→`COMMODITIES`, `HEALTHCARE`→`HEALTHCARE_BIOTECH`, `ASIA_EX_JAPAN`→`ASIA_PACIFIC` — 3 chip (ทองคำ/สินค้าโภคภัณฑ์, สุขภาพ, เอเชีย) ให้ผล 0 กองทุนเสมอทั้งที่มีข้อมูลจริงรองรับ (67/56/8 กองตามลำดับหลังแก้)
+- เพิ่ม 2 หมวดใหม่ที่ backend มีข้อมูลจริงแล้วแต่ไม่เคยมี chip: `CONSUMER_LIFESTYLE`, `FINTECH_FINANCE`
+
+### ช่องค้นหา "หุ้นที่ถือ" ไม่เคยทำงานเลยตั้งแต่แรก ([useFundinfoCategory.js](src/composables/useFundinfoCategory.js))
+- Placeholder เขียนไว้ว่าค้นหาหุ้นที่ถือได้ ("NVIDIA, Microsoft, PTT, ADVANC") แต่ haystack ค้นหาจริงมีแค่ `[id, name, master, country, amc]` ไม่เคยเช็คหุ้นที่ถือเลย — ต่อให้เช็คก็ยังจะได้ 0 เพราะ `fund.top5` ว่างเปล่าเสมอสำหรับกองที่มาจาก `/funds/list` (holdings มีแค่ตอนเรียก `/funds/{id}` รายตัว)
+- แก้โดยใช้ `topHoldingFundCodes` จาก `/stocks/top` (โหลดอยู่แล้วในหน้าเดียวกันสำหรับ Ranking Card ไม่ต้องยิง API เพิ่ม) — จับคู่ชื่อ/symbol หุ้นที่ค้นหา แล้วรวม fund code ที่ถือเข้ากับผลค้นหาเดิม — verify: "NVIDIA" จาก 0 → 2 กอง (ทั้งคู่ถือ iShares MSCI ACWI ETF จริง)
+
+### กลุ่มเปรียบเทียบ Offshore/Thai จำกัดแค่ 5 ทั้งที่มีข้อมูลจริงมากกว่านั้น ([useFundinfoExposureTrend.js:22](src/composables/useFundinfoExposureTrend.js))
+- `MAX_SELECTED = 5` ไม่ตรงกับ cap 7 ของ Feeder (theme) และ Ranking Card ที่อื่น — Offshore มีกลุ่มจริงถึง 8 กลุ่มแต่เลือกได้แค่ 5 มาตลอด แก้เป็น 7 ให้ตรงกัน — verify: Offshore เลือกได้ 7/7 จริงหลังแก้ (เดิมค้างที่ 5/5)
+
+### ไม่ใช่บั๊ก — เพิ่ม comment กันเข้าใจผิดซ้ำ ([SearchFilterSection.vue:65](src/components/fundinfo/SearchFilterSection.vue))
+- Mixed Fund ไม่มีปุ่ม "ตัวกรองเพิ่มเติม" (Investment Style/Size) ทั้งที่ `useFundinfoScreener.js` เขียนรองรับไว้และมี field จริงครบ — เข้าใจผิดว่าเป็นบั๊กตอนแรก **user ยืนยันว่าเป็น design decision ตั้งใจ** ไม่ใช่ของค้าง — เพิ่ม comment อธิบายไว้กันงงซ้ำในอนาคต ไม่ได้แก้โค้ด
+
+### Git / Deployment
+- Merge fundinfoDev (ideatrade) ล่าสุดเข้า fundinfo (aivane/Migrat) → merge master ทับ (แก้ conflict ตามหัวข้อบน) → push ขึ้น `aivane/Migrat:fundinfo`
+- ย้ายกลับมาทำงานบน `fundinfoDev`: push โค้ดทั้งหมดของ session นี้ (fast-forward ล้วน ไม่มี conflict) ขึ้น `ideatrade/FundInfo:fundinfoDev` (`fc81c60→7629dde`) แล้ว merge ต่อขึ้น `ideatrade/FundInfo:main` (`ca18450→7629dde`)
+
+### ยังไม่ได้แก้ / รอ backend
+- (สืบเนื่องจาก 2026-09-03) เส้น "จุดอ้างอิง" ยัง hardcode, N+1 backfill หน้า Mixed ยังต้อง throttle ไม่ได้แก้ที่ต้นตอ, `VITE_PROXY_FUND_BACKEND` (auth) ยังไม่ได้ย้าย host
+
 ## 2026-09-03 — Fundinfo: audit บั๊ก backend, ต่อสาย 7 ตัวกรอง screener แบบ exact-match, แก้ N+1 ที่ทำหน้า Mixed ล่ม, สลับ API host
 
 ### Audit บั๊ก backend จริง (ไม่ใช่สมมติฐาน) — เช็คสดกับ live API แล้วรายงานให้ backend team
