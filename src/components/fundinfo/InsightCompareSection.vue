@@ -18,8 +18,7 @@ const { clearSelection } = useFundinfoRanking(props.type)
 const combinedCanvas = ref(null)
 let combinedChart = null
 
-// เรียงตารางแบบคลิกหัวคอลัมน์ เหมือนตาราง "กองทุนที่ตรงเงื่อนไข" ด้านบน —
-// '' = ยังไม่เลือก sort (เรียงตามลำดับที่เลือกจาก Ranking Card)
+// Click-to-sort like the "กองทุนที่ตรงเงื่อนไข" table above — '' means unsorted (Ranking Card order).
 const localSortKey = ref('')
 const localSortDir = ref('desc') // 'desc' = มากไปน้อย, 'asc' = น้อยไปมาก
 
@@ -34,8 +33,8 @@ function parseAumValue(raw) {
   return num * mult
 }
 
-// คืนค่า null เมื่อการ์ดนั้นไม่มีข้อมูลคอลัมน์นี้จริง ๆ (เช่น P/E ของกองทุนตราสารหนี้/ทองคำ)
-// เพื่อให้แถวที่ไม่มีข้อมูลถูกจัดไปท้ายตารางเสมอ แทนที่จะถูกนับเป็น 0 แล้วปนกับค่าจริง
+// Returns null when the card has no real value for this column (e.g. P/E on a bond/gold fund),
+// so missing data always sorts to the end instead of being counted as 0.
 function sortValue(card, field) {
   switch (field) {
     case 'perf':

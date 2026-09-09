@@ -13,10 +13,8 @@ const router = useRouter()
 const cyChartRef = ref(null)
 let cyChartInstance = null
 
-// API Compatibility — direct mode has no calendar-year return series, see
-// context.md §3. Falls back to the 1M/3M/1Y/3Y/5Y/10Y checkpoint bars
-// (retPRaw, null-aware) instead — same pattern as FundPerformancePanel.vue's
-// full-page chart. A period the fund is too young to have yet renders muted.
+// Direct mode has no calendar-year return series (context.md §3) — falls back
+// to 1M/3M/1Y/3Y/5Y/10Y checkpoint bars (retPRaw); too-young periods render muted.
 const PERIOD_BARS = [
   ['m1', '1M'], ['q1', '3M'], ['y1', '1Y'], ['y3', '3Y'], ['y5', '5Y'], ['y10', '10Y'],
 ]

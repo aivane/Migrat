@@ -14,12 +14,8 @@ function fundType(fund) {
   return { thai: 'Thai Fund', offshore: 'Offshore Fund', feeder: 'Feeder Fund', mixed: 'Mixed Fund' }[fund.type] || 'Fund'
 }
 
-// Bug fix — direct/API mode always reports dividend_yield (fund.div) as 0,
-// even for a fund whose real policy is to pay (verified live) — this row
-// used to render "0.0%" for every fund regardless, looking identical to a
-// genuine non-payer. Fall back to the real policy text (fund.dividendPolicy:
-// "จ่าย"/"ไม่จ่าย", mapped from the API) when the numeric yield is unusable;
-// mock funds have no such field and keep the original numeric display.
+// dividend_yield (fund.div) is always 0 from the API, even for funds that do pay — fall back
+// to the real policy text (fund.dividendPolicy: "จ่าย"/"ไม่จ่าย") when the numeric yield is unusable.
 function dividendDisplay(fund) {
   if (fund.div > 0) return { text: `${fund.div.toFixed(1)}%`, cls: 'positive' }
   if (fund.dividendPolicy === 'จ่าย') return { text: 'จ่ายปันผล', cls: 'positive' }
@@ -38,23 +34,20 @@ function dividendDisplay(fund) {
     </header>
 
     <div v-if="!collapsed" class="overflow-x-auto">
-      <!-- Layout Fix: table-fixed บังคับให้ browser ใช้ความกว้างคอลัมน์จาก <th> แถวแรกเท่านั้น
-           ไม่คำนวณจากความยาว content ในแต่ละแถว (เดิมไม่มี table-fixed ทำให้ความกว้างคอลัมน์
-           สั่นไหว/ไม่ตรงกันทุกครั้งที่ selectedFunds เปลี่ยน เช่น ชื่อกอง/ตัวเลข drawdown ยาวไม่เท่ากัน) -->
+      <!-- table-fixed: column widths come from the header row only, not row content —
+           keeps widths stable as selectedFunds changes (varying name/drawdown lengths). -->
       <table class="fund-matrix-table table-fixed w-full">
         <thead>
           <tr>
-            <!-- คอลัมน์ label ตรึงความกว้างคงที่ -->
             <th class="w-[130px]">ข้อมูล</th>
-            <!-- คอลัมน์กองทุนหารความกว้างที่เหลือเท่า ๆ กันตามจำนวนกองที่เลือก (1-3 กอง)
-                 กัน layout shift ตอนเพิ่ม/ลบกองทุนออกจากตารางเปรียบเทียบ -->
+            <!-- remaining width split evenly across selected funds — avoids layout shift on add/remove -->
             <th
               v-for="fund in selectedFunds"
               :key="fund.id"
               class="relative"
               :style="{ width: `calc((100% - 130px) / ${selectedFunds.length})` }"
             >
-              <!-- Anti-XSS: ใช้ text interpolation ({{ }}) เท่านั้น ไม่มี v-html ในไฟล์นี้ Vue auto-escape ให้อยู่แล้ว -->
+              <!-- Anti-XSS: text interpolation only, no v-html — Vue auto-escapes -->
               <b>{{ fund.id }}</b>
               <small>{{ fund.amc }}</small>
               <button type="button" :aria-label="`นำ ${fund.id} ออก`" @click="$emit('remove-fund', fund.id)">×</button>

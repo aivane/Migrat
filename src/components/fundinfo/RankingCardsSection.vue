@@ -13,9 +13,8 @@ const props = defineProps({ type: { type: String, default: 'offshore' } })
 const { accent, heading, itemLabel, stock, state, cards, stockCards, fundCards, selectedEntities, maxSelected, orderOf, select, clearSelection, setRank, stockRankingLoading, fundsLoading, stockRankingError, retryStockRanking } = useFundinfoRanking(props.type)
 const RANK_COLORS = ['#f0b429', '#94a3b8', '#c2793a']
 
-// มุมมอง "หุ้น" vs "กองทุนไทยที่ถือหุ้น" — เฉพาะแท็บที่เป็นหุ้น (Offshore/Thai)
-// เก็บไว้บน state ตัวเดียวกับที่ useFundinfoRanking(type) cache ไว้ (singleton ต่อ type) เพื่อให้
-// InsightCompareSection.vue ที่เรียก composable เดียวกันอ่านค่านี้ต่อได้ทันที โดยไม่ต้องแก้ composable
+// มุมมอง "หุ้น" vs "กองทุนไทยที่ถือหุ้น" (เฉพาะแท็บหุ้น) — เก็บบน state ของ
+// useFundinfoRanking(type) (singleton ต่อ type) ให้ InsightCompareSection.vue อ่านต่อได้ทันที
 if (stock && state.rankView === undefined) state.rankView = 'stock'
 
 const rankView = computed({
@@ -23,9 +22,8 @@ const rankView = computed({
   set: (value) => { state.rankView = value },
 })
 
-// The active card view's underlying fetch — non-stock tabs (feeder/mixed) and
-// the "fund" ranking view both read from fundinfoStore.getFundsByType(type),
-// which can take a while on a large market (see fetchAllDirectFunds).
+// Non-stock tabs and the "fund" ranking view read from
+// fundinfoStore.getFundsByType(type), which can take a while on a large market.
 const isRankingLoading = computed(() => (
   !stock || rankView.value === 'fund' ? fundsLoading.value : stockRankingLoading.value
 ))

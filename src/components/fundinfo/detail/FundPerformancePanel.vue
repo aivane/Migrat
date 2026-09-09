@@ -1,15 +1,7 @@
 <!-- src/components/fundinfo/detail/FundPerformancePanel.vue -->
 <script setup>
-// Ported from "Panel 2: ผลการดำเนินงานและปันผล" (tab-performance) in the
-// v3.2.1 HTML prototype, converted from JS tab-switching + a manually
-// rebuilt <tbody> (`tbody.innerHTML = rows.map(...).join('')`, a DOM-based
-// XSS sink if any row value were ever attacker-influenced) into an
-// always-visible section using Vue's auto-escaping template bindings only.
-//
-// The risk-metric toggle (SD / Sharpe / Max Drawdown) is local UI state,
-// same pattern as FundOverviewPanel.vue's mode/range toggle. Return-table
-// and dividend data are still centrally derived by useFundAnalytics and
-// injected as props — this component stays presentation + local-toggle only.
+// Renders via Vue's auto-escaping bindings, not the old tbody.innerHTML build (XSS-prone).
+// Risk-metric toggle is local UI state; return/dividend data come from useFundAnalytics via props.
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
 import Chart from 'chart.js/auto'
 import { INSIGHT } from '../../../data/fundinfoConstants'
@@ -24,26 +16,13 @@ const props = defineProps({
 })
 
 // ---------- Dividend history ----------
-// API Compatibility — direct mode's dividendHistory prop is always [] (the
-// API has no dividend payment-history endpoint — dates/amounts — only a
-// policy flag; see context.md §3). The old fallback text assumed an empty
-// list always meant "doesn't pay dividends", which is wrong for a fund that
-// does pay but simply has no history endpoint to source it from — check the
-// fund's actual policy text instead of inferring from list emptiness.
-// hasDividend (has_dividend) is NOT a usable signal here — it's 1 for ~99%
-// of funds regardless of their real policy (verified live), so only the
-// dividend_policy text itself ("จ่าย" vs "ไม่จ่าย") is trustworthy.
+// direct mode's dividendHistory is always [] (no payment-history endpoint, only a policy flag).
+// has_dividend is unreliable (~99% =1 regardless of policy) — only dividend_policy text is trustworthy.
 const paysDividends = computed(() => props.fund.dividendPolicy === 'จ่าย')
 
 // ---------- Return comparison table ----------
-// Input validation: retP is produced entirely by fundinfoData.js, never by
-// user input, but we still guard with `?? 0` so a missing field renders
-// "0.0%" instead of crashing the table.
-// Bug fix — "6 เดือน"/"10 ปี" used to fabricate y1*0.6 / y5*1.5 instead of
-// reading the real fields (retP.m6/retP.y10 — see fundinfoApi.js) that were
-// either already present (y10) or just added (m6). groupAverage now takes
-// the period key too, so it can look up the real peer-average field instead
-// of guessing from the fund's own value.
+// `?? 0` guards missing fields (retP is trusted app data, not user input). "6 เดือน"/"10 ปี" used to
+// fabricate y1*0.6/y5*1.5 instead of real retP.m6/retP.y10 — groupAverage now keys off the real fields.
 const returnRows = computed(() => {
   const r = props.fund.retP || {}
   return [
@@ -73,13 +52,8 @@ const RISK_METRICS = [
 ]
 const riskMetric = ref('sd')
 
-// Bug fix — this used to run a hardcoded per-period multiplier table
-// ("mock illustrative figures only, not live risk data") even in direct
-// mode. The API only ever publishes 1Y and 3Y period-specific SD/Sharpe/
-// MaxDrawdown (see fundinfoApi.js) — no 3M/6M/5Y/10Y equivalent exists at
-// all, so only the two real periods are shown instead of inventing the
-// rest; a fund/metric missing even those (both are null for some funds)
-// shows "-".
+// Previously used a hardcoded mock multiplier table even in direct mode. API only publishes
+// 1Y/3Y SD/Sharpe/MaxDrawdown (no 3M/6M/5Y/10Y) — only real periods shown; null values render "-".
 const CATEGORY_AVG_RISK_KEY = { sharpe: 'sharpe1y', maxdd: 'maxdd1y' } // no peer SD field at all
 const riskRows = computed(() => {
   const avgKey = CATEGORY_AVG_RISK_KEY[riskMetric.value]
@@ -94,13 +68,8 @@ function fmtRisk(v, suffix) {
 }
 
 // ---------- Calendar-year returns bar chart ----------
-// API Compatibility — the recon API has no true calendar-year return series,
-// only cumulative returns at fixed checkpoints (1M/3M/1Y/3Y/5Y/10Y — see
-// context.md §3). One bar per checkpoint period, using retPRaw (null-aware —
-// never retP, which defaults a missing period to 0 and would misrepresent
-// "no data" as "0% return"). A fund younger than 3Y/5Y/10Y simply won't have
-// those checkpoints yet — that bar renders muted/flat rather than a
-// fabricated value.
+// API has no true calendar-year series, only checkpoints (1M/3M/1Y/3Y/5Y/10Y). Uses retPRaw
+// (null-aware), not retP (defaults missing periods to 0%), so young funds render muted, not fabricated.
 const PERIOD_BARS = [
   ['m1', '1M'], ['q1', '3M'], ['y1', '1Y'], ['y3', '3Y'], ['y5', '5Y'], ['y10', '10Y'],
 ]
@@ -140,8 +109,7 @@ function renderCyrChart() {
       labels,
       datasets: [{
         data: values,
-        // Missing periods (fund too young for 3Y/5Y/10Y yet) render as a flat
-        // muted bar instead of a fabricated 0% return.
+        // Missing periods (fund too young for 3Y/5Y/10Y) render a flat muted bar, not a fabricated 0%.
         backgroundColor: values.map((v, i) => (!available[i] ? mutedColor : v >= 0 ? posColor : negColor)),
         borderRadius: 4,
       }],
@@ -173,15 +141,9 @@ watch([() => props.fund?.id, () => props.isDark], renderCyrChart)
 
 <template>
   <section class="space-y-8">
-    <!-- Layout Fix: 4 grid items (header-L, table-L, header-R, table-R) instead of 2
-         "column" divs. On mobile (grid-cols-1) source order alone stacks them correctly
-         (header1, table1, header2, table2). From lg: up, explicit col/row placement puts
-         both headers in grid row 1 and both tables in row 2 — CSS Grid auto-sizes each
-         row to its tallest cell, so the shorter header (left, no toggle pills) stretches
-         to match the taller one (right, with the SD/Sharpe/Max Drawdown toggle) and both
-         tables start flush at the same y ("ลงมาเท่ากัน"). table-fixed + explicit <th>
-         widths replace overflow-x-auto: columns can no longer exceed the container, so
-         no horizontal scrollbar renders. -->
+    <!-- 4 grid items (not 2 column divs) so CSS Grid row-sizing keeps both headers/tables flush
+         at the same height on desktop despite one header having extra toggle pills. table-fixed +
+         explicit <th> widths avoid horizontal scroll. -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-3">
       <!-- Header: return comparison -->
       <div class="min-w-0 flex items-center lg:col-start-1 lg:row-start-1">
@@ -250,9 +212,7 @@ watch([() => props.fund?.id, () => props.isDark], renderCyrChart)
       </div>
     </div>
 
-    <!-- Return by period (full width) — 1M/3M/1Y/3Y/5Y/10Y checkpoint bars,
-         since the API has no true calendar-year series; periods the fund
-         doesn't have data for yet render muted/gray. -->
+    <!-- Return by period: 1M/3M/1Y/3Y/5Y/10Y checkpoint bars; periods without data render muted/gray. -->
     <div class="border-t border-[var(--line)] pt-6">
       <h3 class="text-sm font-bold sub uppercase tracking-wide mb-3">
         ผลตอบแทนตามช่วงเวลา (Return by Period)
@@ -284,7 +244,7 @@ watch([() => props.fund?.id, () => props.isDark], renderCyrChart)
               <td class="p-3 text-right num txt">{{ d.amount }}</td>
             </tr>
             <tr v-if="!dividendHistory.length && paysDividends">
-              <td colspan="3" class="p-4 text-center sub">กองทุนนี้มีนโยบายจ่ายปันผล แต่ API ยังไม่มีข้อมูลประวัติการจ่ายจริง (วันที่/จำนวนเงิน) — ไม่ใช่หน้าเสีย</td>
+              <td colspan="3" class="p-4 text-center sub">กองทุนนี้มีนโยบายจ่ายปันผล แต่ยังไม่มีข้อมูลประวัติการจ่ายจริง (วันที่/จำนวนเงิน)</td>
             </tr>
             <tr v-else-if="!dividendHistory.length">
               <td colspan="3" class="p-4 text-center sub">ไม่มีนโยบายจ่ายเงินปันผล (เป็นแบบสะสมมูลค่า)</td>

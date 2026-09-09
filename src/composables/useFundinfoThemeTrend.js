@@ -2,27 +2,17 @@ import { computed, reactive, watch } from 'vue'
 import { INSIGHT } from '../data/fundinfoConstants'
 import { useFundinfoStore } from '../stores/fundinfoStore'
 
-// ==========================================================================
-// Section ① Theme / Sector Trend — "Theme Pulse" (Feeder Fund)
-// Ported from renderThemePulse() + computeScopes()/themePulseStats() in the
-// fundinfo v3.2.1 HTML prototype. Groups feeder funds by INSIGHT[master].theme
-// (falls back to the fund's first tag), then computes momentum/acceleration
-// stats per theme so the person can pick up to 7 themes and compare them on
-// a single chart.
-// ==========================================================================
+// Theme/Sector Trend ("Theme Pulse", Feeder Fund) — ported from the v3.2.1
+// prototype. Groups feeder funds by INSIGHT[master].theme (or first tag), then
+// computes momentum/acceleration per theme so up to 7 can be compared on one chart.
 
 const GLOBAL_RETURN = 12.8
 const CMP_LABEL_COUNT = 13
 
-// Bug fix — this used to be a hardcoded array frozen at whatever month it was
-// written ("ก.ค. 68"–"ก.ค. 69"), so it silently drifted out of sync with the
-// real calendar the moment that window passed (e.g. by 2026-09-03 the "today"
-// end of that array already pointed at July, two months stale). Build the
-// 13-point month timeline relative to the current date instead — last label
-// is always the current month, each earlier one steps back a month. Buddhist
-// year is shown on the first/last label (to disambiguate the two ends, which
-// share the same month name a year apart) and on every January boundary,
-// matching the original array's own labeling convention.
+// Build the 13-point month timeline relative to today instead of a hardcoded
+// array (which used to silently go stale once its window passed). Last label
+// is the current month; Buddhist year shows on the first/last label and every
+// January boundary, matching the original array's convention.
 const THAI_MONTH_ABBR = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.']
 
 function buddhistYear2Digit(gregorianYear) {
@@ -45,11 +35,10 @@ export const COMPARE_DASH = [[], [8, 3], [3, 2], [10, 3, 2, 3], [6, 2], [2, 2], 
 const MAX_SELECTED = 7
 
 // Deterministic pseudo-random walk, seeded so charts are stable across
-// renders/reloads instead of re-randomizing (same approach as the prototype).
-// Still used for the fixed benchmark reference line drawn on these charts
-// (SET TRI / MSCI ACWI / พอร์ตผสม 60/40) — those returns are hardcoded
-// constants with no live API field backing them yet, a separate open item
-// from the real per-scope lines below.
+// renders/reloads (same approach as the prototype). Still used for the fixed
+// benchmark reference line (SET TRI / MSCI ACWI / พอร์ตผสม 60/40) — those
+// returns have no live API field yet; still an open item, unlike the real
+// per-scope lines below.
 export function performanceSeries(seed, fin, n = CMP_LABELS.length) {
   let s = seed
   const noise = [0]
@@ -61,15 +50,11 @@ export function performanceSeries(seed, fin, n = CMP_LABELS.length) {
   return noise.map((v, i) => +(100 + (fin * i) / (n - 1) + v - (end * i) / (n - 1)).toFixed(1))
 }
 
-// ==========================================================================
-// Real cumulative-return checkpoints (fund.retPRaw — m1/q1/y1/y3/y5/y10, null
-// when genuinely unavailable rather than fudged) turned into an index series
-// (base 100 = today), sampled onto the CMP_LABELS timeline via linear
-// interpolation between real anchors. Every anchor point is real; the line
-// between two anchors is a straight-line approximation, not real daily data.
-// Shared by useFundinfoInsight.js (single fund/master) and the scope-based
-// composables below (averaged across each scope's member funds).
-// ==========================================================================
+// Turns real cumulative-return checkpoints (fund.retPRaw — m1/q1/y1/y3/y5/y10,
+// null when genuinely unavailable) into an index series (base 100 = today),
+// sampled onto the CMP_LABELS timeline via linear interpolation between real
+// anchors — the line between anchors is a straight-line approximation, not
+// real daily data. Shared by useFundinfoInsight.js and the scope composables below.
 const RETURN_CHECKPOINT_DAYS = { m1: 30, q1: 90, y1: 365, y3: 1095, y5: 1825, y10: 3650 }
 const CMP_STEP_DAYS = 365 / 12 // CMP_LABELS spans ~12 months in 13 points
 
@@ -107,9 +92,8 @@ function interpolateAnchors(anchors, targetDays) {
 }
 
 // Averages member funds' real checkpoint returns (skipping funds missing a
-// given period) into one scope-level retPRaw, then builds its series — used
-// by the scope-grouped charts (Theme Pulse / Market Lens / Exposure Trend)
-// in place of the old seeded-noise fabrication.
+// period) into one scope-level retPRaw, then builds its series — used by the
+// scope-grouped charts in place of the old seeded-noise fabrication.
 function averageRetPRaw(members) {
   const result = {}
   for (const key of Object.keys(RETURN_CHECKPOINT_DAYS)) {
@@ -126,10 +110,8 @@ export function membersTrendSeries(members, n = CMP_LABELS.length) {
 }
 
 function trendSeries(scope) {
-  // Real data can't fill every scope for every horizon (a niche theme with
-  // only a couple of very new member funds) — fall back to a flat 0%-change
-  // line rather than leaving the sparkline/chart with nothing, same "default
-  // a missing period to a neutral value" convention retP already uses below.
+  // Real data can't fill every scope/horizon (e.g. a niche theme with only new
+  // member funds) — fall back to a flat 0%-change line, same convention retP uses.
   return membersTrendSeries(scope.members) || new Array(CMP_LABELS.length).fill(100)
 }
 
@@ -192,8 +174,7 @@ export function formatFlow(value) {
 }
 
 export function useFundinfoThemeTrend(type = 'feeder') {
-  // Store-backed (fundinfoStore.js -> fundinfoApi.js): reads local mock data
-  // today, will read the real backend once VITE_FUNDINFO_API_MODE flips.
+  // Store-backed: fundinfoStore.js -> fundinfoApi.js.
   const fundinfoStore = useFundinfoStore()
   fundinfoStore.loadFundsByType(type)
   const funds = computed(() => fundinfoStore.getFundsByType(type))
@@ -207,10 +188,8 @@ export function useFundinfoThemeTrend(type = 'feeder') {
     selected: [],
   })
 
-  // Open with the strongest themes already selected, so the comparison
-  // workspace provides useful information at first glance. Seeded once, the
-  // first time stats has data — a later store refresh must not clobber
-  // whatever the person has since selected.
+  // Open with the strongest themes already selected. Seeded once, the first
+  // time stats has data — a later store refresh must not clobber the user's selection.
   let selectionSeeded = false
   watch(
     stats,
@@ -229,9 +208,8 @@ export function useFundinfoThemeTrend(type = 'feeder') {
     state.selected.map((id) => stats.value.find((s) => s.scope.id === id)).filter(Boolean),
   )
 
-  // Scoped to the themes currently plotted on the comparison chart
-  // (selectedStats), not every theme that exists — the summary badges above
-  // the chart should read "of what you're looking at", not "of everything".
+  // Scoped to the themes currently plotted (selectedStats), not every theme —
+  // the summary badges should read "of what you're looking at", not "of everything".
   const positiveCount = computed(() => selectedStats.value.filter((s) => s.scope.perf > 0).length)
   const acceleratingCount = computed(() => selectedStats.value.filter((s) => s.accel > 1).length)
   const outperformCount = computed(() => selectedStats.value.filter((s) => s.vsGlobal > 0).length)

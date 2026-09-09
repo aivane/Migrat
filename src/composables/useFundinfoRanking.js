@@ -3,22 +3,16 @@ import { FUND_TYPES, STOCK_META } from '../data/fundinfoConstants'
 import { useFundinfoStore } from '../stores/fundinfoStore'
 
 // ==========================================================================
-// Section ② Ranking Cards
-// Ported from computeEntities() + rankCard()/rankRows()/pillSet()/renderCards()
-// + selectGroup()/clearGroupSelection() in the fundinfo v3.2.1 HTML prototype.
+// Section ② Ranking Cards. Ported from the fundinfo v3.2.1 HTML prototype
+// (computeEntities/rankCard/rankRows/pillSet/renderCards/selectGroup).
 //
-// Builds a ranked "entity" list per tab — stocks (from Top Holdings) for
-// Offshore/Thai, Master Funds (grouped by fund.master) for Feeder, and
-// individual funds for Mixed — then renders 3 ranking cards with time-range
-// toggle pills. Clicking a row adds it to a comparison group (max 7), which
-// Section 3 (Master Fund / Stock Comparison — not built yet) will consume.
+// Builds a ranked "entity" list per tab — stocks for Offshore/Thai, Master
+// Funds (grouped by fund.master) for Feeder, individual funds for Mixed —
+// rendered as 3 ranking cards with time-range pills. Clicking a row adds it
+// to a comparison group (max 7) for Section 3 (not built yet).
 //
-// Note: the prototype narrows this entity pool using the Section 1
-// scope/theme selection (e.g. only stocks within the exposure groups picked
-// in ExposureTrendSection). This composable intentionally does not wire that
-// cross-section filter yet — Section 1's own fund table isn't filtered by it
-// either in the current codebase — so it always ranks across the full tab.
-// That link can be added later without changing this file's public shape.
+// Does not wire the prototype's Section 1 scope/theme narrowing yet (Section
+// 1's own table isn't filtered by it either) — ranks across the full tab.
 // ==========================================================================
 
 const MAX_SELECTED = 7
@@ -27,9 +21,8 @@ function isStockTab(type) {
   return type === 'offshore' || type === 'thai'
 }
 
-// API Contract — /stocks/top aggregates actual holdings across funds, and
-// now also publishes return_1m/return_1y/industry/sector per stock. It still
-// has no valuation (P/E, P/B) or dividend/drawdown fields — those stay null.
+// /stocks/top aggregates holdings across funds and publishes return_1m/
+// return_1y/industry/sector per stock; no valuation/dividend/drawdown fields.
 function buildApiStockRankEntities(stocks) {
   return stocks.map((stock, idx) => ({
     idx,
@@ -41,17 +34,13 @@ function buildApiStockRankEntities(stocks) {
     sector: stock.sector || (stock.marketType === 'TH' ? 'หุ้นไทย' : 'หุ้นต่างประเทศ'),
     industry: stock.industry || '',
     country: stock.marketType === 'TH' ? 'ประเทศไทย' : 'ต่างประเทศ',
-    // API Compatibility — the rank endpoint still has no valuation/dividend/
-    // drawdown fields. Keep the existing comparison selection shape safe.
+    // No valuation/dividend/drawdown from the API yet — keep comparison shape safe.
     meta: { dd: null, pe: null, pb: null, div: null, cap: null },
-    // retP follows the same "0-for-missing" convention as fund.retP elsewhere
-    // (see fund.retPRaw for the null-aware counterpart) — /stocks/top now
-    // publishes return_1m/return_1y (no q1/y3/y5), so the return ranking card
-    // below only offers 1M/1Y pills for this data source.
+    // retP: same "0-for-missing" convention as fund.retP (retPRaw is null-aware).
+    // /stocks/top only has return_1m/return_1y, hence 1M/1Y-only pills below.
     perf: stock.return1y ?? 0,
     retP: { m1: stock.return1m ?? 0, q1: 0, y1: stock.return1y ?? 0 },
-    // Null-aware raw returns (see fund.retPRaw for the same pattern) — lets
-    // useFundinfoInsight tell "0% return" apart from "API hasn't got this yet".
+    // Null-aware (like fund.retPRaw) so useFundinfoInsight can tell "0%" apart from "no data".
     return1m: stock.return1m,
     return1y: stock.return1y,
     div: 0,
@@ -59,19 +48,15 @@ function buildApiStockRankEntities(stocks) {
     totalHoldingValueMThb: stock.totalHoldingValueMThb,
     avgHoldingWeight: stock.avgHoldingWeight,
     maxHoldingWeight: stock.maxHoldingWeight,
-    // UI Adapter — existing Rank Card renders `totalWeight` as a percentage.
-    // The API's average holding weight is the matching real metric.
+    // Rank Card renders `totalWeight` as a percentage; avgHoldingWeight is the real match.
     totalWeight: stock.avgHoldingWeight,
     dataSource: 'api',
     selectable: true,
   }))
 }
 
-// กองทุนไทยที่ถือหุ้นเหล่านี้โดยตรง — entity อีกแบบสำหรับ Offshore/Thai ให้ "ถือ" ในทิศทางกลับกับหุ้น
-// (หุ้นนับจากจำนวนกองทุนที่ถือมัน, กองทุนนับจากจำนวนหุ้นที่ติดตามได้ที่มันถือ) แต่ใช้ชื่อ field ชุด
-// เดียวกับ stock entity (fundCount / totalWeight / retP) เพื่อให้ปะปนอยู่ใน byFundCount/byTotalWeight/
-// byReturn เดียวกันได้เลย โดยไม่ต้องแก้ตรรกะการเรียง/เลือกใน RankingCardsSection.vue หรือ
-// useFundinfoInsight.js — entity ทั้งสองแบบ "เท่าเทียมกัน" ในทุกกลไกของ Section 2/3
+// กองทุนไทยที่ถือหุ้นเหล่านี้โดยตรง — ใช้ field ชื่อเดียวกับ stock entity (fundCount/totalWeight/retP)
+// เพื่อให้ปะปนใน byFundCount/byTotalWeight/byReturn ได้โดยไม่ต้องแก้ตรรกะเรียง/เลือกที่อื่น
 function buildFundHolderEntities(funds) {
   return funds.map((f, idx) => {
     const holdings = (f.top5 || []).filter((h) => STOCK_META[h.name])
@@ -106,17 +91,14 @@ function buildMasterFundEntities(funds) {
   })
   const sum = (a) => a.reduce((s, x) => s + x, 0)
   const avg = (a) => +(sum(a) / a.length).toFixed(1)
-  // Null-aware: averages only members that actually have a value for this
-  // period, instead of retP's 0-for-missing default silently dragging the
-  // group average toward 0 whenever some members lack longer-term history.
+  // Null-aware: averages only members with a real value, instead of retP's
+  // 0-for-missing default silently dragging the group average toward 0.
   const avgRaw = (a) => {
     const finite = a.filter((v) => typeof v === 'number' && Number.isFinite(v))
     return finite.length ? +(sum(finite) / finite.length).toFixed(1) : null
   }
-  // Null-aware sum — plain sum() coerces null to 0 in the reduce, so a group
-  // whose members all lack this flow period (e.g. flowP.w1 in direct/API
-  // mode, which has no real weekly-flow source) would silently show "0"
-  // instead of "no data". Only null out the group when every member is.
+  // plain sum() coerces null to 0, so a group with no real value for this
+  // flow period (e.g. flowP.w1, no weekly-flow source) would wrongly show "0".
   const sumNullAware = (a) => {
     const finite = a.filter((v) => typeof v === 'number' && Number.isFinite(v))
     return finite.length ? sum(finite) : null
@@ -160,18 +142,15 @@ function buildMixedFundEntities(funds) {
 
 function buildEntities(type, allFunds, topStocks) {
   if (isStockTab(type)) {
-    // API lists omit holdings: use the ranking endpoint for stocks, while
-    // retaining the real fund list for the fund Ranking Card view.
+    // API lists omit holdings — use the ranking endpoint for stocks, real fund list for the card view.
     return [...buildApiStockRankEntities(topStocks), ...buildFundHolderEntities(allFunds)]
   }
   if (type === 'mixed') return buildMixedFundEntities(allFunds)
   return buildMasterFundEntities(allFunds) // feeder
 }
 
-// Section 3 (Master Fund / Stock Comparison) reads the same "selected" group
-// that Section 2's Ranking Cards write to, so this composable is cached per
-// fund type — every call site for a given type gets back the identical
-// reactive instance instead of a fresh, disconnected one.
+// Cached per fund type so every call site shares the same "selected" group
+// that Section 3 (Comparison) will read from Section 2's Ranking Cards.
 const instances = new Map()
 
 export function useFundinfoRanking(type = 'feeder') {
@@ -188,9 +167,8 @@ function createFundinfoRanking(type) {
   const funds = computed(() => fundinfoStore.getFundsByType(type))
   const stock = isStockTab(type)
   const stockMarket = type === 'thai' ? 'TH' : 'FOREIGN'
-  // Real-API-only: stock tabs always rank via /stocks/top now (no mock/
-  // STOCK_META fallback left) — kept as its own flag since several branches
-  // below read it as a readability marker, not a mode switch anymore.
+  // Stock tabs always rank via /stocks/top (no mock fallback) — kept as its
+  // own flag since branches below read it as a readability marker now.
   const usesApiStocks = stock
 
   if (usesApiStocks) fundinfoStore.loadTopStocksByMarket(stockMarket)
@@ -208,19 +186,12 @@ function createFundinfoRanking(type) {
     selected: [], // entity ids ที่เลือกไว้เปรียบเทียบ (สูงสุด 7 รายการ) — ไว้ต่อยอด Section 3
   })
 
-  // ข้อความหัวข้อ — ให้ตรงกับ mock (Image 4): ไม่มีเลขนำหน้าเหมือน Section 1/3 และสำหรับ Offshore/Thai
-  // ใช้ถ้อยคำเดียวกับภาพเป๊ะๆ ("...และกองทุนไทยที่ถือหุ้นต่างประเทศในกลุ่มที่เลือก") ซึ่งตอนนี้ตรงกับ
-  // entity pool จริงแล้ว: การ์ดทั้ง 3 ใบรวมทั้งหุ้นรายตัว (kind: 'stock') และกองทุนไทยที่ถือหุ้นเหล่านั้น
-  // โดยตรง (kind: 'holder') ไว้ในลิสต์เดียวกัน คละกันตามอันดับจริง — ไม่ได้แยกเป็นสอง block ซ้ำแบบใน
-  // ภาพต้นแบบ ซึ่งดูเหมือนเป็นการ paste ซ้ำ ไม่ใช่ของสองชุดที่ตั้งใจ (เพราะตัวเลขในทั้งสอง block ของภาพ
-  // เหมือนกันทุกตัว)
-  // Seeded once, the first time entities has data — a later store refresh
-  // must not clobber whatever the person has since selected. In API mode,
-  // stocks and funds load from two separate requests that can resolve in
-  // either order — seeding as soon as entities has ANY length would lock in
-  // a stock-only (or holder-only) selection if one request settles before
-  // the other, permanently starving the comparison chart of a chartable
-  // series on the missing side. Wait for both to settle first.
+  // ข้อความหัวข้อให้ตรงกับ mock (Image 4) — การ์ดทั้ง 3 ใบรวม stock entity และ holder entity
+  // (กองทุนไทยที่ถือหุ้นนั้น) ไว้ในลิสต์เดียวกัน คละกันตามอันดับจริง ไม่แยกเป็นสอง block ซ้ำแบบภาพต้นแบบ
+  // Seeded once (a later refresh must not clobber the user's selection).
+  // Stocks and funds load via two separate requests that can resolve in
+  // either order — seeding on ANY data would lock in a stock-only (or
+  // holder-only) selection if one settles first, so wait for both to finish.
   let selectionSeeded = false
   watch(
     [entities, stockRankingLoading, fundsLoading],
@@ -254,9 +225,8 @@ function createFundinfoRanking(type) {
 
   const byFundCount = computed(() => [...entities.value].sort((a, b) => b.fundCount - a.fundCount || b.totalWeight - a.totalWeight))
   const byTotalWeight = computed(() => [...entities.value].sort((a, b) => b.totalWeight - a.totalWeight))
-  // Null-aware — 1W flow has no source field in direct/API mode (flowP.w1 is
-  // null there), so a plain numeric subtract would NaN and silently no-op the
-  // sort. Push missing values to the bottom instead of letting them float.
+  // Null-aware — flowP.w1 has no source field in direct/API mode, so a plain
+  // subtract would NaN and silently no-op the sort; push missing values to the bottom.
   const byFlow = computed(() => [...entities.value].sort((a, b) => {
     const av = a.flowP[state.rk.flow]
     const bv = b.flowP[state.rk.flow]
@@ -390,8 +360,7 @@ function createFundinfoRanking(type) {
         list: sortRanked(rows, (a, b) => b.retP[state.rk.ret] - a.retP[state.rk.ret]),
         valueType: 'percent',
         pillKind: 'ret',
-        // /stocks/top only publishes return_1m/return_1y (no q1/y3/y5) — see
-        // buildApiStockRankEntities above.
+        // /stocks/top only has return_1m/return_1y (no q1/y3/y5) — see buildApiStockRankEntities.
         pillOptions: [
           ['m1', '1M'],
           ['y1', '1Y'],

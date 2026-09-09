@@ -16,15 +16,9 @@ const props = defineProps({ type: { type: String, default: 'offshore' } })
 
 const { screenedFunds, toggleCompare, compareFunds, compareOrderOf, loadError, isLoading } = useFundinfoScreener(props.type)
 const { isWished, toggleWish } = useFundinfoWishlist()
-// API Compatibility — /funds/list never returns a fund's own holdings/
-// allocations (only /funds/{code} does, one fund at a time — there's no bulk
-// variant), so every row starts with an empty top5/asset/sectorMix. Clicking
-// a row's expand chevron always fetches it (see toggleDetails below); rows
-// showing the "หุ้นที่ถือเยอะ"/"น้ำหนักรวม" columns (offshore/thai) also get
-// their detail prefetched automatically as they scroll into view — see the
-// IntersectionObserver setup further down. Either path lands in
-// fundinfoStore.mergeFundIntoCachedLists, so this row's own columns update
-// reactively regardless of which one fired.
+// /funds/list omits holdings/allocations (only /funds/{code} has them, one at
+// a time) — rows start empty and fill in via toggleDetails or scroll-prefetch
+// (IntersectionObserver below), both landing in fundinfoStore.mergeFundIntoCachedLists.
 const fundinfoStore = useFundinfoStore()
 const expandedFundId = ref(null)
 const selectedFundsList = computed(() => compareFunds.value)
@@ -75,11 +69,8 @@ const displayFunds = computed(() => {
   return funds.sort((a, b) => (sortValue(a, localSortKey.value) - sortValue(b, localSortKey.value)) * dir)
 })
 
-// Perf: a screener match can run into the tens of thousands of rows (the real
-// offshore/thai fund universe) — rendering every <tr> at once made the table
-// itself freeze the page even after the data had loaded. Page the render
-// only; displayFunds.length (used for the "X กอง" count) still reflects the
-// full match count.
+// Perf: rendering every <tr> at once froze the page on large matches (tens of
+// thousands of rows). Page the render only; displayFunds.length still reflects the full count.
 const PAGE_SIZE = 50
 const currentPage = ref(1)
 const totalPages = computed(() => Math.max(1, Math.ceil(displayFunds.value.length / PAGE_SIZE)))
@@ -90,10 +81,8 @@ const pagedFunds = computed(() => {
 
 watch([screenedFunds, localSortKey, localSortDir], () => { currentPage.value = 1 })
 
-// Perf: badge/ticker/weight/tax-label are pure functions of `fund` alone, so
-// derive them once per page change instead of re-running them for every
-// visible row on every render (expand toggle, star toggle, compare toggle
-// previously re-evaluated all of these for all rows every click).
+// Perf: derive badge/ticker/weight/tax-label once per page change instead of
+// re-running them per row on every render (expand/star/compare toggles used to).
 const tableRows = computed(() =>
   pagedFunds.value.map((fund) => ({
     fund,
@@ -127,24 +116,15 @@ function toggleDetails(fundId) {
 function clearAllCompare() { selectedFundsList.value.forEach((fund) => toggleCompare(fund.id)) }
 function retryLoadFunds() { fundinfoStore.loadFundsByType(props.type, { force: true }) }
 
-// Lazy-load holdings for offshore/thai rows as they scroll into the table's
-// own scroll container — bounded, on-demand version of the eager fetch that
-// clicking a row's chevron already does, so "หุ้นที่ถือเยอะ"/"น้ำหนักรวม" fill
-// in without the user having to click every one of e.g. 239 rows, but also
-// without firing 239 detail requests at once on table mount.
+// Lazy-load holdings for offshore/thai rows as they scroll into view — same
+// fetch as the row-chevron click, but on-demand instead of firing for every row at once.
 const scrollContainerRef = ref(null)
 const rowEls = new Map()
 let rowObserver = null
 
-// Concurrency cap on the fetches the observer below queues up — a fast
-// scroll (or a wide 200px prefetch margin catching several rows already
-// in view on mount) can land many rows in the SAME IntersectionObserver
-// callback batch. Firing them all as simultaneous requests has been seen
-// to open a burst of parallel TLS connections through the dev proxy to the
-// same upstream tunnel, some of which get reset mid-handshake ("Client
-// network socket disconnected before secure TLS connection was
-// established") — the tunnel/backend can't accept that many connections
-// at once. Draining a small queue instead keeps only a few in flight.
+// Cap concurrent fetches — a fast scroll can queue many rows in one
+// IntersectionObserver batch, and firing them all at once resets TLS connections
+// through the dev proxy tunnel. Drain a small queue instead.
 const MAX_CONCURRENT_ROW_FETCHES = 3
 const rowFetchQueue = []
 let activeRowFetches = 0

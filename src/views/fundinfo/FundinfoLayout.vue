@@ -69,18 +69,15 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
   <div class="fundinfo-scope min-h-screen" :class="{ dark: isDark }" :style="{ '--brand': activeTab?.accent || '#2456d8' }">
     <main class="min-h-screen bg-[var(--bg)] text-[var(--txt)] font-['Prompt'] antialiased">
 
-      <!-- ปรับ py-2 เป็น py-4 เพื่อขยายขนาดความสูงของ Header และเอา h-16 ออกเพื่อให้ความสูงยืดหยุ่นตามเนื้อหา -->
+      <!-- py-4 (not fixed h-16) so header height flexes with content -->
       <header class="sticky top-0 z-30 surf brdb px-4 py-4">
-        
-        <!-- เพิ่ม h-full และปรับ gap-3 เป็น gap-4 -->
+
         <div class="max-w-[1120px] mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4 h-full">
 
           <!-- Branding: FI mark + Fundinfo / Investment Exposure Workspace -->
           <div class="flex items-center gap-3">           
             <div>
-              <!-- ปรับขนาดชื่อ: text-base -->
               <div class="text-4xl font-extrabold txt leading-tight">Fundinfo</div>
-              <!-- ปรับขนาดซับไตเติ้ล: text-[10px] -->
               <div class="text-[10px] font-bold uppercase tracking-wider sub leading-tight">Investment Exposure Workspace</div>
             </div>
           </div>
@@ -95,7 +92,6 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
                 class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition-all whitespace-nowrap border border-transparent sub hover:surf2 hover:txt"
                 active-class="!bg-[var(--brand)] !text-white !border-[var(--brand)] shadow-md shadow-blue-500/20"
               >
-                <!-- ปรับขนาดข้อความใน Tab เป็น text-sm ทั้งคู่ -->
                 <span class="text-sm">{{ tab.emoji }}</span>
                 <span>{{ tab.label }}</span>
               </RouterLink>

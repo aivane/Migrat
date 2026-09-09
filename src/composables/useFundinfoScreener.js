@@ -3,28 +3,16 @@ import { computed, reactive } from 'vue'
 import { useFundinfoCategory, sortFundsBy } from './useFundinfoCategory'
 
 // ==========================================================================
-// Section ④ ค้นหาและคัดกรองกองทุน — "Fund Screener"
-// Layers the richer search bar + advanced filter panel + compare-selection
-// on top of useFundinfoCategory(type) instead of replacing it: the plain
-// search/AMC/risk state used by the fund table still lives there (and is
-// now cached per-type, see useFundinfoCategory.js), this composable just
-// adds the extra screening criteria shown in the SearchFilterSection design.
+// Section ④ ค้นหาและคัดกรองกองทุน — Fund Screener. Layers advanced filters +
+// compare-selection on top of useFundinfoCategory(type) (search/AMC/risk state
+// stays there). Advanced panel differs by universe: feeder/offshore use FX
+// Hedging/Geography/Megatrend/Fund Style; thai/mixed use Investment Style/Size
+// (usesInvestmentStyleFilters picks which block renders; unused state just
+// stays empty and harmless).
 //
-// The advanced-filter panel differs by fund universe:
-// - feeder / offshore (ลงทุนต่างประเทศ): FX Hedging / Geography / Megatrend / Fund Style
-// - thai / mixed (ลงทุนหุ้นไทย): Investment Style / Size & Characteristic
-// `usesInvestmentStyleFilters` tells the component which block to render;
-// both sets of state/tags exist on every instance so switching is free and
-// harmless (an unused set just stays empty and never filters anything).
-//
-// Real-API-only: deriveScreenerTags() below reads each tag straight from the
-// API-backed fund object. Several dimensions (FX hedging, geography,
-// megatrend, style, investment style, size, min investment) have no
-// equivalent field published by the API at all as of this writing — those
-// come back null/[] rather than a fabricated guess, so filtering on them
-// honestly returns no/fewer matches instead of matching fake data. The
-// filter UI itself is unchanged; swap the null/[] fallback for a real field
-// read the moment the backend adds one.
+// deriveScreenerTags() reads tags from the real API fund object — dimensions
+// with no backend field yet return null/[] instead of a guess, so those
+// filters just return fewer matches rather than fabricate data.
 // ==========================================================================
 
 const MAX_COMPARE = 4
@@ -49,17 +37,12 @@ export const MIN_INVESTMENT_OPTIONS = [
   { value: '50000+', label: 'มากกว่า 50,000 บาท', min: 50000 },
 ]
 
-// Advanced filters below compare by id (the API's own UPPER_SNAKE_CASE enum
-// string, mapped in fundinfoApi.js's mapEnum()) instead of matching a UI
-// label against fund data — exact-match, so relabeling an option never
-// breaks the filter, and a future backend enum addition just shows up as an
-// unmatched chip rather than silently corrupting an existing one. A value
-// the API doesn't publish for a given fund (null) simply excludes it from
-// every chip, same as before — never guessed.
+// Filters compare by id (API's UPPER_SNAKE_CASE enum, see fundinfoApi.js
+// mapEnum()) not by UI label, so relabeling never breaks matching and an
+// unmapped value (null) just excludes the fund rather than being guessed.
 //
-// Each list deliberately omits its enum's "no real signal" bucket as a
-// selectable chip (nothing to search FOR): FX Hedging skips UNSPECIFIED/
-// NOT_APPLICABLE, Megatrend skips BROAD_MARKET (means "no specific theme").
+// Lists omit each enum's "no signal" bucket as a chip: FX Hedging skips
+// UNSPECIFIED/NOT_APPLICABLE, Megatrend skips BROAD_MARKET.
 export const FX_HEDGING_OPTIONS = [
   { id: 'FULLY_HEDGED', label: 'ป้องกันความเสี่ยงเต็มจำนวน (Fully Hedged)' },
   { id: 'DISCRETIONARY', label: 'ตามดุลยพินิจผู้จัดการกองทุน' },
@@ -87,20 +70,12 @@ export const MEGATREND_OPTIONS = [
   { id: 'CONSUMER_LIFESTYLE', label: 'สินค้าอุปโภคบริโภค / ไลฟ์สไตล์' },
   { id: 'FINTECH_FINANCE', label: 'ฟินเทค / การเงิน' },
 ]
-// Same underlying field (fund.managementStyle, from the API's
-// management_style) powers both "Fund Style" (feeder/offshore) and
-// "Investment Style" (thai/mixed) — one option list shared between them.
+// Same field (fund.managementStyle) powers both "Fund Style" (feeder/offshore)
+// and "Investment Style" (thai/mixed) — one shared option list.
 //
-// Bug fix — DIVIDEND_FOCUSED describes the fund's stock-picking universe
-// (invests in high dividend-yield stocks), not whether the fund itself pays
-// out to unitholders — that's the separate, already-correct "นโยบายปันผล"
-// filter (fund.dividendPolicy, from dividend_policy). Confirmed live: 13 of
-// 43 TH DIVIDEND_FOCUSED-style funds have dividend_policy "ไม่จ่าย" (e.g.
-// KFDIVRMF — an RMF, which by regulation can never distribute regardless of
-// strategy). The original label "เน้นจ่ายปันผล (Dividend Focused)" read as a
-// payout promise and collided with that filter's "จ่ายปันผล" option, so
-// picking this chip alone looked like a bug when a non-paying RMF matched
-// it. Reworded to name the strategy, not a payout outcome.
+// DIVIDEND_FOCUSED describes the stock-picking universe, not payout — some
+// RMFs match it despite dividendPolicy "ไม่จ่าย" (can't distribute by law), so
+// the label was reworded off "เน้นจ่ายปันผล" to avoid implying a payout promise.
 export const MANAGEMENT_STYLE_OPTIONS = [
   { id: 'ACTIVE', label: 'บริหารเชิงรุก (Active)' },
   { id: 'PASSIVE_INDEX', label: 'อิงดัชนี (Passive / Index)' },
@@ -125,16 +100,13 @@ export const EXTRA_METRIC_OPTIONS = [
 
 const tagCache = new Map()
 
-// อ่าน tag ของ "ตัวกรองขั้นสูง" จาก fund object ที่มาจาก API จริงเท่านั้น — ทุก dimension
-// ด้านล่างตอนนี้มี field จริงรองรับแล้ว (2026-09-03) เป็นค่าเดียวต่อกอง (ไม่ใช่ array of tags)
-// จึงเทียบแบบ "ค่าตรงกับตัวไหนใน id ที่เลือกไว้" — กองที่ backend ยังไม่มีค่า (null) จะไม่ match
-// chip ไหนเลย ไม่ใช่การเดา
+// อ่าน tag ตัวกรองขั้นสูงจาก field จริงของ API (ค่าเดียวต่อกอง ไม่ใช่ array) — เทียบว่าค่าตรงกับ
+// id ที่เลือกไว้หรือไม่ กองที่ backend ยังไม่มีค่า (null) จะไม่ match chip ไหนเลย ไม่ใช่การเดา
 function deriveScreenerTags(fund) {
   if (tagCache.has(fund.id)) return tagCache.get(fund.id)
 
-  // Real API fields (fund.stats, from sharpe_ratio_1y/std_1y/max_drawdown_1y
-  // in fundinfoApi.js normalizeFund) — null when the API hasn't published a
-  // value for this specific fund, never a fabricated number.
+  // fund.stats (sharpe_ratio_1y/std_1y/max_drawdown_1y via normalizeFund) —
+  // null when the API hasn't published a value, never a fabricated number.
   const sd = fund.stats?.sd ?? null
   const sharpe = fund.stats?.sharpe ?? null
   const maxDrawdown = fund.stats?.maxdd != null ? Math.abs(fund.stats.maxdd) : null
@@ -171,10 +143,8 @@ function toggleInArray(arr, value) {
   else arr.push(value)
 }
 
-// A fund with no real minimum_initial_thb (value === null) never matches a
-// selected bucket — excluded as unknown, same convention as the id filters
-// above. max is exclusive (so 1000 lands in the "1,000-10,000" bucket, not
-// "below 1,000") to keep buckets from double-counting their shared boundary.
+// value === null never matches a bucket (excluded as unknown, same as id
+// filters). max is exclusive so 1000 lands in "1,000-10,000", not "below 1,000".
 function matchesMinInvestment(value, rangeId) {
   if (!rangeId) return true
   const range = MIN_INVESTMENT_OPTIONS.find((option) => option.value === rangeId)
@@ -185,9 +155,8 @@ function matchesMinInvestment(value, rangeId) {
   return true
 }
 
-// cache ต่อ type เหมือน useFundinfoCategory/useFundinfoRanking — เผื่ออนาคตมีมากกว่าหนึ่งจุด
-// ที่ต้องอ่าน screener.compareSelected ของแท็บเดียวกัน (เช่น ปุ่ม "เปรียบเทียบกองที่เลือก" ที่ย้าย
-// ไปอยู่ที่อื่น) จะได้เห็น selection ชุดเดียวกันโดยไม่ต้องส่ง prop ไปมา
+// cache ต่อ type เหมือน useFundinfoCategory/useFundinfoRanking — ให้ทุกจุดที่อ่าน
+// screener.compareSelected ของแท็บเดียวกันเห็น selection ชุดเดียวกันโดยไม่ต้องส่ง prop
 const instances = new Map()
 
 export function useFundinfoScreener(type = 'thai') {
@@ -227,11 +196,9 @@ function createFundinfoScreener(type) {
       .filter(({ tags }) => !screener.taxBenefit || tags.taxBenefit === screener.taxBenefit)
       .filter(({ tags }) => !screener.dividendPolicy || tags.dividendPolicy === screener.dividendPolicy)
       .filter(({ tags }) => !screener.fxHedging || tags.fxHedging === screener.fxHedging)
-      // Bug fix — geography/megatrend/style/investmentStyle/size now have
-      // real single-value API fields (see deriveScreenerTags): a fund
-      // matches when no chip is selected, or its one real value is among the
-      // selected ids. A fund the API hasn't classified (tag === null) still
-      // never matches any chip — excluded as unknown, not guessed.
+      // geography/megatrend/style/investmentStyle/size are real single-value
+      // API fields — match when no chip is selected or the value is among
+      // selected ids; unclassified funds (null) never match any chip.
       .filter(({ tags }) => !screener.geography.length || (tags.geography != null && screener.geography.includes(tags.geography)))
       .filter(({ tags }) => !screener.megatrend.length || (tags.megatrend != null && screener.megatrend.includes(tags.megatrend)))
       .filter(({ tags }) => !screener.style.length || (tags.style != null && screener.style.includes(tags.style)))
@@ -246,9 +213,8 @@ function createFundinfoScreener(type) {
           if (min === '' || min == null) return true
           if (key === 'perf') return fund.perf >= min
           const value = tags.metrics[key]
-          // Bug fix — `null <= min` / `null >= min` coerce to `0`, so a fund
-          // with no real sd/sharpe/maxDrawdown value used to silently pass
-          // (or fail) every threshold instead of being excluded as unknown.
+          // `null <= min`/`null >= min` coerce to 0, so a missing sd/sharpe/
+          // maxDrawdown used to silently pass/fail instead of being excluded.
           if (value == null) return false
           if (key === 'maxDrawdown') return value <= min // ยิ่งน้อยยิ่งดี เลยกรองแบบ "ไม่เกิน"
           if (key === 'sd') return value <= min // ความผันผวน "ไม่เกิน"

@@ -1,39 +1,20 @@
 import { reconGet, wpGet } from './apiClient'
 import { FUND_TYPES } from '../data/fundinfoConstants'
 
-// Input Validation — whitelist enums/patterns, reused by router guards & stores.
 export const VALID_FUND_TYPES = Object.freeze(Object.keys(FUND_TYPES))
-// API Contract — share classes such as K-GDBOND-A(A), SCBS&P500, and KKP GNP
-// are valid. The service applies encodeURIComponent before path interpolation.
-// Keep the route whitelist narrow: no slashes, quotes, percent signs, or controls.
+// Encoded before path interpolation; narrow whitelist (no slashes/quotes/%/controls).
 export const FUND_ID_PATTERN = /^[A-Za-z0-9()& _-]{1,64}$/
 export const VALID_STOCK_MARKETS = Object.freeze(['TH', 'FOREIGN'])
 export const VALID_ALLOCATION_TYPES = Object.freeze(['ASSET_CLASS', 'SECTOR', 'REGIONAL'])
-// Allows `/` — confirmed live that 3 of 34 real theme ids contain it (e.g.
-// "global_bond_fully_f/x_hedge", from "F/X" in the label). theme_id is only
-// ever sent as a query-param value (never a URL path segment, never CSV-
-// joined on anything but comma), so `/` is safe here.
+// Allows `/` — 3 of 34 real theme ids contain it (e.g. "global_bond_fully_f/x_hedge").
 export const THEME_ID_PATTERN = /^[a-z0-9_/-]{1,64}$/
 
-// API Data Quality — screener filter dimensions the API added after the
-// mock-removal audit (context.md §3 originally listed these as fully
-// missing). Confirmed live 2026-09-03 that all five now ship as stable
-// UPPER_SNAKE_CASE enums, 100% populated across feeder/offshore/thai. Store
-// the backend's own enum string as the id (no hand-translated lookup table)
-// so a future backend rename fails loud (mapEnum returns null, filter goes
-// no-op safely) instead of silently mismatching like the old Thai-sentence
-// `FX_HEDGING_MAP` did when the API swapped `fx_hedging` from free text to
-// this same enum shape without warning.
-// Bug fix — re-verified live 2026-09-08: the backend renamed 3 of these enum
-// strings again since the 2026-09-03 audit above (same "flapping" pattern the
-// FX Hedging alias already guards against), silently zeroing out 3 screener
-// chips (ทองคำ/สินค้าโภคภัณฑ์, สุขภาพ, เอเชีย(ไม่รวมญี่ปุ่น)) even though funds
-// tagged with the real values existed all along:
-//   thematic_category: 'COMMODITIES_GOLD' -> 'COMMODITIES', 'HEALTHCARE' -> 'HEALTHCARE_BIOTECH'
-//   geographic_focus: 'ASIA_EX_JAPAN' -> 'ASIA_PACIFIC'
-// Also added 2 new thematic values the backend now ships with real funds
-// behind them (11-19 each) that had no matching chip before at all:
-// 'CONSUMER_LIFESTYLE', 'FINTECH_FINANCE'.
+// Screener enum values, verified live against the backend. Store the raw enum
+// string as the id (no translation table) so a future rename fails loud
+// (mapEnum -> null, filter no-ops) instead of silently mismatching. Backend
+// renamed 3 of these again on 2026-09-08 (COMMODITIES_GOLD->COMMODITIES,
+// HEALTHCARE->HEALTHCARE_BIOTECH, ASIA_EX_JAPAN->ASIA_PACIFIC) and added
+// CONSUMER_LIFESTYLE/FINTECH_FINANCE.
 const FX_HEDGING_VALUES = new Set(['FULLY_HEDGED', 'DISCRETIONARY', 'PARTIALLY_HEDGED', 'UNHEDGED', 'UNSPECIFIED', 'NOT_APPLICABLE'])
 const GEOGRAPHY_VALUES = new Set(['GLOBAL', 'US', 'JAPAN', 'CHINA', 'VIETNAM', 'INDIA', 'EUROPE', 'EMERGING_MARKETS', 'ASIA_PACIFIC', 'THAILAND'])
 const THEMATIC_VALUES = new Set(['BROAD_MARKET', 'TECHNOLOGY_AI', 'COMMODITIES', 'HIGH_DIVIDEND', 'PROPERTY_INFRA', 'HEALTHCARE_BIOTECH', 'ESG_CLEAN_ENERGY', 'CONSUMER_LIFESTYLE', 'FINTECH_FINANCE'])
@@ -45,10 +26,8 @@ function mapEnum(raw, validValues) {
   return validValues.has(text) ? text : null
 }
 
-// API Contract — `fx_hedge_policy` is the documented field; `fx_hedging` was
-// briefly a raw Thai sentence, vanished, then came back as an exact alias of
-// fx_hedge_policy (same enum values) — prefer the documented name, fall back
-// to the alias so this survives either one disappearing again.
+// `fx_hedge_policy` is the documented field; `fx_hedging` is an alias that
+// briefly disappeared. Prefer the documented name, fall back to the alias.
 function mapFxHedging(record) {
   return mapEnum(record.fx_hedge_policy ?? record.fx_hedging, FX_HEDGING_VALUES)
 }
@@ -59,17 +38,14 @@ const MAX_HOLDINGS = 20
 const MAX_ALLOCATIONS = 30
 const MIXED_CATEGORY_PATTERN = /mixed|allocation|balanced|multi[- ]?asset|ผสม|จัดสรร/i
 const THAI_EQUITY_CATEGORY_PATTERN = /thai equity|equity|หุ้น/i
+const COMMODITIES_CATEGORY_PATTERN = /commodit|โภคภัณฑ์/i
 
 const DIRECT_LIST_PARAMS = Object.freeze({
-  // API Contract — Thai feeder funds are categorised under FOREIGN market_type.
+  // Feeder funds are categorised under FOREIGN market_type.
   feeder: Object.freeze({ market_type: 'FOREIGN', is_feeder_fund: 1 }),
   offshore: Object.freeze({ market_type: 'FOREIGN', is_feeder_fund: 0 }),
-  // Bug fix — do not filter by is_feeder_fund here: confirmed live that it's
-  // unreliable under market_type TH (see inferFundType() above), so an
-  // is_feeder_fund:0 param here server-side-excluded 839 real domestic funds
-  // before isFundInType() ever got a chance to classify them correctly.
-  // Fetch every TH-market record and let isFundInType() (category-text based,
-  // not flag based) sort thai vs mixed vs neither.
+  // is_feeder_fund is unreliable under TH (excluded 839 real domestic funds
+  // server-side) — fetch all TH records, let isFundInType() classify them.
   thai: Object.freeze({ market_type: 'TH' }),
   mixed: Object.freeze({ market_type: 'TH' }),
 })
@@ -94,14 +70,11 @@ export function isValidThemeId(themeId) {
   return typeof themeId === 'string' && THEME_ID_PATTERN.test(themeId)
 }
 
-// Feature switch — direct mode targets the supplied Mutual Fund Data API;
-// wordpress routes the same real backend through admin-ajax.php. No mock
-// mode: local fabricated fund data was removed, this feature is real-API-only.
+// direct calls the API directly; wordpress routes through admin-ajax.php. Both real, no mock mode.
 export const fundinfoApiMode = import.meta.env.VITE_FUNDINFO_API_MODE || 'direct'
 
 function toSafeError(fallbackMessage) {
-  // Error Handling — never propagate backend payloads, Axios objects, or stack traces to UI/state.
-  return new Error(fallbackMessage)
+  return new Error(fallbackMessage) // never propagate raw backend payloads/stack traces to UI
 }
 
 function isRecord(value) {
@@ -111,7 +84,6 @@ function isRecord(value) {
 function safeText(value, maxLength = MAX_TEXT_LENGTH) {
   if (typeof value !== 'string') return ''
 
-  // Anti-XSS — preserve plain text only; components must continue using {{ }} rather than v-html.
   return value.replace(/[\u0000-\u001F\u007F]/g, ' ').trim().slice(0, maxLength)
 }
 
@@ -121,7 +93,7 @@ function safeHttpsUrl(value) {
 
   try {
     const parsed = new URL(url)
-    return parsed.protocol === 'https:' ? parsed.href : '' // Anti-XSS — block javascript:, data:, and mixed-content URLs.
+    return parsed.protocol === 'https:' ? parsed.href : '' // block javascript:/data: URLs
   } catch {
     return ''
   }
@@ -133,11 +105,7 @@ function safeNumber(value, fallback = 0) {
 }
 
 function optionalNumber(value) {
-  // Bug fix: `Number(null) === 0` and `Number.isFinite(0) === true`, so a
-  // bare `Number(value)` coercion silently turned every explicit API `null`
-  // (very common — pe_ratio/pb_ratio/max_drawdown_*/front_end_fee etc. are
-  // frequently null) into 0, misrepresenting "no data" as "genuinely zero"
-  // everywhere this feeds a `??` fallback or a `!= null` display check.
+  // `Number(null) === 0`, which would misrepresent "no data" as "genuinely zero".
   if (value === null || value === undefined) return null
   const number = Number(value)
   return Number.isFinite(number) ? number : null
@@ -152,11 +120,7 @@ function rounded(value, decimals = 2) {
   return Math.round(value * scale) / scale
 }
 
-// Bug fix — categoryAvg (เฉลี่ยกลุ่ม) below used to pass the API's raw float
-// straight through optionalNumber() with no rounding at all (e.g.
-// category_avg_return_3m: 0.700666 rendered as "+0.700666%"), unlike every
-// other percent field in this file which goes through rounded(). Null-safe
-// wrapper so "no data" (null) doesn't get coerced into 0 by rounding it.
+// Null-safe rounded() — categoryAvg fields need rounding but must stay null, not 0, when absent.
 function optionalRounded(value, decimals = 2) {
   const number = optionalNumber(value)
   return number == null ? null : rounded(number, decimals)
@@ -178,16 +142,16 @@ function categoryText(record) {
     .join(' ')
 }
 
-// Bug fix — `is_feeder_fund` is unreliable under market_type TH: confirmed
-// live 2026-09-03 that 839 domestic-only funds (categories "Equity Large
-// Cap"/"Equity General"/"SET 50 Index Fund"/allocation funds — e.g.
-// K-EQUITY, K-SET50, ES-SET50-A) are flagged is_feeder_fund=1 despite never
-// routing through a foreign master fund, which used to make inferFundType()
-// call every one of them 'feeder' and drop them out of both the Thai and
-// Mixed catalogs entirely (they never surfaced in either tab, or in any
-// screener/exposure view scoped to those types). Real feeder funds are, by
-// this API's own convention (see DIRECT_LIST_PARAMS below), always under
-// market_type FOREIGN — so only trust is_feeder_fund there.
+// Commodities funds (e.g. gold ETFs tracking SPDR Gold Trust) get geographic_focus=US
+// from the backend — that's the master fund's exchange listing, not real geographic
+// exposure (verified live: finnomena.com tags the same funds as Commodities only, no
+// geography). Drop it rather than let a gold fund pollute a "US equity" filter.
+function hasUnreliableGeography(record) {
+  return COMMODITIES_CATEGORY_PATTERN.test(categoryText(record))
+}
+
+// `is_feeder_fund` is unreliable under market_type TH (839 domestic-only funds are
+// flagged =1 despite no foreign master fund) — only trust it under FOREIGN.
 function inferFundType(record) {
   const marketType = safeText(record?.market_type).toUpperCase()
   if (asFlag(record?.is_feeder_fund) && marketType === 'FOREIGN') return 'feeder'
@@ -216,7 +180,7 @@ function mapHoldings(holdings) {
     const name = safeText(holding.clean_holding_name || holding.raw_holding_name || holding.stock_symbol)
     if (!name) return []
 
-    // API Contract — try multiple field names; different API versions may use different keys.
+    // different API versions use different field names
     const rawPercent =
       holding.holding_percent ??
       holding.percent ??
@@ -251,8 +215,7 @@ function allocationsOfType(allocations, allocationType) {
     .map(({ name, percent }) => ({ name, percent }))
 }
 
-// API Contract — fund_tax_type is real (RMF/SSF/TESG/TESGX), just bucketed
-// into the app's existing SSF/RMF/Thai ESG/none categories.
+// fund_tax_type (RMF/SSF/TESG/TESGX) bucketed into the app's SSF/RMF/Thai ESG/none categories.
 function mapTaxBenefit(record) {
   const type = safeText(record.fund_tax_type, 16).toUpperCase()
   if (type === 'RMF') return 'rmf'
@@ -298,7 +261,6 @@ function normalizeFund(record, requestedType, details = {}) {
     type,
     name: safeText(record.fund_name_th || record.fund_name_en || record.fund_code),
     amc,
-    // UI Adapter — preserve the legacy presentation contract without changing components.
     amcCode: safeText(amc.replace(/[^A-Za-z0-9]/g, '').slice(0, 3).toUpperCase()) || 'FI',
     amcShort: amc,
     risk: Math.min(Math.max(Math.round(safeNumber(record.risk_level)), 0), 8),
@@ -306,10 +268,8 @@ function normalizeFund(record, requestedType, details = {}) {
     div: rounded(safePercent(record.dividend_yield)),
     dividendPolicy: safeText(record.dividend_policy),
     fxHedging: mapFxHedging(record),
-    // Screener dimensions — real enums as of 2026-09-03 (see mapEnum above).
-    // One value per fund (not a tag list), so screener filters match by
-    // membership in the user's selected id set, not array overlap.
-    geography: mapEnum(record.geographic_focus, GEOGRAPHY_VALUES),
+    // one value per fund (not a tag list) — screener filters match by set membership
+    geography: hasUnreliableGeography(record) ? null : mapEnum(record.geographic_focus, GEOGRAPHY_VALUES),
     megatrend: mapEnum(record.thematic_category, THEMATIC_VALUES),
     managementStyle: mapEnum(record.management_style, MANAGEMENT_STYLE_VALUES),
     marketCapFocus: mapEnum(record.market_cap_focus, MARKET_CAP_VALUES),
@@ -327,30 +287,21 @@ function normalizeFund(record, requestedType, details = {}) {
     themes,
     netbuy: flow1m,
     perf: return1y,
-    pop: 0, // Popularity is not supplied by the API; do not fabricate analytics.
+    pop: 0, // not supplied by the API; do not fabricate
     aum: rounded(safeNumber(record.aum_m_thb)),
     nav: rounded(safeNumber(record.nav ?? record.nav_value)),
     navDate: safeText(record.nav_date, 32),
-    // API Data Quality — this field looks broken upstream as of this writing
-    // (seen +126.72% on an equity feeder, +19.99% on a low-vol bond fund —
-    // consistent with being computed against inception NAV, not the previous
-    // day). Kept for completeness/debugging only; don't display it as a
-    // "daily change" — derive that from nav-history instead (see
-    // useFundAnalytics.js dailyChange usage in FundInfoDetailView.vue).
+    // looks broken upstream (e.g. +126% on an equity feeder — likely vs. inception NAV,
+    // not previous day). Kept for debugging only; derive daily change from nav-history instead.
     navChangePct1d: optionalNumber(record.nav_change_pct_1d),
     inceptionDate: safeIsoDate(record.inception_date),
     factSheetUrl: safeHttpsUrl(record.fund_fact_sheet),
     isFeederFund: asFlag(record.is_feeder_fund),
     isEtf: asFlag(record.is_etf),
     taxBenefit: mapTaxBenefit(record),
-    // Bug fix — m6 (return_6m) added: FundPerformancePanel.vue's "6 เดือน" row
-    // used to fabricate this as y1*0.6 because retP had no real slot for it,
-    // even though the API has published return_6m all along.
     retP: { m1: rounded(safePercent(record.return_1m)), q1: rounded(safePercent(record.return_3m)), m6: rounded(safePercent(record.return_6m)), y1: return1y, y3: return3y, y5: return5y, y10: return10y },
-    // Distinct from retP above — retP defaults a missing period to 0% for safe
-    // display everywhere else. Anything that needs to tell "genuinely 0%
-    // return" apart from "no data for this period" (e.g. building a real
-    // checkpoint chart) must read this instead, never retP.
+    // retP defaults missing periods to 0% for display; use this instead when
+    // "genuinely 0%" must be distinguishable from "no data" (e.g. charts).
     retPRaw: {
       m1: optionalNumber(record.return_1m),
       q1: optionalNumber(record.return_3m),
@@ -360,10 +311,8 @@ function normalizeFund(record, requestedType, details = {}) {
       y5: optionalNumber(record.return_5y),
       y10: optionalNumber(record.return_10y),
     },
-    // API Data Quality — there is no estimated_flow_1w_m_thb from this API,
-    // only 1m/1y. unit_change_1w is a % unit-price change (a completely
-    // different unit from the THB-millions m1/y1 below) — never substitute
-    // it here, it previously showed e.g. "-1 ลบ." for a -1.1% price move.
+    // no 1w flow from the API (only 1m/1y) — unit_change_1w is a % price change,
+    // not THB-millions, and must never be substituted here.
     flowP: { w1: null, m1: flow1m, y1: flow1y },
     managementFee: optionalNumber(record.management_fee),
     frontEndFee: optionalNumber(record.front_end_fee),
@@ -372,11 +321,8 @@ function normalizeFund(record, requestedType, details = {}) {
     maxBackEndFee: optionalNumber(record.max_back_end_fee),
     sharpe: optionalNumber(record.sharpe_ratio_1y),
     drawdown: maxDrawdown === null ? '-' : `${rounded(maxDrawdown)}%`,
-    // Benchmark/alpha/beta — the API attaches these to the fund's own AIMC
-    // category, not a market index feed. peRatio/pbRatio exist in the schema
-    // but are still null for every fund observed so far — kept null-aware
-    // (optionalNumber) rather than defaulted, so UI can tell "not disclosed
-    // yet" apart from "genuinely zero".
+    // benchmark/alpha/beta are vs. the fund's AIMC category, not a market index.
+    // peRatio/pbRatio are still null for every fund observed — kept nullable, not defaulted.
     benchmarkName: safeText(record.benchmark_name, 120),
     benchmarkReturn1y: optionalNumber(record.benchmark_return_1y ?? record.category_avg_return_1y),
     alpha: optionalNumber(record.alpha_1y),
@@ -388,23 +334,15 @@ function normalizeFund(record, requestedType, details = {}) {
       sd: optionalRounded(record.std_1y),
       maxdd: maxDrawdown,
     },
-    // Bug fix — the risk-metric table (FundPerformancePanel.vue) used to
-    // fabricate every period (3M/6M/1Y/3Y/5Y/10Y) by multiplying `stats`
-    // above by a hardcoded per-period ratio table ("mock illustrative
-    // figures only", per its own comment) even in direct mode. The API only
-    // ever publishes 1Y (stats above) and 3Y (here) period-specific figures
-    // — no 3M/6M/5Y/10Y equivalent exists for SD/Sharpe/MaxDrawdown at all,
-    // so those periods have no real replacement and are dropped, not faked.
+    // API only publishes 1Y (stats above) and 3Y period-specific risk figures;
+    // no 3M/6M/5Y/10Y equivalents exist, so those are dropped rather than faked.
     stats3y: {
       sharpe: optionalRounded(record.sharpe_ratio_3y),
       sd: optionalRounded(record.std_3y),
       maxdd: optionalRounded(record.max_drawdown_3y),
     },
-    // Real peer/category averages the API publishes — used to replace the
-    // "เฉลี่ยกลุ่ม" (group average) column, which used to be either a mock
-    // formula (mock mode) or silently `null` -> blank "%" (direct mode, see
-    // useFundAnalytics.js groupAverage). Only these periods exist: no 3Y/5Y/
-    // 10Y peer-return average, and no peer SD at all.
+    // real peer/category averages ("เฉลี่ยกลุ่ม" column) — only these periods exist,
+    // no 3Y/5Y/10Y peer return average and no peer SD.
     categoryAvg: {
       return3m: optionalRounded(record.category_avg_return_3m),
       return6m: optionalRounded(record.category_avg_return_6m),
@@ -425,8 +363,6 @@ function extractFundList(payload) {
 function mapTopHoldingFundCodes(value) {
   if (!Array.isArray(value)) return []
 
-  // Anti-XSS — these are public fund codes only; retain plain, bounded text
-  // so composables can join rankings to the already-sanitized fund list.
   return value
     .slice(0, 100)
     .map((code) => safeText(code, 64))
@@ -457,8 +393,7 @@ function mapTopStock(record) {
     totalHoldingValueMThb,
     avgHoldingWeight,
     maxHoldingWeight,
-    // API Contract — the API supplies only a capped list of holders. Keep it
-    // separate from `fundCount`, which remains the API's full aggregate count.
+    // API caps this list; fundCount above is the full aggregate count
     topHoldingFundCodes: mapTopHoldingFundCodes(record.top_holding_funds),
   }
 }
@@ -476,21 +411,15 @@ function mapPortfolioAllocation(record) {
   return {
     allocationType,
     name,
-    // Anti-XSS — accept only CSS hex colours supplied by the API; components
-    // must not interpolate arbitrary values into inline style attributes.
-    color: /^#[0-9A-Fa-f]{6}$/.test(color) ? color : '',
+    color: /^#[0-9A-Fa-f]{6}$/.test(color) ? color : '', // only accept CSS hex colours
     avgPercent: rounded(safePercent(record.avg_percent)),
     weightedPercent: rounded(safePercent(record.weighted_percent)),
     fundsCount: Math.max(0, Math.min(Math.round(safeNumber(record.funds_count)), 1000000)),
   }
 }
 
-// Bug fix — this read record.icon/master_fund/sample_symbols, which never
-// exist on a real /insights/themes record (verified live across all 34
-// themes, v1/v2 identical schema) — those three always came out blank/[].
-// Meanwhile the real payload's theme_name/funds_count/total_aum_m_thb/
-// avg_return_1m/avg_return_1y were silently dropped entirely. Read the
-// fields the API actually sends instead of the ones a stale schema assumed.
+// theme_name/funds_count/total_aum_m_thb/avg_return_1m/avg_return_1y are what the
+// API actually sends — icon/master_fund/sample_symbols never exist on a real record.
 function mapTheme(record) {
   if (!isRecord(record)) return null
 
@@ -516,16 +445,9 @@ function extractThemes(payload) {
   return []
 }
 
-// Bug fix — this required record.theme_id to be a valid theme id or it
-// returned null, silently dropping every record — but /insights/theme-funds
-// never echoes theme_id (or theme_name/theme_weight/theme_value_thb/
-// matched_stocks*/theme_exposure_score) back on a fund record, confirmed
-// live with and without the ?themes= filter, identical on v1/v2/v3. That
-// made fetchThemeFunds() always resolve to [] before a single caller ever
-// used it. The API's own request param is the only source of which theme(s)
-// were asked for, so the caller passes it in explicitly (see fetchThemeFunds
-// below) instead of expecting the response to say so. The fields with no
-// real source are dropped rather than defaulted to a fabricated 0/[].
+// /insights/theme-funds never echoes theme_id (or theme_name/weight/matched_stocks*)
+// back on a fund record — the caller passes themeId in explicitly instead (see
+// fetchThemeFunds below). Fields with no real source are dropped, not fabricated.
 function mapThemeFund(record, themeId) {
   if (!isRecord(record)) return null
 
@@ -548,17 +470,9 @@ function mapThemeFund(record, themeId) {
   }
 }
 
-// API Data Quality — /api/v1/funds/list caps out at 1000 rows per REQUEST
-// (limit > 1000 silently returns 0, not an error — verified live, this is a
-// hard server-side ceiling, not something the client can raise) and never
-// sends a total count, so this loops on offset until a short page confirms
-// the end. The TH market alone has ~4000 non-feeder funds; a single-page
-// fetch used to return only whatever the API's default ordering put in the
-// first 1000 — for 'thai' that was entirely Fixed Income/Miscellaneous
-// funds, so every real Equity fund (and therefore the whole screener)
-// silently showed 0 results. MAX_LIST_PAGES is only a runaway guard (in case
-// the API never returns a short final page), not a real cap — at 1000/page
-// it covers up to 100,000 funds, comfortably above any known fund universe.
+// /api/v1/funds/list hard-caps at 1000 rows/request and never sends a total count,
+// so this pages on offset until a short page confirms the end. MAX_LIST_PAGES is
+// just a runaway guard (100k funds at 1000/page), not a real cap.
 const MAX_LIST_PAGES = 100
 
 async function fetchAllDirectFunds(type) {
@@ -607,9 +521,7 @@ function extractNavHistory(payload) {
   return []
 }
 
-// Real daily NAV series — added to the recon API after the fund profile's
-// checkpoint-only returns (retPRaw) were the sole option. Sorted oldest-first
-// so callers can plot it directly without re-sorting.
+// Daily NAV series, sorted oldest-first so callers can plot it directly.
 export async function fetchFundNavHistory(id, { days = 365 } = {}) {
   if (!isValidFundId(id)) {
     throw new Error('Invalid fund id requested')
@@ -627,30 +539,19 @@ export async function fetchFundNavHistory(id, { days = 365 } = {}) {
       .filter(Boolean)
       .sort((a, b) => a.date.localeCompare(b.date))
   } catch {
-    return [] // Non-critical chart data — fail quiet, callers already fall back to checkpoint returns.
+    return [] // non-critical chart data — callers fall back to checkpoint returns
   }
 }
 
-// API Data Quality — /api/v1/stocks/top?market_type=FOREIGN mixes in plain
-// domestic Thai SET stocks (confirmed live 2026-09-03: 10 of 15 FOREIGN-
-// tagged rows were names like KBANK/GULF/CPALL/BBL — every genuine foreign
-// holding in this dataset has industry/sector both null, while every
-// misclassified Thai one carries Thai SET's own industry/sector taxonomy
-// codes, e.g. GULF industry="RESOURC" sector="ENERG"). Left in, this made a
-// Thai bank top the offshore "most widely held stock" stat and starved every
-// Megatrend/Region scope of real matches (see useFundinfoExposureTrend.js).
-// Drop those rows rather than let a Thai stock masquerade as a foreign one;
-// remove this filter once the backend stops tagging domestic stocks FOREIGN.
+// /api/v1/stocks/top?market_type=FOREIGN mixes in domestic Thai SET stocks (they
+// carry industry/sector taxonomy codes; genuine foreign holdings have both null).
+// Drop those rows; remove this filter once the backend stops tagging them FOREIGN.
 function isMisclassifiedThaiStock(record, marketType) {
   return marketType === 'FOREIGN' && Boolean(record?.industry || record?.sector)
 }
 
-// API Data Quality — the 500-row ceiling this used to hard-cap at (422 above
-// it) is gone server-side as of 2026-09-07: limit=501+ now returns 200 with
-// the real count, no offset/pagination needed. That day FOREIGN had already
-// grown to 555 ranked stocks, so the old fixed 500 default was silently
-// truncating 55 real rows. Raise the ceiling well past current usage (TH 158,
-// FOREIGN 555) rather than hand-tuning it to today's exact count again.
+// server-side row ceiling was raised 2026-09-07 — default limit set well above
+// current usage (TH 158, FOREIGN 555) rather than hand-tuned to today's count.
 export async function fetchTopStocksByMarket(marketType, { limit = 2000 } = {}) {
   if (!isValidStockMarket(marketType)) {
     throw new Error('Invalid stock market requested')
@@ -675,9 +576,8 @@ export async function fetchTopStocksByMarket(marketType, { limit = 2000 } = {}) 
   }
 }
 
-// Portfolio API — aggregate region/sector allocation for the Analysis cards.
-// Codes are validated before joining them to a query string, which prevents
-// untrusted route/input values from being forwarded to the API.
+// Aggregate region/sector allocation for the Analysis cards. Codes are validated
+// before joining into a query string, so untrusted input can't reach the API.
 export async function fetchPortfolioAllocation({ marketType, fundCodes = [], allocationType = '' } = {}) {
   if (marketType && !isValidStockMarket(marketType)) {
     throw new Error('Invalid stock market requested')
@@ -738,10 +638,8 @@ export async function fetchThemeFunds({ themeIds = [], limit = 100, offset = 0 }
       ? await wpGet('fundinfo_theme_funds', params)
       : await reconGet('/api/v1/insights/theme-funds', params)
 
-    // API Contract — the response never says which requested theme a fund
-    // matched (see mapThemeFund above), so only attribute themeId when the
-    // call asked for exactly one; a multi-theme call can't attribute it
-    // without guessing, so themeId comes back null there.
+    // response never says which theme a fund matched — only attribute themeId
+    // when exactly one was requested; a multi-theme call gets null.
     const singleThemeId = themes.length === 1 ? themes[0] : null
     return extractFundList(payload).map((record) => mapThemeFund(record, singleThemeId)).filter(Boolean)
   } catch {

@@ -1,9 +1,6 @@
-// Shared label/lookup constants for the Fundinfo feature (category labels,
-// AMC/sector name maps, benchmark metadata) — used in every API mode,
-// including direct/wordpress. Split out from the former fundinfoData.js,
-// which also held fabricated mock fund records; those are gone along with
-// mock mode (see CLAUDE.md/context.md) — this file keeps only what real-mode
-// code actually reads.
+// Shared label/lookup constants for the Fundinfo feature (category labels, AMC/sector
+// maps, benchmark metadata), used in every API mode. Split out from the former
+// fundinfoData.js, which also held fabricated mock fund records (removed with mock mode).
 function pairs(list) {
   return list.map(([name, percent]) => ({ name, percent }))
 }

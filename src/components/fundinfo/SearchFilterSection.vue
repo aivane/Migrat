@@ -62,11 +62,8 @@ function scrollToCompare() {
   document.getElementById(`fund-compare-${props.type}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
 }
 
-// Design decision, not an oversight — confirmed with product: Mixed Fund
-// deliberately excludes the Investment Style / Size & Characteristic panel
-// that Thai gets from the same useFundinfoScreener() (usesInvestmentStyleFilters
-// is true for both). Don't remove this gate to "fix" it; ask product first if
-// that decision has changed.
+// Design decision (confirmed with product), not a bug: Mixed Fund deliberately excludes the
+// Investment Style / Size & Characteristic panel that Thai gets from the same screener composable.
 function handleToggleAdvanced() {
   if (isMixed.value) return
   toggleAdvanced()
