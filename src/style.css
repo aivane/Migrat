@@ -2887,3 +2887,123 @@ pre {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* ═══════════════════════════════════════════════════════════
+   Modern Exposure Topic Switcher & Data Rows (FUNDINFO)
+═══════════════════════════════════════════════════════════ */
+.exp-topic-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #64748b;
+  background: #f1f5f9;
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.exp-topic-btn:hover {
+  color: #0f172a;
+  background: #e2e8f0;
+}
+.exp-topic-btn.active {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+}
+.dark .exp-topic-btn,
+:root.dark .exp-topic-btn {
+  background: #1e293b;
+  color: #94a3b8;
+}
+.dark .exp-topic-btn:hover,
+:root.dark .exp-topic-btn:hover {
+  background: #334155;
+  color: #f8fafc;
+}
+.dark .exp-topic-btn.active,
+:root.dark .exp-topic-btn.active {
+  background: #3b82f6;
+  color: #ffffff;
+  border-color: #3b82f6;
+}
+
+.exp-data-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  transition: background 0.15s, transform 0.15s;
+  cursor: pointer;
+}
+.exp-data-row:hover {
+  background: #f1f5f9;
+  transform: translateX(2px);
+}
+.dark .exp-data-row:hover,
+:root.dark .exp-data-row:hover {
+  background: #1e293b;
+}
+
+.exp-rank-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  background: #e2e8f0;
+  color: #475569;
+  flex-shrink: 0;
+  font-family: 'Inter', sans-serif;
+}
+.dark .exp-rank-badge,
+:root.dark .exp-rank-badge {
+  background: #334155;
+  color: #cbd5e1;
+}
+.exp-rank-badge.rank-1 {
+  background: #fef3c7;
+  color: #b45309;
+}
+.dark .exp-rank-badge.rank-1,
+:root.dark .exp-rank-badge.rank-1 {
+  background: #78350f;
+  color: #fde68a;
+}
+.exp-rank-badge.rank-2 {
+  background: #f1f5f9;
+  color: #475569;
+}
+.exp-rank-badge.rank-3 {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.num {
+  font-family: 'Inter', 'Prompt', sans-serif;
+  font-feature-settings: "tnum";
+}
+
+.sc-tab {
+  cursor: pointer;
+}
+
+/* Utility to completely hide horizontal / vertical scrollbars */
+.no-scrollbar {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+
+

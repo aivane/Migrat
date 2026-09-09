@@ -33,6 +33,33 @@
 
     <!-- Tailwind CDN — required by fundinfo components (src/components/fundinfo/**), do not remove -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              brand: {
+                50: '#f0f5ff',
+                100: '#e5edff',
+                200: '#cddbfe',
+                300: '#b4c6fc',
+                400: '#8da2fb',
+                500: '#1c52d8',
+                600: '#1441b4',
+                700: '#0e318f',
+                800: '#0a2366',
+                900: '#0b1942'
+              }
+            },
+            fontFamily: {
+              sans: ['Prompt', 'Noto Sans Thai', 'sans-serif'],
+              num: ['Inter', 'Prompt', 'sans-serif']
+            }
+          }
+        }
+      }
+    </script>
 
     <!-- Chart.js — required by fund expand pie chart (matches WordPress version) -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>

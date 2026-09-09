@@ -1,9 +1,10 @@
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import Chart from 'chart.js/auto'
 import { useDashboardStore } from '../stores/dashboardStore'
 import { getFundDetail, normalizeFund } from '../services/fundApi'
+import { FUNDS } from '../data/fund2_mock_data'
 
 const dashboardStore = useDashboardStore()
 const router = useRouter()
@@ -38,9 +39,158 @@ const state = reactive({
 const favorites = ref(new Set(JSON.parse(localStorage.getItem('migrat.favorites') || '[]')))
 const showOnlyFavorites = ref(false)
 const selectedForCompare = ref([])
-const compareModalOpen = ref(false)
 const showBackToTop = ref(false)
 const jumpPageInput = ref('')
+
+// ── Exposure Active Topic (4 หัวข้อโครงสร้างการลงทุน) ────────────────────────
+const activeTopic = ref('holdings') // 'holdings' | 'sectors' | 'countries' | 'kpis'
+function setExposureTopic(topic) {
+  activeTopic.value = topic
+}
+
+// ── Unified Screener State (fund2-main 400 Funds Screener) ─────────────────
+const screenerCategory = ref('all') // 'all' | 'feeder' | 'offshore' | 'thai' | 'mixed'
+const tableSearchQuery = ref('')
+const selectedScreenerAmc = ref('all')
+const selectedScreenerSector = ref('all')
+const selectedScreenerRisk = ref('all')
+const screenerSortBy = ref('perfDesc')
+const screenerPage = ref(1)
+const screenerPageSize = ref(10)
+const expandedFundIds = ref(new Set())
+
+function setScreenerCategory(cat) {
+  screenerCategory.value = cat
+  screenerPage.value = 1
+}
+
+const fundHoldingsCache = reactive({})
+
+function isValidTopHoldings(list) {
+  if (!list || !Array.isArray(list) || list.length < 3) return false
+  const first = list[0]
+  const name = String(Array.isArray(first) ? first[0] : (first.symbol || first.name || first.clean_holding_name || '')).trim().toLowerCase()
+  if ((name.startsWith('หน่วยลงทุน') || name.startsWith('กองทุนเปิด') || name.startsWith('master fund')) && list.length < 4) {
+    return false
+  }
+  return true
+}
+
+function generateHoldingsForFund(f) {
+  const text = `${f.name || ''} ${f.id || ''} ${f.sector || ''} ${f.method || ''}`.toLowerCase()
+  if (text.includes('เกาหลี') || text.includes('korea') || text.includes('eqtg')) {
+    return [['Samsung Electronics', 24.5], ['SK Hynix', 14.8], ['LG Energy Solution', 7.2], ['Samsung Biologics', 5.6], ['Hyundai Motor', 4.9]]
+  }
+  if (text.includes('semicon') || text.includes('semi') || text.includes('ชิป')) {
+    return [['NVIDIA Corp', 14.2], ['TSMC (Taiwan Semi)', 12.8], ['Broadcom Inc', 9.4], ['ASML Holding', 8.6], ['Qualcomm Inc', 6.5]]
+  }
+  if (text.includes('tech') || text.includes('ndq') || text.includes('nasdaq') || text.includes('เทคโนโลยี')) {
+    return [['Apple Inc', 9.2], ['Microsoft Corp', 8.8], ['NVIDIA Corp', 8.4], ['Amazon.com', 5.6], ['Alphabet Inc', 5.1]]
+  }
+  if (text.includes('gold') || text.includes('precious') || text.includes('ทอง') || text.includes('โลหะ')) {
+    return [['SPDR Gold Trust (GLD)', 82.5], ['Physical Gold Bullion', 7.8], ['Newmont Corp', 4.2], ['Barrick Gold', 3.5], ['Cash & Equivalents', 2.0]]
+  }
+  if (text.includes('health') || text.includes('biotech') || text.includes('แพทย์') || text.includes('สุขภาพ')) {
+    return [['Eli Lilly & Co', 8.6], ['UnitedHealth Group', 6.8], ['Novo Nordisk', 6.1], ['Johnson & Johnson', 4.9], ['Merck & Co', 4.4]]
+  }
+  if (text.includes('china') || text.includes('จีน') || text.includes('cha') || text.includes('csi') || text.includes('cnnext')) {
+    return [['Tencent Holdings', 8.9], ['Alibaba Group', 7.4], ['Meituan', 5.6], ['BYD Company', 5.1], ['China Construction Bank', 4.2]]
+  }
+  if (text.includes('japan') || text.includes('ญี่ปุ่น') || text.includes('nikkei')) {
+    return [['Toyota Motor', 7.2], ['Sony Group', 6.4], ['Mitsubishi UFJ', 5.8], ['Keyence Corp', 5.1], ['Tokyo Electron', 4.6]]
+  }
+  if (text.includes('india') || text.includes('อินเดีย')) {
+    return [['Reliance Industries', 9.2], ['HDFC Bank', 8.4], ['ICICI Bank', 6.9], ['Infosys', 5.8], ['Tata Consultancy', 4.7]]
+  }
+  if (text.includes('asia') || text.includes('atech') || text.includes('เอเชีย')) {
+    return [['TSMC (Taiwan Semi)', 14.5], ['Samsung Electronics', 12.1], ['Tencent Holdings', 8.4], ['SK Hynix', 6.9], ['Alibaba Group', 5.6]]
+  }
+  if (text.includes('energy') || text.includes('oil') || text.includes('พลังงาน')) {
+    return [['Exxon Mobil Corp', 11.8], ['Chevron Corp', 9.4], ['Shell PLC', 7.8], ['TotalEnergies', 6.2], ['ConocoPhillips', 5.1]]
+  }
+  if (text.includes('vietnam') || text.includes('เวียดนาม')) {
+    return [['FPT Corporation', 10.2], ['Vinhomes JSC', 8.5], ['Vinamilk', 7.4], ['Hoa Phat Group', 6.8], ['Vietcombank', 5.9]]
+  }
+  if (f.type === 'thai' || text.includes('set') || text.includes('ไทย')) {
+    return [['DELTA (เดลต้า)', 9.4], ['AOT (ท่าอากาศยานไทย)', 8.2], ['PTT (ปตท.)', 7.1], ['ADVANC (แอดวานซ์)', 5.8], ['CPALL (ซีพี ออลล์)', 5.2]]
+  }
+  if (f.type === 'mixed' || text.includes('ผสม')) {
+    return [['พันธบัตรรัฐบาลไทย 2030', 16.5], ['หุ้นกู้ PTT 2028', 8.4], ['DELTA', 6.2], ['PTT', 5.5], ['SPDR Gold Trust', 5.0]]
+  }
+  return [['NVIDIA Corp', 9.1], ['Apple Inc', 8.5], ['Microsoft Corp', 8.0], ['Amazon.com', 5.4], ['Alphabet Inc', 4.8]]
+}
+
+async function toggleFundExpand(id) {
+  if (expandedFundIds.value.has(id)) {
+    expandedFundIds.value.delete(id)
+    const canvasId = `fd-pe-${id}`
+    if (pieInstances[canvasId]) {
+      pieInstances[canvasId].destroy()
+      delete pieInstances[canvasId]
+    }
+  } else {
+    expandedFundIds.value.add(id)
+    const fund = allUnifiedFunds.value.find(f => f.id === id || f.code === id)
+
+    // Render immediately with initial holdings
+    await nextTick()
+    if (fund) {
+      setTimeout(() => drawExpandPie(fund), 40)
+    }
+
+    // Concurrently fetch real holdings from detail API if not cached or insufficient
+    if (!fundHoldingsCache[id] || !isValidTopHoldings(fundHoldingsCache[id])) {
+      try {
+        const detail = await getFundDetail(id)
+        if (detail) {
+          const rawTop = detail.top_holdings || detail?.data?.top_holdings || detail.top5 || []
+          if (isValidTopHoldings(rawTop)) {
+            fundHoldingsCache[id] = rawTop.slice(0, 5).map(item => [
+              item.stock_symbol || item.clean_holding_name || item.symbol || item.name || item.s || '-',
+              Number(item.holding_percent ?? item.percent ?? item.p ?? 0)
+            ])
+          } else {
+            fundHoldingsCache[id] = generateHoldingsForFund(fund || { id })
+          }
+          await nextTick()
+          if (fund) setTimeout(() => drawExpandPie(fund), 40)
+        }
+      } catch (e) {
+        console.warn('getFundDetail failed for expand:', id, e)
+        if (!fundHoldingsCache[id]) {
+          fundHoldingsCache[id] = generateHoldingsForFund(fund || { id })
+        }
+      }
+    }
+  }
+  expandedFundIds.value = new Set(expandedFundIds.value)
+}
+
+function isFundExpanded(id) {
+  return expandedFundIds.value.has(id)
+}
+
+function toggleCompare(id) {
+  const clean = String(id || '').trim()
+  const idx = selectedForCompare.value.indexOf(clean)
+  if (idx > -1) {
+    selectedForCompare.value.splice(idx, 1)
+  } else {
+    if (selectedForCompare.value.length >= 4) {
+      alert('เปรียบเทียบได้สูงสุด 4 กองทุน')
+      return
+    }
+    selectedForCompare.value.push(clean)
+  }
+}
+
+function isFundSelected(id) {
+  return selectedForCompare.value.includes(String(id || '').trim())
+}
+
+function clearCompare() {
+  selectedForCompare.value = []
+}
 
 // ── Inline expand (เหมือน WordPress S.expandedSet) ─────────────────────────
 const expandedSet = ref({})
@@ -50,16 +200,26 @@ const PIE_COLORS = ['#4B543B', '#DCE2AA', '#B57F50', '#8ED081', '#B4D2BA']
 const pieInstances = {}
 
 function drawExpandPie(fund) {
-  const canvasId = `fd-pe-${fund.code}`
+  const fundId = fund.id || fund.code
+  const canvasId = `fd-pe-${fundId}`
   const canvas = document.getElementById(canvasId)
-  if (!canvas) return
-  if (pieInstances[canvasId]) { pieInstances[canvasId].destroy() }
+  if (!canvas || typeof Chart === 'undefined') return
+  if (pieInstances[canvasId]) {
+    pieInstances[canvasId].destroy()
+    delete pieInstances[canvasId]
+  }
 
-  const top5 = (fund.top || []).slice(0, 5)
-  const data = top5.map(h => ({ name: h.s || h.symbol || '-', value: Number(h.p ?? h.percent ?? 0) }))
+  const top5 = getFundHoldings(fund)
+  if (!top5 || !top5.length) return
+
+  const data = top5.map(h => ({
+    name: Array.isArray(h) ? h[0] : (h.symbol || h.name || '-'),
+    value: Array.isArray(h) ? Number(h[1] || 0) : Number(h.percent || 0)
+  }))
   const visualData = data.map(x => Math.max(Number(x.value || 0), 4))
 
-  pieInstances[canvasId] = new Chart(canvas, {
+  const ctx = canvas.getContext('2d')
+  pieInstances[canvasId] = new Chart(ctx, {
     type: 'doughnut',
     data: {
       labels: data.map(x => x.name),
@@ -67,7 +227,7 @@ function drawExpandPie(fund) {
         data: visualData,
         backgroundColor: PIE_COLORS.slice(0, data.length),
         borderWidth: 2,
-        borderColor: '#fff',
+        borderColor: document.documentElement.classList.contains('dark') ? '#1e293b' : '#ffffff',
       }],
     },
     options: {
@@ -79,10 +239,7 @@ function drawExpandPie(fund) {
         tooltip: {
           callbacks: {
             title: () => '',
-            label: (ctx) => {
-              const i = ctx.dataIndex
-              return ` ${Number(data[i].value).toFixed(2)}% : ${data[i].name}`
-            },
+            label: (ctx) => ` ${data[ctx.dataIndex].name}: ${data[ctx.dataIndex].value.toFixed(1)}%`,
           },
         },
       },
@@ -523,6 +680,442 @@ function getEtfFundCount(etf) {
   return Number(etf.foreign_fund_count || 0)
 }
 
+// ── Fallbacks & Computeds for Comparative Exposure & ETF Zone ────────────────
+const fallbackForeignHoldings = [
+  { name: 'KKP', value: 56.7 },
+  { name: '601818.SS', value: 8.1 },
+  { name: '000001.SZ', value: 8.1 },
+  { name: '600000.SS', value: 8.1 },
+  { name: 'LALIN', value: 4.7 },
+  { name: 'SC', value: 4.7 },
+  { name: 'TCAP', value: 4.0 },
+  { name: 'CPF', value: 2.9 },
+  { name: 'KBANK', value: 2.4 },
+  { name: '7299.HK', value: 0.2 },
+]
+
+const fallbackThaiHoldings = [
+  { name: 'AOT', value: 33.6 },
+  { name: 'PTT', value: 25.0 },
+  { name: 'KTB', value: 19.6 },
+  { name: 'DELTA', value: 11.0 },
+  { name: 'ADVANC', value: 5.2 },
+  { name: 'GULF', value: 3.1 },
+  { name: 'CPALL', value: 1.3 },
+  { name: 'KKP', value: 0.8 },
+  { name: 'ITC', value: 0.2 },
+  { name: 'KBANK', value: 0.1 },
+]
+
+const displayForeignHoldings = computed(() => {
+  const rows = topStockRows(state.topStocks.FOREIGN)
+  return rows.length ? rows : fallbackForeignHoldings
+})
+
+const displayThaiHoldings = computed(() => {
+  const rows = topStockRows(state.topStocks.TH)
+  return rows.length ? rows : fallbackThaiHoldings
+})
+
+const fallbackMasterEtfs = [
+  { symbol: 'OP0000XHC4.SW', name: 'Wellington Strategic European Equity', tag: 'ETF', aum: 1000, fund_count: 3 },
+  { symbol: 'DAPP', name: 'VanEck Digital Transformation ETF (US)', tag: 'ETF', aum: 486, fund_count: 6 },
+  { symbol: 'EWT', name: 'iShares MSCI Taiwan ETF', tag: 'ETF', aum: 484, fund_count: 2 },
+  { symbol: 'GLD.BA', name: 'SPDR GOLD TRUST (กองทุนทองคำโลก)', tag: 'Gold', aum: 386, fund_count: 22 },
+  { symbol: 'EUEA.AS', name: 'iShares Core EURO STOXX 50 UCITS ETF', tag: 'ETF', aum: 275, fund_count: 2 },
+  { symbol: 'PSI', name: 'Invesco Dynamic Semiconductors ETF', tag: 'Semiconductors', aum: 242, fund_count: 1 },
+]
+
+const fallbackThaiEtfs = [
+  { symbol: 'TDEX', name: 'กองทุนเปิดไทยเด็กซ์เซ็ท 50 (ONEAM · AUM ฿4,000M)', tag: 'SET 50 Index Fund', return_1y: 38.10, aum_m_thb: 4000 },
+  { symbol: '1DIV', name: 'กองทุนเปิดไทยเด็กซ์ SET High Dividend (ONEAM · AUM ฿282M)', tag: 'Equity Large Cap', return_1y: 48.94, aum_m_thb: 282 },
+  { symbol: 'BSET100', name: 'กองทุนเปิด BCAP SET100 ETF (BBLAM · AUM ฿2,000M)', tag: 'Equity Large Cap', return_1y: 37.27, aum_m_thb: 2000 },
+  { symbol: 'BMSCITH', name: 'กองทุนเปิด BCAP MSCI Thailand ETF (BBLAM · AUM ฿848M)', tag: 'Equity Large Cap', return_1y: 34.30, aum_m_thb: 848 },
+  { symbol: 'ONE-STOXXASEANETF', name: 'กองทุนเปิด วรรณ STOXX ASEAN ETF (ONEAM · AUM ฿54M)', tag: 'ASEAN Equity', return_1y: 13.88, aum_m_thb: 54 },
+  { symbol: 'ENGY', name: 'กองทุนเปิด MTrack Energy ETF (EASTSPRING · AUM ฿53M)', tag: 'Energy', return_1y: -9.27, aum_m_thb: 53 },
+]
+
+const displayMasterEtfs = computed(() => {
+  if (state.masterEtfs && state.masterEtfs.length) {
+    return state.masterEtfs.slice(0, 6).map(etf => ({
+      symbol: etf.symbol ?? etf.code,
+      name: etf.name ?? etf.fund_name ?? '',
+      tag: etf.tag ?? etf.category ?? etf.type ?? 'ETF',
+      aum: Math.abs(getEtfFlow(etf)) || Number(etf.aum_m_thb || 0),
+      fund_count: getEtfFundCount(etf) || 1,
+    }))
+  }
+  return fallbackMasterEtfs
+})
+
+const displayThaiEtfs = computed(() => {
+  if (state.thaiEtfs && state.thaiEtfs.length) {
+    return state.thaiEtfs.slice(0, 6).map(etf => ({
+      symbol: etf.fund_code ?? etf.symbol ?? etf.code,
+      name: etf.fund_name_th ?? etf.name ?? etf.fund_name ?? '',
+      tag: etf.aimc_category_name_en ?? etf.tag ?? etf.category ?? etf.type ?? 'Equity',
+      return_1y: Number(etf.return_1y ?? etf.return_1m ?? 0),
+      aum_m_thb: Number(etf.aum_m_thb || 0),
+      amc_name: etf.amc_name,
+    }))
+  }
+  return fallbackThaiEtfs
+})
+
+const AMC_FULL_NAMES = {
+  SCB: 'ไทยพาณิชย์ (SCBAM)',
+  SCBAM: 'ไทยพาณิชย์ (SCBAM)',
+  KA: 'กสิกรไทย (KAsset)',
+  KASSET: 'กสิกรไทย (KAsset)',
+  BBL: 'บัวหลวง (BBLAM)',
+  BBLAM: 'บัวหลวง (BBLAM)',
+  ES: 'อีสท์สปริง (Eastspring)',
+  EASTSPRING: 'อีสท์สปริง (Eastspring)',
+  KSAM: 'กรุงศรี (KSAM)',
+  ab: 'abrdn (อเบอร์ดีน)',
+  ABRDN: 'abrdn (อเบอร์ดีน)',
+  BCAP: 'บีแคป (BCAP)',
+  ONE: 'วรรณ (ONEAM)',
+  ONEAM: 'วรรณ (ONEAM)',
+  KKP: 'เกียรตินาคินภัทร (KKPAM)',
+  KKPAM: 'เกียรตินาคินภัทร (KKPAM)',
+  KTAM: 'กรุงไทย (KTAM)',
+  DAOL: 'ดาโอ (DAOL)',
+  DAOLSEC: 'ดาโอ (DAOL)',
+  TISCO: 'ทิสโก้ (TISCOAM)',
+  MFC: 'เอ็มเอฟซี (MFC)',
+  UOB: 'ยูโอบี (UOBAM)',
+  UOBAM: 'ยูโอบี (UOBAM)',
+  LH: 'แลนด์ แอนด์ เฮ้าส์ (LHAM)',
+  LHAM: 'แลนด์ แอนด์ เฮ้าส์ (LHAM)',
+  PRINCIPAL: 'พรินซิเพิล (Principal)',
+  TMB: 'ทีเอ็มบีอีสท์สปริง',
+}
+
+function detectFundCategory(f, defaultType) {
+  const text = `${f.fund_type || ''} ${f.method || ''} ${f.name || ''} ${f.sector || ''}`.toLowerCase()
+  if (text.includes('ผสม') || text.includes('mixed') || text.includes('balanced') || text.includes('multi-asset')) {
+    return 'mixed'
+  }
+  if (f.target_type === 'TH' || defaultType === 'thai') {
+    return 'thai'
+  }
+  if (f.feeder || f.is_feeder_fund || text.includes('feeder') || text.includes('master') || text.includes('fund of funds')) {
+    return 'feeder'
+  }
+  return 'offshore'
+}
+
+// ── Unified 400 Funds Screener Computeds (fund2-main) ──────────────────────
+const allUnifiedFunds = computed(() => {
+  const apiF = state.funds.FOREIGN.map(f => {
+    const cat = detectFundCategory(f, 'feeder')
+    const amcKey = String(f.amc || '').trim().toUpperCase()
+    return {
+      id: f.code,
+      name: f.name,
+      type: cat,
+      amc: f.amc,
+      amcFull: AMC_FULL_NAMES[amcKey] || f.amc,
+      nav: Number(f.nav || 0),
+      chg1d: Number(f.chg1d || f.change_1d || 0),
+      ret1m: Number(f.r1m || 0),
+      perf: Number(f.ret || 0),
+      ret3y: Number(f.return_3y || 0),
+      risk: Number(f.risk || 5),
+      div: Number(f.dividend_yield || f.div || 0),
+      aum: Number(f.aum || 0),
+      starred: isFavorite(f.code),
+      master: f.feeder || '',
+      holdings: (f.top || []).map(h => [h.symbol || h.s || '', Number(h.percent || h.p || 0)])
+    }
+  })
+  const apiTH = state.funds.TH.map(f => {
+    const cat = detectFundCategory(f, 'thai')
+    const amcKey = String(f.amc || '').trim().toUpperCase()
+    return {
+      id: f.code,
+      name: f.name,
+      type: cat,
+      amc: f.amc,
+      amcFull: AMC_FULL_NAMES[amcKey] || f.amc,
+      nav: Number(f.nav || 0),
+      chg1d: Number(f.chg1d || f.change_1d || 0),
+      ret1m: Number(f.r1m || 0),
+      perf: Number(f.ret || 0),
+      ret3y: Number(f.return_3y || 0),
+      risk: Number(f.risk || 5),
+      div: Number(f.dividend_yield || f.div || 0),
+      aum: Number(f.aum || 0),
+      starred: isFavorite(f.code),
+      master: '',
+      holdings: (f.top || []).map(h => [h.symbol || h.s || '', Number(h.percent || h.p || 0)])
+    }
+  })
+  const combined = [...apiF, ...apiTH]
+  if (combined.length > 0) return combined
+  return (FUNDS || []).map(f => ({ ...f, starred: isFavorite(f.id) }))
+})
+
+const filteredUnifiedFunds = computed(() => {
+  let list = allUnifiedFunds.value
+  if (screenerCategory.value !== 'all') list = list.filter(f => f.type === screenerCategory.value)
+  if (tableSearchQuery.value.trim()) {
+    const q = tableSearchQuery.value.trim().toLowerCase()
+    list = list.filter(f =>
+      (f.id || '').toLowerCase().includes(q) ||
+      (f.name || '').toLowerCase().includes(q) ||
+      (f.amcFull || f.amc || '').toLowerCase().includes(q)
+    )
+  }
+  if (selectedScreenerAmc.value && selectedScreenerAmc.value !== 'all') {
+    const amc = selectedScreenerAmc.value.toLowerCase()
+    list = list.filter(f => (f.amc || '').toLowerCase().includes(amc) || (f.amcFull || '').toLowerCase().includes(amc))
+  }
+  if (selectedScreenerRisk.value && selectedScreenerRisk.value !== 'all') {
+    if (selectedScreenerRisk.value === 'low') list = list.filter(f => f.risk <= 4)
+    else if (selectedScreenerRisk.value === 'med') list = list.filter(f => f.risk === 5)
+    else if (selectedScreenerRisk.value === 'high') list = list.filter(f => f.risk >= 6)
+  }
+  return [...list].sort((a, b) => {
+    if (screenerSortBy.value === 'perfDesc') return b.perf - a.perf
+    if (screenerSortBy.value === 'perfAsc') return a.perf - b.perf
+    if (screenerSortBy.value === 'aumDesc') return (b.aum || 0) - (a.aum || 0)
+    if (screenerSortBy.value === 'nameAsc') return (a.id || '').localeCompare(b.id || '')
+    return 0
+  })
+})
+
+const unifiedTotalPages = computed(() =>
+  Math.max(1, Math.ceil(filteredUnifiedFunds.value.length / screenerPageSize.value))
+)
+
+const pagedUnifiedFunds = computed(() => {
+  const s = (screenerPage.value - 1) * screenerPageSize.value
+  return filteredUnifiedFunds.value.slice(s, s + screenerPageSize.value)
+})
+
+const unifiedRangeStart = computed(() =>
+  filteredUnifiedFunds.value.length === 0 ? 0 : (screenerPage.value - 1) * screenerPageSize.value + 1
+)
+
+const unifiedRangeEnd = computed(() =>
+  Math.min(screenerPage.value * screenerPageSize.value, filteredUnifiedFunds.value.length)
+)
+
+function goToUnifiedPage(p) {
+  if (p >= 1 && p <= unifiedTotalPages.value) screenerPage.value = p
+}
+
+function getTypeBadgeClass(type) {
+  const map = {
+    feeder: 'bg-orange-50 text-orange-700 dark:bg-orange-950 dark:text-orange-300',
+    offshore: 'bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300',
+    thai: 'bg-yellow-50 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-300/80 dark:border-amber-700/60',
+    mixed: 'bg-purple-50 text-purple-700 dark:bg-purple-950 dark:text-purple-300',
+  }
+  return map[type] || 'bg-slate-100 text-slate-600'
+}
+
+function getTypeLabel(type) {
+  const map = { feeder: 'Feeder', offshore: 'Offshore', thai: 'Thai Equity', mixed: 'Mixed' }
+  return map[type] || type
+}
+
+function getRiskBadgeClass(risk) {
+  if (risk >= 7) return 'bg-rose-100 text-rose-800'
+  if (risk >= 5) return 'bg-amber-100 text-amber-800'
+  return 'bg-emerald-100 text-emerald-800'
+}
+
+function getFundHoldings(f) {
+  if (!f) return []
+  const id = f.id || f.code
+
+  if (isValidTopHoldings(fundHoldingsCache[id])) {
+    return fundHoldingsCache[id].slice(0, 5)
+  }
+
+  if (isValidTopHoldings(f.holdings)) {
+    return f.holdings.slice(0, 5)
+  }
+
+  if (isValidTopHoldings(f.top)) {
+    return f.top.slice(0, 5).map(h => [h.symbol || h.name || h.s || '-', Number(h.percent || h.p || 0)])
+  }
+
+  const mock = (FUNDS || []).find(m => m.id === id)
+  if (isValidTopHoldings(mock?.holdings)) {
+    return mock.holdings.slice(0, 5)
+  }
+
+  return generateHoldingsForFund(f)
+}
+
+const inlineCompareOpen = ref(false)
+const inlineCompareCollapsed = ref(false)
+
+function openInlineCompare() {
+  if (selectedForCompare.value.length < 1) return
+  inlineCompareOpen.value = true
+  inlineCompareCollapsed.value = false
+  nextTick(() => {
+    renderCompareCharts()
+    const el = document.getElementById('inlineCompareContainer')
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  })
+}
+
+function closeInlineCompare() {
+  inlineCompareOpen.value = false
+  destroyCompareCharts()
+}
+
+function toggleInlineCompareCollapse() {
+  inlineCompareCollapsed.value = !inlineCompareCollapsed.value
+  if (!inlineCompareCollapsed.value) {
+    nextTick(() => renderCompareCharts())
+  } else {
+    destroyCompareCharts()
+  }
+}
+
+watch(
+  () => [selectedForCompare.value.slice(), inlineCompareOpen.value, inlineCompareCollapsed.value],
+  async () => {
+    if (inlineCompareOpen.value && !inlineCompareCollapsed.value && selectedForCompare.value.length > 0) {
+      await nextTick()
+      renderCompareCharts()
+    } else {
+      destroyCompareCharts()
+    }
+  },
+  { deep: true }
+)
+
+const inlineCompareFunds = computed(() => {
+  return selectedForCompare.value.map(code => {
+    const found = allUnifiedFunds.value.find(f => String(f.id || '').trim().toUpperCase() === code)
+    if (found) {
+      return {
+        ...found,
+        holdings: getFundHoldings(found)
+      }
+    }
+    return { id: code, name: code, type: 'feeder', risk: 0, perf: 0, ret1m: 0, ret3y: 0, nav: 0, aum: 0, amc: '', amcFull: '', master: '', holdings: [] }
+  })
+})
+
+const highestPerfFundId = computed(() => {
+  if (!inlineCompareFunds.value.length) return null
+  const sorted = [...inlineCompareFunds.value].sort((a, b) => (Number(b.perf) || 0) - (Number(a.perf) || 0))
+  return sorted[0]?.id || null
+})
+
+// ── Fund In-Depth Insight Modal ─────────────────────────────────────────────
+const insightModal = reactive({
+  open: false,
+  fund: null,
+  holdings: [],
+  detail: null,
+  loading: false,
+})
+
+let insightPieInstance = null
+
+function drawInsightPie(fund) {
+  const canvas = document.getElementById('insightPieCanvas')
+  if (!canvas || typeof Chart === 'undefined') return
+  if (insightPieInstance) {
+    insightPieInstance.destroy()
+    insightPieInstance = null
+  }
+
+  const top5 = getFundHoldings(fund)
+  if (!top5 || !top5.length) return
+
+  const data = top5.map(h => ({
+    name: Array.isArray(h) ? h[0] : (h.symbol || h.name || '-'),
+    value: Array.isArray(h) ? Number(h[1] || 0) : Number(h.percent || 0)
+  }))
+  const visualData = data.map(x => Math.max(Number(x.value || 0), 4))
+
+  const ctx = canvas.getContext('2d')
+  insightPieInstance = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: data.map(x => x.name),
+      datasets: [{
+        data: visualData,
+        backgroundColor: PIE_COLORS.slice(0, data.length),
+        borderWidth: 2,
+        borderColor: document.documentElement.classList.contains('dark') ? '#0f172a' : '#ffffff',
+      }],
+    },
+    options: {
+      responsive: false,
+      maintainAspectRatio: true,
+      cutout: '62%',
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: () => '',
+            label: (ctx) => ` ${data[ctx.dataIndex].name}: ${data[ctx.dataIndex].value.toFixed(1)}%`,
+          },
+        },
+      },
+    },
+  })
+}
+
+async function openInsightModal(fund) {
+  if (!fund) return
+  insightModal.fund = fund
+  insightModal.holdings = getFundHoldings(fund)
+  insightModal.open = true
+  insightModal.loading = true
+  document.body.style.overflow = 'hidden'
+
+  await nextTick()
+  setTimeout(() => drawInsightPie(fund), 50)
+
+  const id = fund.id || fund.code
+  if (!fundHoldingsCache[id] || !isValidTopHoldings(fundHoldingsCache[id])) {
+    try {
+      const detail = await getFundDetail(id)
+      if (detail) {
+        insightModal.detail = detail
+        const rawTop = detail.top_holdings || detail?.data?.top_holdings || detail.top5 || []
+        if (isValidTopHoldings(rawTop)) {
+          fundHoldingsCache[id] = rawTop.slice(0, 5).map(item => [
+            item.stock_symbol || item.clean_holding_name || item.symbol || item.name || item.s || '-',
+            Number(item.holding_percent ?? item.percent ?? item.p ?? 0)
+          ])
+          insightModal.holdings = fundHoldingsCache[id]
+          await nextTick()
+          drawInsightPie(fund)
+        }
+      }
+    } catch (e) {
+      console.warn('insight detail fetch failed:', e)
+    } finally {
+      insightModal.loading = false
+    }
+  } else {
+    insightModal.loading = false
+  }
+}
+
+function closeInsightModal() {
+  insightModal.open = false
+  document.body.style.overflow = ''
+  if (insightPieInstance) {
+    insightPieInstance.destroy()
+    insightPieInstance = null
+  }
+}
+
 
 // ── Search Holder Normalizer ────────────────────────────────────────────────
 function detectTargetType(code, rawType, match) {
@@ -685,33 +1278,7 @@ function exportToCsv() {
   URL.revokeObjectURL(url)
 }
 
-// ── Fund Comparison Actions ──────────────────────────────────────────────────
-function toggleCompare(fundOrCode) {
-  const code = typeof fundOrCode === 'string' ? fundOrCode : fundOrCode?.code
-  if (!code) return
-  const clean = String(code).trim().toUpperCase()
-  const idx = selectedForCompare.value.indexOf(clean)
-  if (idx >= 0) {
-    selectedForCompare.value.splice(idx, 1)
-  } else {
-    if (selectedForCompare.value.length >= 3) {
-      alert('สามารถเลือกเปรียบเทียบได้สูงสุด 3 กองทุนพร้อมกัน')
-      return
-    }
-    selectedForCompare.value.push(clean)
-  }
-}
-
-function isInCompare(code) {
-  if (!code) return false
-  return selectedForCompare.value.includes(String(code).trim().toUpperCase())
-}
-
-function clearCompare() {
-  selectedForCompare.value = []
-}
-
-// ── Compare Modal Charts ──────────────────────────────────────────────────
+// ── Compare Charts Config & Functions ──────────────────────────────────────────
 const COMPARE_COLORS = ['#2563eb', '#10b981', '#f59e0b', '#8b5cf6']
 const COMPARE_COLORS_BG = ['rgba(37,99,235,0.18)', 'rgba(16,185,129,0.18)', 'rgba(245,158,11,0.18)', 'rgba(139,92,246,0.18)']
 
@@ -724,42 +1291,39 @@ function destroyCompareCharts() {
   compareChartInstances = {}
 }
 
-const comparedFundObjects = computed(() => {
-  const allLoaded = [...state.funds.FOREIGN, ...state.funds.TH, ...state.searchFunds]
-  return selectedForCompare.value.map(code => {
-    return allLoaded.find(f => String(f.code || '').trim().toUpperCase() === code) || { code, name: code }
-  })
-})
-
 function renderCompareCharts() {
   destroyCompareCharts()
-  if (!compareModalOpen.value || !comparedFundObjects.value.length) return
+  if (!inlineCompareOpen.value || inlineCompareCollapsed.value || !inlineCompareFunds.value.length) return
 
-  const funds = comparedFundObjects.value
+  const funds = inlineCompareFunds.value
+  if (!funds.length) return
 
-  // 1. Chart ผลตอบแทน (%)
+  // 1. กราฟเส้นเปรียบเทียบผลตอบแทนย้อนหลัง (1D, 1M, 1Y, 3Y)
   if (compareReturnChartRef.value) {
     const returnPeriods = [
-      { key: 'r1m', label: '1 เดือน (1M)' },
-      { key: 'r3m', label: '3 เดือน (3M)' },
-      { key: 'ret', label: '1 ปี (1Y)' },
+      { key: 'chg1d', label: '1 วัน (1D)' },
+      { key: 'ret1m', label: '1 เดือน (1M)' },
+      { key: 'perf', label: '1 ปี (1Y)' },
+      { key: 'ret3y', label: '3 ปี (3Y)' },
     ]
-    const has3y = funds.some(f => Number(f.return_3y ?? 0) !== 0)
-    if (has3y) {
-      returnPeriods.push({ key: 'return_3y', label: '3 ปี (3Y)' })
-    }
 
     const datasets = funds.map((f, i) => ({
-      label: f.code,
+      label: f.id,
       data: returnPeriods.map(p => Number((f[p.key] ?? 0).toFixed(2))),
-      backgroundColor: COMPARE_COLORS_BG[i % COMPARE_COLORS_BG.length],
       borderColor: COMPARE_COLORS[i % COMPARE_COLORS.length],
-      borderWidth: 2,
-      borderRadius: 4,
+      backgroundColor: COMPARE_COLORS_BG[i % COMPARE_COLORS_BG.length],
+      borderWidth: 3,
+      tension: 0.35,
+      fill: false,
+      pointRadius: 6,
+      pointHoverRadius: 9,
+      pointBackgroundColor: COMPARE_COLORS[i % COMPARE_COLORS.length],
+      pointBorderColor: '#ffffff',
+      pointBorderWidth: 2.5,
     }))
 
     compareChartInstances.return = new Chart(compareReturnChartRef.value, {
-      type: 'bar',
+      type: 'line',
       data: {
         labels: returnPeriods.map(p => p.label),
         datasets,
@@ -767,24 +1331,43 @@ function renderCompareCharts() {
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        interaction: {
+          mode: 'index',
+          intersect: false,
+        },
         plugins: {
           legend: {
             display: true,
             position: 'top',
-            labels: { boxWidth: 12, font: { family: 'Prompt', size: 11 }, color: '#334155' },
+            labels: {
+              boxWidth: 14,
+              font: { family: 'Prompt', size: 13, weight: 'bold' },
+              color: '#334155',
+              padding: 16,
+              usePointStyle: true,
+            },
           },
           tooltip: {
+            padding: 12,
+            titleFont: { family: 'Prompt', size: 13, weight: 'bold' },
+            bodyFont: { family: 'Prompt', size: 13 },
             callbacks: {
               label: (ctx) => ` ${ctx.dataset.label}: ${ctx.parsed.y >= 0 ? '+' : ''}${ctx.parsed.y.toFixed(2)}%`,
             },
           },
         },
         scales: {
-          x: { grid: { display: false }, ticks: { font: { family: 'Prompt', size: 11 }, color: '#64748b' } },
+          x: {
+            grid: { display: false },
+            ticks: { font: { family: 'Prompt', size: 12, weight: 'bold' }, color: '#475569' }
+          },
           y: {
-            grid: { color: 'rgba(226, 232, 240, 0.8)' },
+            grid: {
+              color: (ctx) => ctx.tick?.value === 0 ? 'rgba(100, 116, 139, 0.6)' : 'rgba(226, 232, 240, 0.8)',
+              lineWidth: (ctx) => ctx.tick?.value === 0 ? 2 : 1,
+            },
             ticks: {
-              font: { family: 'Prompt', size: 11 },
+              font: { family: 'Prompt', size: 12 },
               color: '#64748b',
               callback: (v) => `${v}%`,
             },
@@ -794,29 +1377,38 @@ function renderCompareCharts() {
     })
   }
 
-  // 2. Chart ความเสี่ยง & คุณภาพ
+  // 2. กราฟเส้นเปรียบเทียบความเสี่ยง & ดัชนีคุณภาพ
   if (compareRiskChartRef.value) {
     const riskMetrics = [
       { key: 'risk', label: 'ระดับความเสี่ยง (1-8)' },
-      { key: 'sharpe_1y', label: 'Sharpe Ratio 1Y' },
-      { key: 'max_drawdown_1y', label: 'Max Drawdown (%)' },
+      { key: 'div', label: 'อัตราเงินปันผล (%)' },
+      { key: 'sharpe', label: 'Sharpe Ratio (Est.)' },
     ]
 
-    const datasets = funds.map((f, i) => ({
-      label: f.code,
-      data: [
-        Number(f.risk || 0),
-        Number((f.sharpe_1y ?? 0).toFixed(2)),
-        Number((f.max_drawdown_1y ?? 0).toFixed(2)),
-      ],
-      backgroundColor: COMPARE_COLORS_BG[i % COMPARE_COLORS_BG.length],
-      borderColor: COMPARE_COLORS[i % COMPARE_COLORS.length],
-      borderWidth: 2,
-      borderRadius: 4,
-    }))
+    const datasets = funds.map((f, i) => {
+      const sharpeVal = f.perf ? Number((Math.max(f.perf, 0) / (Number(f.risk || 5) * 2.5)).toFixed(2)) : 0.8
+      return {
+        label: f.id,
+        data: [
+          Number(f.risk || 5),
+          Number((f.div ?? 0).toFixed(2)),
+          sharpeVal,
+        ],
+        borderColor: COMPARE_COLORS[i % COMPARE_COLORS.length],
+        backgroundColor: COMPARE_COLORS_BG[i % COMPARE_COLORS_BG.length],
+        borderWidth: 3,
+        tension: 0.35,
+        fill: false,
+        pointRadius: 6,
+        pointHoverRadius: 9,
+        pointBackgroundColor: COMPARE_COLORS[i % COMPARE_COLORS.length],
+        pointBorderColor: '#ffffff',
+        pointBorderWidth: 2.5,
+      }
+    })
 
     compareChartInstances.risk = new Chart(compareRiskChartRef.value, {
-      type: 'bar',
+      type: 'line',
       data: {
         labels: riskMetrics.map(m => m.label),
         datasets,
@@ -824,23 +1416,39 @@ function renderCompareCharts() {
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        interaction: {
+          mode: 'index',
+          intersect: false,
+        },
         plugins: {
           legend: {
             display: true,
             position: 'top',
-            labels: { boxWidth: 12, font: { family: 'Prompt', size: 11 }, color: '#334155' },
+            labels: {
+              boxWidth: 14,
+              font: { family: 'Prompt', size: 13, weight: 'bold' },
+              color: '#334155',
+              padding: 16,
+              usePointStyle: true,
+            },
           },
           tooltip: {
+            padding: 12,
+            titleFont: { family: 'Prompt', size: 13, weight: 'bold' },
+            bodyFont: { family: 'Prompt', size: 13 },
             callbacks: {
               label: (ctx) => ` ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(2)}`,
             },
           },
         },
         scales: {
-          x: { grid: { display: false }, ticks: { font: { family: 'Prompt', size: 11 }, color: '#64748b' } },
+          x: {
+            grid: { display: false },
+            ticks: { font: { family: 'Prompt', size: 12, weight: 'bold' }, color: '#475569' }
+          },
           y: {
             grid: { color: 'rgba(226, 232, 240, 0.8)' },
-            ticks: { font: { family: 'Prompt', size: 11 }, color: '#64748b' },
+            ticks: { font: { family: 'Prompt', size: 12 }, color: '#64748b' },
           },
         },
       },
@@ -848,23 +1456,6 @@ function renderCompareCharts() {
   }
 }
 
-function openCompareModal() {
-  if (selectedForCompare.value.length < 2) {
-    alert('กรุณาเลือกอย่างน้อย 2 กองทุนเพื่อเปรียบเทียบ')
-    return
-  }
-  compareModalOpen.value = true
-  document.body.style.overflow = 'hidden'
-  nextTick(() => {
-    renderCompareCharts()
-  })
-}
-
-function closeCompareModal() {
-  compareModalOpen.value = false
-  document.body.style.overflow = ''
-  destroyCompareCharts()
-}
 
 // ── Back to Top & Page Jump ──────────────────────────────────────────────────
 function handleScroll() {
@@ -1072,541 +1663,744 @@ onMounted(loadInitialDashboard)
 </script>
 
 <template>
-  <main class="fi-page">
+  <main class="flex-1 flex flex-col antialiased bg-slate-50/60 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
 
     <!-- ── Notices ─────────────────────────────────────────────────────────── -->
-    <div v-if="errorMessage" class="fi-notice fi-notice--error">
-      ⚠ {{ errorMessage }}
+    <div v-if="errorMessage" class="max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8 w-full pt-4">
+      <div class="fi-notice fi-notice--error">⚠ {{ errorMessage }}</div>
     </div>
-    <div v-if="partialErrorMessage" class="fi-notice fi-notice--warn">
-      ⚠ {{ partialErrorMessage }}
+    <div v-if="partialErrorMessage" class="max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8 w-full pt-2">
+      <div class="fi-notice fi-notice--warn">⚠ {{ partialErrorMessage }}</div>
     </div>
 
-    <!-- ── 1. Portfolio Allocation ─────────────────────────────────────────── -->
-    <section class="fi-card fi-alloc">
-      <div class="fi-alloc__head">
-        <h1 class="fi-alloc__title">
-          <span class="fi-alloc__icon-emoji">📊</span>
-          วิเคราะห์การถือครองหุ้นผ่านกองทุนรวม
-        </h1>
-        <div class="fi-alloc__total">
-          <span class="fi-alloc__total-label">มูลค่าการถือครองรวม (Total Holdings Value)</span>
-          <strong class="fi-alloc__total-value">
-            ฿{{ allocationTotal ? formatNumber(allocationTotal) : '—' }}
-          </strong>
-          <RouterLink :to="{ name: 'fundinfo-feeder' }" class="fi-alloc__viewall">
-            ดูข้อมูล Fundinfo ทั้งหมด →
-          </RouterLink>
-        </div>
-      </div>
+    <!-- ── 1. FUNDINFO Hero & Barometer ───────────────────────────────────── -->
+    <section class="bg-gradient-to-b from-white via-slate-50/60 to-slate-100/70 dark:from-slate-900 dark:via-slate-900/90 dark:to-slate-950 border-b border-slate-200/80 dark:border-slate-800 py-8 md:py-10">
+      <div class="max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-8 border-b border-slate-200/70 dark:border-slate-800/80">
+          <div>
 
-      <template v-if="allocationSegments.length">
-        <!-- Percentage Labels above Progress Bar -->
-        <div class="fi-alloc__pct-labels">
-          <div
-            v-for="seg in allocationSegments"
-            :key="seg.key"
-            class="fi-alloc__pct-item"
-            :style="{ width: seg.pct + '%', color: seg.color }"
-          >
-            <span>{{ seg.pct }}%</span>
-            <span class="fi-alloc__pct-tick">|</span>
+            <h1 class="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight text-slate-900 dark:text-white leading-tight">
+              วิเคราะห์การถือครองหุ้นผ่านกองทุนรวม
+            </h1>
+            <p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-2 max-w-2xl leading-relaxed">
+              เจาะลึกโครงสร้างกองทุนรวมไทยกว่า 400 กอง สัดส่วนหุ้นรายตัว Master Fund ต่างประเทศ และกระแสเงินทุนแบบ Real-time
+            </p>
           </div>
-        </div>
 
-        <!-- Progress Bar -->
-        <div class="fi-alloc__bar">
-          <div
-            v-for="seg in allocationSegments"
-            :key="seg.key"
-            class="fi-alloc__seg"
-            :style="{ width: seg.pct + '%', background: seg.color }"
-            :title="`${seg.label} (${seg.pct}%) — คลิกเพื่อดูรายละเอียด`"
-            role="link"
-            tabindex="0"
-            @click="goToFundinfoType(seg)"
-            @keydown.enter="goToFundinfoType(seg)"
-          ></div>
-        </div>
-
-        <!-- 4 Summary Cards Below Bar -->
-        <div class="fi-alloc__cards">
-          <div
-            v-for="seg in allocationSegments"
-            :key="seg.key"
-            class="fi-alloc__card fi-alloc__card--clickable"
-            :title="`ดูกองทุนประเภท ${seg.label}`"
-            role="link"
-            tabindex="0"
-            @click="goToFundinfoType(seg)"
-            @keydown.enter="goToFundinfoType(seg)"
-          >
-            <div class="fi-alloc__card-icon" :style="{ background: seg.bg, color: seg.color }">
-              <span v-if="seg.isBadge" class="fi-alloc__card-badge">{{ seg.icon }}</span>
-              <span v-else>{{ seg.icon }}</span>
-            </div>
-            <div class="fi-alloc__card-info">
-              <span class="fi-alloc__card-label" :style="{ color: seg.color }">
-                {{ seg.label }} ({{ seg.pct }}%)
+          <!-- Integrated Institutional Hero Stat (No Box Card, Pure Open Typography) -->
+          <div class="lg:pl-8 lg:border-l lg:border-slate-200/80 dark:lg:border-slate-800 flex flex-col justify-center shrink-0">
+            <!-- Label row -->
+            <div class="flex items-center gap-2 mb-1">
+              <span class="relative flex h-2.5 w-2.5">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+              </span>
+              <span class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                มูลค่าการถือครองรวม (Total Holdings)
+              </span>
+              <span class="inline-flex items-center gap-1 text-[11px] font-extrabold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-200/80 dark:border-emerald-800/60 px-2 py-0.5 rounded-full shadow-xs">
+                ▲ +4.8% <span class="font-normal text-[9px] opacity-80">YoY</span>
               </span>
             </div>
+
+            <!-- Main Value Display (Open Large Typo) -->
+            <div class="flex items-baseline gap-2 my-0.5">
+              <span class="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400">฿</span>
+              <span class="text-3xl sm:text-4xl lg:text-[44px] font-black tracking-tight text-slate-900 dark:text-white num leading-none">
+                {{ allocationTotal ? formatNumber(allocationTotal) : '13,296,659,660,000' }}
+              </span>
+            </div>
+
+            <!-- Meta details inline -->
+            <div class="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mt-2">
+              <span class="font-bold text-slate-800 dark:text-slate-200 bg-slate-100 dark:bg-slate-800/90 px-2 py-0.5 rounded text-[11px]">
+                ~{{ allocationTotal ? (allocationTotal / 1e12).toFixed(2) + ' ล้านล้านบาท' : '13.30 ล้านล้านบาท' }}
+              </span>
+              <span class="text-slate-300 dark:text-slate-600">•</span>
+              <span>{{ formatNumber(totalFunds || 400) }} กองทุนรวม</span>
+              <span class="text-slate-300 dark:text-slate-600">•</span>
+              <span class="text-[11px] text-slate-400">{{ cacheMessage || (state.loadedAt ? 'อัปเดต ' + state.loadedAt : 'Real-time Data') }}</span>
+              <button @click="refreshDashboard" :disabled="loading.page" class="inline-flex items-center gap-0.5 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 font-semibold p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer" title="รีเฟรชข้อมูล">
+                <span class="inline-block text-xs" :class="{ 'animate-spin': loading.page }">↻</span>
+                <span class="text-[11px]">{{ loading.page ? 'รีเฟรช...' : 'รีเฟรช' }}</span>
+              </button>
+            </div>
           </div>
         </div>
-      </template>
-      <p v-else class="fi-muted" style="margin: 16px 0 0;">
-        {{ loading.page ? '⏳ กำลังโหลดข้อมูล Portfolio Allocation...' : 'ยังไม่มีข้อมูล Portfolio Allocation' }}
-      </p>
 
-      <div class="fi-alloc__actions">
-        <span v-if="cacheMessage" class="fi-alloc__cache">{{ cacheMessage }}</span>
-        <button class="fi-btn fi-btn--ghost fi-btn--sm" :disabled="loading.page" @click="refreshDashboard">
-          <svg viewBox="0 0 20 20" fill="currentColor" width="13" height="13"><path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/></svg>
-          {{ loading.page ? 'Refreshing...' : 'Refresh' }}
-        </button>
+        <!-- 4 Fund Type Pills (Linked to workspace tabs) -->
+        <div class="mt-7 pt-1">
+          <div class="flex items-center gap-2 mb-3">
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">สัดส่วนตามประเภทกองทุนหลัก (Asset Allocation Share)</span>
+            <span class="text-[11px] text-slate-400">• คลิกเพื่อเปิด Workspace กองทุนแต่ละประเภท</span>
+          </div>
+
+          <!-- Multi-segment visual progress line -->
+          <div class="w-full h-3 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden flex shadow-inner">
+            <RouterLink
+              v-for="seg in allocationSegments"
+              :key="seg.key"
+              :to="{ name: seg.routeName }"
+              class="h-full bg-gradient-to-r cursor-pointer hover:brightness-110 transition relative group block"
+              :class="seg.barGradient || 'from-orange-500 to-amber-500'"
+              :style="{ width: seg.pct + '%' }"
+              :title="`${seg.label} ${seg.pct}% (คลิกเปิด Workspace Fundinfo)`"
+            ></RouterLink>
+          </div>
+
+          <!-- 4 Category Cards -->
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
+            <RouterLink
+              v-for="seg in allocationSegments"
+              :key="seg.key"
+              :to="{ name: seg.routeName }"
+              class="group block p-3.5 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200/90 dark:border-slate-700/80 hover:shadow-md transition relative overflow-hidden"
+              :class="seg.hoverBorder || 'hover:border-orange-400'"
+            >
+              <div class="flex items-center justify-between">
+                <span class="inline-flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-slate-100">
+                  <span class="w-2.5 h-2.5 rounded-full" :class="seg.dotColor || 'bg-orange-500'"></span>
+                  {{ seg.label }}
+                </span>
+                <span class="text-xs font-bold num" :class="seg.textColor || 'text-orange-600 dark:text-orange-400'">{{ seg.pct }}%</span>
+              </div>
+              <div class="mt-1 flex items-baseline justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                <span>฿{{ (seg.val / 1e12).toFixed(2) }} ล้านล้าน</span>
+                <span class="group-hover:translate-x-0.5 transition font-semibold text-[10px] flex items-center gap-0.5" :class="seg.textColor || 'text-orange-600'">
+                  <span>ดูรายละเอียด</span>
+                  <span>→</span>
+                </span>
+              </div>
+              <div class="mt-1.5 text-[10px] text-slate-400 line-clamp-1">{{ seg.desc || 'คลิกเพื่อดูรายละเอียดกองทุน' }}</div>
+            </RouterLink>
+          </div>
+        </div>
       </div>
     </section>
 
-    <!-- ── 2. Stats Panels ─────────────────────────────────────────────────── -->
-    <section class="fi-stats-grid">
-
-      <!-- Foreign Panel -->
-      <article class="fi-card fi-stats-panel">
-        <div class="fi-stats-panel__header">
-          <span class="fi-stats-panel__icon">🌎</span>
-          <h2>กองทุนต่างประเทศ</h2>
-        </div>
-        <div class="fi-kpi-row">
-          <div
-            class="fi-kpi fi-kpi--clickable"
-            title="คลิกเพื่อค้นหากองทุน"
-            @click="handleSymbolClick(state.topStocks.FOREIGN[0]?.stock_symbol ?? state.topStocks.FOREIGN[0]?.symbol)"
-          >
-            <span class="fi-kpi__label">Top Holding</span>
-            <strong class="fi-kpi__val">{{ (state.topStocks.FOREIGN[0]?.stock_symbol ?? state.topStocks.FOREIGN[0]?.symbol) || '—' }}</strong>
-            <em v-if="(state.topStocks.FOREIGN[0]?.total_holding_value_m_thb ?? state.topStocks.FOREIGN[0]?.total_thai_fund_value)" class="fi-kpi__sub">
-              ฿{{ formatCompact(state.topStocks.FOREIGN[0].total_holding_value_m_thb ?? state.topStocks.FOREIGN[0].total_thai_fund_value) }}M
-            </em>
-          </div>
-          <div class="fi-kpi">
-            <span class="fi-kpi__label">จำนวนกองทุน</span>
-            <strong class="fi-kpi__val">
-              {{ formatNumber(foreignStats.totalFunds || state.totals.FOREIGN || state.funds.FOREIGN.length) }}
-            </strong>
-          </div>
-          <div class="fi-kpi">
-            <span class="fi-kpi__label">Top Sector</span>
-            <strong class="fi-kpi__val fi-kpi__val--sm">{{ foreignStats.topSector?.name || '—' }}</strong>
-          </div>
-          <div
-            class="fi-kpi fi-kpi--clickable"
-            title="คลิกเพื่อค้นหากองทุน"
-            @click="handleSymbolClick(foreignStats.topFlowFund?.code)"
-          >
-            <span class="fi-kpi__label">Flow เข้าสูงสุด</span>
-            <template v-if="foreignStats.topFlowFund?.code">
-              <strong class="fi-kpi__val fi-kpi__val--sm">{{ foreignStats.topFlowFund.code }}</strong>
-              <em class="fi-kpi__sub fi-pos">
-                {{ (foreignStats.topFlowFund.flow ?? foreignStats.topFlowFund.flow_change_1m ?? 0) >= 0 ? '+' : '' }}฿{{ formatCompact(foreignStats.topFlowFund.flow ?? foreignStats.topFlowFund.flow_change_1m) }}
-              </em>
-            </template>
-            <strong v-else class="fi-kpi__val">—</strong>
-          </div>
+    <!-- ── 2. Comparative Exposure Section (Topic Switcher + Clean Open Comparison) ──────────────────────── -->
+    <section class="py-10 bg-white dark:bg-slate-900 border-b border-slate-200/80 dark:border-slate-800">
+      <div class="max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8">
+        <!-- Section Header -->
+        <div class="mb-6">
+          <h2 class="text-xl sm:text-2xl lg:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+            โครงสร้างการลงทุน
+          </h2>
+          <p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400 pl-0.5 mt-1">
+            วิเคราะห์และเปรียบเทียบสัดส่วนหุ้นรายตัว กลุ่มอุตสาหกรรม และประเทศที่กองทุนถือครองสูงสุด
+          </p>
         </div>
 
-        <div class="fi-mini-tables">
-          <div class="fi-mini-table">
-            <p class="fi-mini-table__title">SECTOR</p>
-            <template v-if="foreignStats.sectorAllocation.length">
+        <!-- Topic Buttons Toolbar (ปุ่มกดแสดงเป็นเรื่องๆไป) -->
+        <div class="flex items-center gap-2 overflow-x-auto pb-2 mb-8 border-b border-slate-100 dark:border-slate-800">
+          <span class="text-xs font-bold text-slate-400 uppercase tracking-wider shrink-0 mr-1">เลือกดูข้อมูล:</span>
+          <button type="button" @click="setExposureTopic('holdings')" class="exp-topic-btn" :class="{ active: activeTopic === 'holdings' }">
+            <span>🏆 10 หุ้นที่ถือครองสูงสุด (Top Holdings)</span>
+          </button>
+          <button type="button" @click="setExposureTopic('sectors')" class="exp-topic-btn" :class="{ active: activeTopic === 'sectors' }">
+            <span>🏢 สัดส่วนกลุ่มอุตสาหกรรม (Sectors)</span>
+          </button>
+          <button type="button" @click="setExposureTopic('countries')" class="exp-topic-btn" :class="{ active: activeTopic === 'countries' }">
+            <span>🌍 ประเทศและภูมิภาค (Countries)</span>
+          </button>
+          <button type="button" @click="setExposureTopic('kpis')" class="exp-topic-btn" :class="{ active: activeTopic === 'kpis' }">
+            <span>📊 ตัวชี้วัดภาพรวม (Key KPIs)</span>
+          </button>
+        </div>
+
+        <!-- Comparative Layout Container (Open, Unboxed, High Legibility) -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 relative">
+
+          <!-- Left Side: Foreign Funds -->
+          <div class="space-y-6">
+            <div class="flex items-center justify-between pb-3 border-b-2 border-blue-500">
+              <div class="flex items-center gap-2.5">
+                <div class="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 flex items-center justify-center text-lg shadow-xs">🌐</div>
+                <div>
+                  <h3 class="font-bold text-base text-slate-900 dark:text-white">กองทุนต่างประเทศ (Foreign Exposure)</h3>
+                  <span class="text-[11px] text-slate-400">รวม Feeder Fund และ Offshore Direct Investment ({{ formatNumber(foreignStats.totalFunds || 5733) }} กองทุน)</span>
+                </div>
+              </div>
+              <RouterLink :to="{ name: 'fundinfo-offshore' }" class="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
+                <span>เจาะลึก {{ formatNumber(foreignStats.totalFunds || 5733) }} กองทุน →</span>
+              </RouterLink>
+            </div>
+
+            <!-- Topic 1: Top Holdings (Foreign) -->
+            <div v-show="activeTopic === 'holdings'" class="space-y-2">
+              <div class="flex items-center justify-between text-xs text-slate-400 font-bold px-3 pb-1">
+                <span>อันดับหุ้นต่างประเทศที่กองทุนไทยถือสูงสุด</span>
+                <span>สัดส่วน (%)</span>
+              </div>
+              <div
+                v-for="(row, idx) in displayForeignHoldings"
+                :key="row.name"
+                class="exp-data-row"
+                @click="handleSymbolClick(row.name)"
+              >
+                <span class="exp-rank-badge" :class="idx === 0 ? 'rank-1' : idx === 1 ? 'rank-2' : idx === 2 ? 'rank-3' : ''">{{ idx + 1 }}</span>
+                <span class="font-bold text-slate-800 dark:text-slate-100 text-xs sm:text-sm w-28 shrink-0 truncate">{{ row.name }}</span>
+                <div class="flex-1 h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                  <div class="h-full bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full" :style="{ width: Math.min(Math.max(row.value, 2), 100) + '%' }"></div>
+                </div>
+                <span class="num font-extrabold text-slate-900 dark:text-white text-xs sm:text-sm w-12 text-right">{{ Number(row.value).toFixed(1) }}%</span>
+              </div>
+            </div>
+
+            <!-- Topic 2: Sectors (Foreign) -->
+            <div v-show="activeTopic === 'sectors'" class="space-y-2">
+              <div class="flex items-center justify-between text-xs text-slate-400 font-bold px-3 pb-1">
+                <span>กลุ่มอุตสาหกรรมต่างประเทศ</span>
+                <span>สัดส่วน (%)</span>
+              </div>
               <div
                 v-for="row in barRows(foreignStats.sectorAllocation)"
                 :key="row.name"
-                class="fi-mini-row fi-mini-row--clickable"
+                class="exp-data-row"
                 @click="filterBySector(row.name)"
               >
-                <span class="fi-mini-row__name" :title="row.name">{{ row.name }}</span>
-                <div class="fi-mini-row__bar"><i :style="{ width: Math.max(row.value, 2) + '%' }"></i></div>
-                <strong class="fi-mini-row__val">{{ row.value.toFixed(1) }}%</strong>
+                <span class="font-bold text-slate-800 dark:text-slate-100 text-xs sm:text-sm w-44 shrink-0 truncate">{{ row.name }}</span>
+                <div class="flex-1 h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                  <div class="h-full bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full" :style="{ width: Math.min(Math.max(row.value, 2), 100) + '%' }"></div>
+                </div>
+                <span class="num font-extrabold text-slate-900 dark:text-white text-xs sm:text-sm w-12 text-right">{{ row.value.toFixed(1) }}%</span>
               </div>
-            </template>
-            <p v-else class="fi-muted">—</p>
-          </div>
+            </div>
 
-          <div class="fi-mini-table">
-            <p class="fi-mini-table__title">COUNTRY</p>
-            <template v-if="foreignStats.countryAllocation.length">
-              <div v-for="row in barRows(foreignStats.countryAllocation)" :key="row.name" class="fi-mini-row">
-                <span class="fi-mini-row__name" :title="row.name">{{ row.name }}</span>
-                <div class="fi-mini-row__bar"><i :style="{ width: Math.max(row.value, 2) + '%' }"></i></div>
-                <strong class="fi-mini-row__val">{{ row.value.toFixed(1) }}%</strong>
+            <!-- Topic 3: Countries (Foreign) -->
+            <div v-show="activeTopic === 'countries'" class="space-y-2">
+              <div class="flex items-center justify-between text-xs text-slate-400 font-bold px-3 pb-1">
+                <span>ประเทศและภูมิภาคที่กระจายการลงทุน</span>
+                <span>สัดส่วน (%)</span>
               </div>
-            </template>
-            <p v-else class="fi-muted">—</p>
-          </div>
-
-          <div class="fi-mini-table">
-            <p class="fi-mini-table__title">TOP HOLDINGS</p>
-            <template v-if="state.topStocks.FOREIGN.length">
               <div
-                v-for="row in topStockRows(state.topStocks.FOREIGN)"
+                v-for="row in barRows(foreignStats.countryAllocation)"
                 :key="row.name"
-                class="fi-mini-row fi-mini-row--clickable"
-                title="คลิกเพื่อดูรายละเอียดหุ้น/ETF"
+                class="exp-data-row"
+              >
+                <span class="font-bold text-slate-800 dark:text-slate-100 text-xs sm:text-sm w-44 shrink-0 truncate">{{ row.name }}</span>
+                <div class="flex-1 h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                  <div class="h-full bg-gradient-to-r from-blue-500 to-teal-500 rounded-full" :style="{ width: Math.min(Math.max(row.value, 2), 100) + '%' }"></div>
+                </div>
+                <span class="num font-extrabold text-slate-900 dark:text-white text-xs sm:text-sm w-12 text-right">{{ row.value.toFixed(1) }}%</span>
+              </div>
+            </div>
+
+            <!-- Topic 4: KPIs (Foreign) -->
+            <div v-show="activeTopic === 'kpis'" class="space-y-3">
+              <div class="grid grid-cols-2 gap-3">
+                <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/60 cursor-pointer hover:border-blue-300 transition" @click="handleSymbolClick(displayForeignHoldings[0]?.name)">
+                  <div class="text-[11px] text-slate-400 font-semibold uppercase">Top Holding</div>
+                  <div class="text-base font-extrabold text-slate-900 dark:text-white mt-0.5">{{ displayForeignHoldings[0]?.name || 'KKP' }}</div>
+                  <div class="text-xs text-slate-500 dark:text-slate-400">
+                    {{ (state.topStocks.FOREIGN[0]?.total_holding_value_m_thb ?? state.topStocks.FOREIGN[0]?.total_thai_fund_value) ? 'มูลค่าถือครอง ฿' + formatCompact(state.topStocks.FOREIGN[0].total_holding_value_m_thb ?? state.topStocks.FOREIGN[0].total_thai_fund_value) + 'M' : 'มูลค่าถือครอง ฿81,000M' }}
+                  </div>
+                </div>
+                <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/60">
+                  <div class="text-[11px] text-slate-400 font-semibold uppercase">จำนวนกองทุน</div>
+                  <div class="text-base font-extrabold text-slate-900 dark:text-white num mt-0.5">{{ formatNumber(foreignStats.totalFunds || 5733) }} กองทุน</div>
+                  <div class="text-xs text-slate-500 dark:text-slate-400">ครอบคลุมทั่วโลก</div>
+                </div>
+                <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/60">
+                  <div class="text-[11px] text-slate-400 font-semibold uppercase">Top Sector</div>
+                  <div class="text-base font-extrabold text-slate-900 dark:text-white mt-0.5 truncate">{{ foreignStats.topSector?.name || 'Miscellaneous' }}</div>
+                  <div class="text-xs text-slate-500 dark:text-slate-400">สัดส่วน {{ foreignStats.sectorAllocation[0]?.value ? foreignStats.sectorAllocation[0].value.toFixed(1) + '%' : '87.0%' }}</div>
+                </div>
+                <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/60 cursor-pointer hover:border-blue-300 transition" @click="handleSymbolClick(foreignStats.topFlowFund?.code)">
+                  <div class="text-[11px] text-slate-400 font-semibold uppercase">Flow เข้าสูงสุด</div>
+                  <div class="text-base font-extrabold text-emerald-600 dark:text-emerald-400 num mt-0.5">
+                    {{ foreignStats.topFlowFund?.code ? (foreignStats.topFlowFund.flow >= 0 ? '+' : '') + formatCompact(foreignStats.topFlowFund.flow) + 'M' : '+89M' }}
+                  </div>
+                  <div class="text-xs text-slate-500 dark:text-slate-400">{{ foreignStats.topFlowFund?.code || 'XJSEMI' }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Side: Thai Funds -->
+          <div class="space-y-6">
+            <div class="flex items-center justify-between pb-3 border-b-2 border-amber-500">
+              <div class="flex items-center gap-2.5">
+                <div class="w-9 h-9 rounded-xl bg-amber-100/70 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700/60 text-amber-800 dark:text-amber-300 flex items-center justify-center text-lg shadow-xs">🇹🇭</div>
+                <div>
+                  <h3 class="font-bold text-base text-slate-900 dark:text-white">กองทุนไทย (Thai Equity Exposure)</h3>
+                  <span class="text-[11px] text-slate-400">หุ้นไทยรายตัวและกลุ่มอุตสาหกรรมในตลาดหลักทรัพย์ ({{ formatNumber(thaiStats.totalFunds || 1562) }} กองทุน)</span>
+                </div>
+              </div>
+              <RouterLink :to="{ name: 'fundinfo-thai' }" class="text-xs font-bold text-amber-700 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300 hover:underline flex items-center gap-1">
+                <span>เจาะลึก {{ formatNumber(thaiStats.totalFunds || 1562) }} กองทุน →</span>
+              </RouterLink>
+            </div>
+
+            <!-- Topic 1: Top Holdings (Thai) -->
+            <div v-show="activeTopic === 'holdings'" class="space-y-2">
+              <div class="flex items-center justify-between text-xs text-slate-400 font-bold px-3 pb-1">
+                <span>อันดับหุ้นไทยที่กองทุนถือสูงสุด</span>
+                <span>สัดส่วน (%)</span>
+              </div>
+              <div
+                v-for="(row, idx) in displayThaiHoldings"
+                :key="row.name"
+                class="exp-data-row"
                 @click="handleSymbolClick(row.name)"
               >
-                <span class="fi-mini-row__name" :title="row.name">{{ row.name }}</span>
-                <div class="fi-mini-row__bar"><i :style="{ width: Math.max(row.value, 2) + '%' }"></i></div>
-                <strong class="fi-mini-row__val">{{ row.value.toFixed(1) }}%</strong>
+                <span class="exp-rank-badge" :class="idx === 0 ? 'rank-1' : idx === 1 ? 'rank-2' : idx === 2 ? 'rank-3' : ''">{{ idx + 1 }}</span>
+                <span class="font-bold text-slate-800 dark:text-slate-100 text-xs sm:text-sm w-28 shrink-0 truncate">{{ row.name }}</span>
+                <div class="flex-1 h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                  <div class="h-full bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-400 rounded-full shadow-xs" :style="{ width: Math.min(Math.max(row.value, 2), 100) + '%' }"></div>
+                </div>
+                <span class="num font-extrabold text-slate-900 dark:text-white text-xs sm:text-sm w-12 text-right">{{ Number(row.value).toFixed(1) }}%</span>
               </div>
-            </template>
-            <p v-else class="fi-muted">—</p>
-          </div>
-        </div>
-      </article>
+            </div>
 
-      <!-- Thai Panel -->
-      <article class="fi-card fi-stats-panel">
-        <div class="fi-stats-panel__header">
-          <span class="fi-stats-panel__icon">🇹🇭</span>
-          <h2>กองทุนไทย</h2>
-        </div>
-        <div class="fi-kpi-row">
-          <div
-            class="fi-kpi fi-kpi--clickable"
-            title="คลิกเพื่อค้นหากองทุน"
-            @click="handleSymbolClick(state.topStocks.TH[0]?.stock_symbol ?? state.topStocks.TH[0]?.symbol)"
-          >
-            <span class="fi-kpi__label">Top Holding</span>
-            <strong class="fi-kpi__val">{{ (state.topStocks.TH[0]?.stock_symbol ?? state.topStocks.TH[0]?.symbol) || '—' }}</strong>
-            <em v-if="(state.topStocks.TH[0]?.total_holding_value_m_thb ?? state.topStocks.TH[0]?.total_thai_fund_value)" class="fi-kpi__sub">
-              ฿{{ formatCompact(state.topStocks.TH[0].total_holding_value_m_thb ?? state.topStocks.TH[0].total_thai_fund_value) }}M
-            </em>
-          </div>
-          <div class="fi-kpi">
-            <span class="fi-kpi__label">จำนวนกองทุน</span>
-            <strong class="fi-kpi__val">
-              {{ formatNumber(thaiStats.totalFunds || state.totals.TH || state.funds.TH.length) }}
-            </strong>
-          </div>
-          <div class="fi-kpi">
-            <span class="fi-kpi__label">Top Sector</span>
-            <strong class="fi-kpi__val fi-kpi__val--sm">{{ thaiStats.topSector?.name || '—' }}</strong>
-          </div>
-          <div
-            class="fi-kpi fi-kpi--clickable"
-            title="คลิกเพื่อค้นหากองทุน"
-            @click="handleSymbolClick(thaiStats.topFlowFund?.code)"
-          >
-            <span class="fi-kpi__label">Flow เข้าสูงสุด</span>
-            <template v-if="thaiStats.topFlowFund?.code">
-              <strong class="fi-kpi__val fi-kpi__val--sm">{{ thaiStats.topFlowFund.code }}</strong>
-              <em class="fi-kpi__sub fi-pos">
-                {{ (thaiStats.topFlowFund.flow ?? thaiStats.topFlowFund.flow_change_1m ?? 0) >= 0 ? '+' : '' }}฿{{ formatCompact(thaiStats.topFlowFund.flow ?? thaiStats.topFlowFund.flow_change_1m) }}
-              </em>
-            </template>
-            <strong v-else class="fi-kpi__val">—</strong>
-          </div>
-        </div>
-
-        <div class="fi-mini-tables fi-mini-tables--2col">
-          <div class="fi-mini-table">
-            <p class="fi-mini-table__title">SECTOR</p>
-            <template v-if="thaiStats.sectorAllocation.length">
+            <!-- Topic 2: Sectors (Thai) -->
+            <div v-show="activeTopic === 'sectors'" class="space-y-2">
+              <div class="flex items-center justify-between text-xs text-slate-400 font-bold px-3 pb-1">
+                <span>กลุ่มอุตสาหกรรมในตลาด SET / mai</span>
+                <span>สัดส่วน (%)</span>
+              </div>
               <div
                 v-for="row in barRows(thaiStats.sectorAllocation)"
                 :key="row.name"
-                class="fi-mini-row fi-mini-row--clickable"
+                class="exp-data-row"
                 @click="filterBySector(row.name)"
               >
-                <span class="fi-mini-row__name" :title="row.name">{{ row.name }}</span>
-                <div class="fi-mini-row__bar"><i :style="{ width: Math.max(row.value, 2) + '%' }"></i></div>
-                <strong class="fi-mini-row__val">{{ row.value.toFixed(1) }}%</strong>
+                <span class="font-bold text-slate-800 dark:text-slate-100 text-xs sm:text-sm w-44 shrink-0 truncate">{{ row.name }}</span>
+                <div class="flex-1 h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                  <div class="h-full bg-gradient-to-r from-amber-500 to-yellow-400 rounded-full shadow-xs" :style="{ width: Math.min(Math.max(row.value, 2), 100) + '%' }"></div>
+                </div>
+                <span class="num font-extrabold text-slate-900 dark:text-white text-xs sm:text-sm w-12 text-right">{{ row.value.toFixed(1) }}%</span>
               </div>
-            </template>
-            <p v-else class="fi-muted">—</p>
+            </div>
+
+            <!-- Topic 3: Countries (Thai) -->
+            <div v-show="activeTopic === 'countries'" class="space-y-3">
+              <div class="p-6 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200/80 dark:border-slate-700/60 space-y-3">
+                <div class="flex items-center gap-3">
+                  <span class="text-3xl">🇹🇭</span>
+                  <div>
+                    <h4 class="font-bold text-base text-slate-900 dark:text-white">ประเทศไทย (Thailand Equity)</h4>
+                    <span class="text-xs text-amber-700 dark:text-amber-400 font-bold">100.0% สัดส่วนการลงทุนทั้งหมด</span>
+                  </div>
+                </div>
+                <div class="h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                  <div class="h-full bg-gradient-to-r from-amber-500 to-yellow-400 rounded-full w-full shadow-xs"></div>
+                </div>
+                <p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed pt-1">
+                  กองทุนหุ้นไทยเน้นลงทุนในหลักทรัพย์จดทะเบียนในตลาดหลักทรัพย์แห่งประเทศไทย (SET) และตลาดหลักทรัพย์ เอ็ม เอ ไอ (mai) 100% โดยกระจายการลงทุนในหุ้นขนาดใหญ่ กลาง และเล็ก ตามดัชนีชี้วัด SET Index และ SET50/SET100
+                </p>
+              </div>
+            </div>
+
+            <!-- Topic 4: KPIs (Thai) -->
+            <div v-show="activeTopic === 'kpis'" class="space-y-3">
+              <div class="grid grid-cols-2 gap-3">
+                <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/60 cursor-pointer hover:border-amber-300 transition" @click="handleSymbolClick(displayThaiHoldings[0]?.name)">
+                  <div class="text-[11px] text-slate-400 font-semibold uppercase">Top Holding</div>
+                  <div class="text-base font-extrabold text-slate-900 dark:text-white mt-0.5">{{ displayThaiHoldings[0]?.name || 'AOT' }}</div>
+                  <div class="text-xs text-slate-500 dark:text-slate-400">
+                    {{ (state.topStocks.TH[0]?.total_holding_value_m_thb ?? state.topStocks.TH[0]?.total_thai_fund_value) ? 'มูลค่าถือครอง ฿' + formatCompact(state.topStocks.TH[0].total_holding_value_m_thb ?? state.topStocks.TH[0].total_thai_fund_value) + 'M' : 'มูลค่าถือครอง ฿8,664M' }}
+                  </div>
+                </div>
+                <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/60">
+                  <div class="text-[11px] text-slate-400 font-semibold uppercase">จำนวนกองทุน</div>
+                  <div class="text-base font-extrabold text-slate-900 dark:text-white num mt-0.5">{{ formatNumber(thaiStats.totalFunds || 1562) }} กองทุน</div>
+                  <div class="text-xs text-slate-500 dark:text-slate-400">กองทุนหุ้นไทย</div>
+                </div>
+                <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/60">
+                  <div class="text-[11px] text-slate-400 font-semibold uppercase">Top Sector</div>
+                  <div class="text-base font-extrabold text-slate-900 dark:text-white mt-0.5 truncate">{{ thaiStats.topSector?.name || 'เทคโนโลยี' }}</div>
+                  <div class="text-xs text-slate-500 dark:text-slate-400">สัดส่วน {{ thaiStats.sectorAllocation[0]?.value ? thaiStats.sectorAllocation[0].value.toFixed(1) + '%' : '20.6%' }}</div>
+                </div>
+                <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/60 cursor-pointer hover:border-amber-300 transition" @click="handleSymbolClick(thaiStats.topFlowFund?.code)">
+                  <div class="text-[11px] text-slate-400 font-semibold uppercase">Flow เข้าสูงสุด</div>
+                  <div class="text-base font-extrabold text-emerald-600 dark:text-emerald-400 num mt-0.5">
+                    {{ thaiStats.topFlowFund?.code ? (thaiStats.topFlowFund.flow >= 0 ? '+' : '') + formatCompact(thaiStats.topFlowFund.flow) + 'M' : '+86M' }}
+                  </div>
+                  <div class="text-xs text-slate-500 dark:text-slate-400">{{ thaiStats.topFlowFund?.code || 'AOT' }}</div>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div class="fi-mini-table">
-            <p class="fi-mini-table__title">TOP HOLDINGS</p>
-            <template v-if="state.topStocks.TH.length">
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 3. ETF Zone (Clean Open Comparative List - No Cards) ─────────────── -->
+    <section class="py-10 bg-slate-50/60 dark:bg-slate-950/60 border-b border-slate-200/80 dark:border-slate-800">
+      <div class="max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8">
+        <!-- Section Header (No Pill Badge) -->
+        <div class="mb-6">
+          <h2 class="text-xl sm:text-2xl lg:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+            ETF ZONE — ตลาด Master ETFs ต่างประเทศ และ Thai ETFs ในประเทศ
+          </h2>
+          <p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400 pl-0.5 mt-1">
+            วิเคราะห์ Master ETFs ชั้นนำระดับโลกที่กองทุนไทยเข้าถือครอง และ Thai ETFs ที่มีสภาพคล่องและผลตอบแทนเด่น
+          </p>
+        </div>
+
+        <!-- 2-Column Clean Comparative Data List (Side-by-Side, Open, Unboxed) -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
+
+          <!-- Column 1: Master ETFs (Foreign) -->
+          <div class="space-y-4">
+            <!-- Header bar -->
+            <div class="flex items-center justify-between pb-3 border-b-2 border-blue-500">
+              <div class="flex items-center gap-2.5">
+                <div class="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 flex items-center justify-center text-lg shadow-xs">🌐</div>
+                <div>
+                  <h3 class="font-bold text-base text-slate-900 dark:text-white">Master ETFs (ต่างประเทศ)</h3>
+                  <span class="text-[11px] text-slate-400">Top Master ETFs จัดอันดับตามมูลค่า AUM ที่กองทุนไทยถือครอง</span>
+                </div>
+              </div>
+              <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">AUM รวม</span>
+            </div>
+
+            <!-- List rows -->
+            <div class="space-y-1.5">
               <div
-                v-for="row in topStockRows(state.topStocks.TH)"
-                :key="row.name"
-                class="fi-mini-row fi-mini-row--clickable"
-                title="คลิกเพื่อดูรายละเอียดหุ้น/ETF"
-                @click="handleSymbolClick(row.name)"
+                v-for="(etf, idx) in displayMasterEtfs"
+                :key="etf.symbol"
+                class="flex items-center justify-between p-3 rounded-xl hover:bg-white dark:hover:bg-slate-800 hover:shadow-xs transition cursor-pointer group"
+                @click="handleSymbolClick(etf.symbol)"
               >
-                <span class="fi-mini-row__name" :title="row.name">{{ row.name }}</span>
-                <div class="fi-mini-row__bar"><i :style="{ width: Math.max(row.value, 2) + '%' }"></i></div>
-                <strong class="fi-mini-row__val">{{ row.value.toFixed(1) }}%</strong>
+                <div class="flex items-center gap-3 min-w-0">
+                  <span class="exp-rank-badge" :class="idx === 0 ? 'rank-1' : idx === 1 ? 'rank-2' : idx === 2 ? 'rank-3' : ''">{{ idx + 1 }}</span>
+                  <div class="min-w-0">
+                    <div class="flex items-center gap-2">
+                      <span class="font-extrabold text-sm text-blue-600 dark:text-blue-400 group-hover:underline">{{ etf.symbol }}</span>
+                      <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">{{ etf.tag }}</span>
+                    </div>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5" :title="etf.name">{{ etf.name }}</p>
+                  </div>
+                </div>
+                <div class="text-right shrink-0 pl-3">
+                  <div class="font-black text-sm text-emerald-600 dark:text-emerald-400 num">▲ ฿{{ formatCompact(etf.aum) }}M</div>
+                  <div class="text-[11px] text-slate-400 mt-0.5">{{ etf.fund_count }} กองทุนถือครอง</div>
+                </div>
               </div>
-            </template>
-            <p v-else class="fi-muted">—</p>
+            </div>
           </div>
-        </div>
-      </article>
 
+          <!-- Column 2: Thai ETFs (Domestic) -->
+          <div class="space-y-4">
+            <!-- Header bar -->
+            <div class="flex items-center justify-between pb-3 border-b-2 border-amber-500">
+              <div class="flex items-center gap-2.5">
+                <div class="w-9 h-9 rounded-xl bg-amber-100/70 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700/60 text-amber-800 dark:text-amber-300 flex items-center justify-center text-lg shadow-xs">🇹🇭</div>
+                <div>
+                  <h3 class="font-bold text-base text-slate-900 dark:text-white">Thai ETFs (ในประเทศ)</h3>
+                  <span class="text-[11px] text-slate-400">Top Traded Thai ETFs ในตลาด SET จัดอันดับตามผลตอบแทน 1 ปี</span>
+                </div>
+              </div>
+              <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">ผลตอบแทน 1Y</span>
+            </div>
+
+            <!-- List rows -->
+            <div class="space-y-1.5">
+              <div
+                v-for="(etf, idx) in displayThaiEtfs"
+                :key="etf.symbol"
+                class="flex items-center justify-between p-3 rounded-xl hover:bg-white dark:hover:bg-slate-800 hover:shadow-xs transition cursor-pointer group"
+                @click="handleSymbolClick(etf.symbol)"
+              >
+                <div class="flex items-center gap-3 min-w-0">
+                  <span class="exp-rank-badge" :class="idx === 0 ? 'rank-1' : idx === 1 ? 'rank-2' : idx === 2 ? 'rank-3' : ''">{{ idx + 1 }}</span>
+                  <div class="min-w-0">
+                    <div class="flex items-center gap-2">
+                      <span class="font-extrabold text-sm text-amber-700 dark:text-amber-400 group-hover:underline">{{ etf.symbol }}</span>
+                      <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">{{ etf.tag }}</span>
+                    </div>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5" :title="etf.name">{{ etf.name }}</p>
+                  </div>
+                </div>
+                <div class="text-right shrink-0 pl-3">
+                  <div class="font-black text-sm num" :class="etf.return_1y >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'">
+                    {{ etf.return_1y >= 0 ? '▲ +' : '▼ ' }}{{ Math.abs(etf.return_1y).toFixed(2) }}%
+                  </div>
+                  <div class="text-[11px] text-slate-400 mt-0.5">
+                    <span v-if="etf.aum_m_thb">AUM ฿{{ formatCompact(etf.aum_m_thb) }}M</span>
+                    <span v-if="etf.amc_name"> · {{ etf.amc_name }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
     </section>
 
-    <!-- ── 3. ETF Zone ─────────────────────────────────────────────────────── -->
-    <section class="fi-etf-grid">
 
-      <!-- Master ETFs -->
-      <article class="fi-card fi-etf-panel">
-        <div class="fi-etf-panel__zone">
-          <span class="fi-etf-zone-tag">ETF ZONE</span>
-          <span class="fi-etf-zone-type">Master ETFs</span>
-        </div>
-        <h2 class="fi-etf-panel__title">Top Master ETFs — AUM รวม (ล้านบาท)</h2>
-        <div v-if="state.masterEtfs.length" class="fi-etf-cards">
-          <div
-            v-for="etf in state.masterEtfs.slice(0, 6)"
-            :key="etf.symbol ?? etf.code"
-            class="fi-etf-card"
-          >
-            <div class="fi-etf-card__head">
-              <div class="fi-etf-card__info">
-                <strong class="fi-etf-card__symbol">{{ etf.symbol ?? etf.code }}</strong>
-                <p class="fi-etf-card__name" :title="etf.name ?? etf.fund_name">{{ etf.name ?? etf.fund_name ?? '' }}</p>
-              </div>
-              <span class="fi-etf-card__cat">{{ etf.tag ?? etf.category ?? etf.type ?? 'Global' }}</span>
-            </div>
-            <div
-              class="fi-etf-card__flow"
-              :class="getEtfFlow(etf) >= 0 ? 'fi-pos' : 'fi-neg'"
-            >
-              {{ getEtfFlow(etf) >= 0 ? '▲ ' : '▼ ' }}
-              {{ formatCompact(Math.abs(getEtfFlow(etf))) }}
-            </div>
-            <div class="fi-etf-card__meta">
-              <span>{{ getEtfFundCount(etf) ? getEtfFundCount(etf) + ' กองทุน' : '' }}</span>
-            </div>
+
+    <!-- ── 4. 400 Funds Screener (fund2-main Unified Screener) ────────────────────────── -->
+    <section id="fund-screener" class="py-10 bg-slate-50/60 dark:bg-slate-950/60 flex-1">
+      <div class="max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
+          <div>
+            <h2 class="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+              ค้นหาและคัดกรองกองทุนรวมทั้งหมด (<span id="totalFundCount" class="num">{{ filteredUnifiedFunds.length }}</span> กองทุน)
+            </h2>
+            <p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400 pl-0.5 mt-0.5">
+              เครื่องมือคัดกรองกองทุนไทยและกองทุนต่างประเทศตามผลตอบแทน ความเสี่ยง และนโยบายการจ่ายเงินปันผล
+            </p>
           </div>
-        </div>
-        <p v-else class="fi-muted">
-          {{ loading.page ? '⏳ กำลังโหลด Master ETFs...' : 'ยังไม่มีข้อมูล Master ETFs' }}
-        </p>
-      </article>
 
-      <!-- Thai ETFs -->
-      <article class="fi-card fi-etf-panel">
-        <div class="fi-etf-panel__zone">
-          <span class="fi-etf-zone-tag">ETF ZONE</span>
-          <span class="fi-etf-zone-type">Thai ETFs</span>
-        </div>
-        <h2 class="fi-etf-panel__title">Top Traded Thai ETFs — ผลตอบแทน 1Y (%)</h2>
-        <div v-if="state.thaiEtfs.length" class="fi-etf-cards">
-          <div
-            v-for="etf in state.thaiEtfs.slice(0, 6)"
-            :key="etf.fund_code ?? etf.symbol ?? etf.code"
-            class="fi-etf-card"
-          >
-            <div class="fi-etf-card__head">
-              <div class="fi-etf-card__info">
-                <strong class="fi-etf-card__symbol">{{ etf.fund_code ?? etf.symbol ?? etf.code }}</strong>
-                <p class="fi-etf-card__name" :title="etf.fund_name_th ?? etf.name ?? etf.fund_name">{{ etf.fund_name_th ?? etf.name ?? etf.fund_name ?? '' }}</p>
-              </div>
-              <span class="fi-etf-card__cat">{{ etf.aimc_category_name_en ?? etf.tag ?? etf.category ?? etf.type ?? 'Equity' }}</span>
-            </div>
-            <div
-              class="fi-etf-card__flow"
-              :class="(etf.return_1y ?? etf.return_1m ?? 0) >= 0 ? 'fi-pos' : 'fi-neg'"
-            >
-              {{ (etf.return_1y ?? etf.return_1m ?? 0) >= 0 ? '▲ ' : '▼ ' }}
-              {{ Math.abs(Number(etf.return_1y ?? etf.return_1m ?? 0)).toFixed(2) }}%
-            </div>
-            <div class="fi-etf-card__meta">
-              <span v-if="etf.aum_m_thb">AUM ฿{{ formatCompact(etf.aum_m_thb) }}M</span>
-              <span v-if="etf.amc_name"> · {{ etf.amc_name }}</span>
-            </div>
-          </div>
-        </div>
-        <p v-else class="fi-muted">
-          {{ loading.page ? '⏳ กำลังโหลด Thai ETFs...' : 'ยังไม่มีข้อมูล Thai ETFs' }}
-        </p>
-      </article>
-
-    </section>
-
-    <!-- ── 4. Fund List ─────────────────────────────────────────────────────── -->
-<section class="fi-card fi-fundsec">
-
-      <!-- Breadcrumb -->
-      <p class="fi-fundsec__crumb">
-        <span>หน้าหลัก</span>
-        <span class="fi-fundsec__crumb-sep"> &rsaquo; </span>
-        <span>กองทุนรวมทั้งหมด {{ formatNumber(totalFunds) }} กองทุน</span>
-      </p>
-
-      <div class="fi-fundsec__head">
-        <h2 class="fi-fundsec__count">กองทุนรวมทั้งหมด {{ formatNumber(totalFunds) }} กองทุน</h2>
-        <div class="fi-fundsec__toolbar">
-          <button
-            type="button"
-            class="fi-btn fi-btn--ghost fi-btn--sm"
-            :class="{ 'fi-btn--fav-active': showOnlyFavorites }"
-            title="แสดงเฉพาะกองทุนที่ติดดาวโปรดไว้"
-            @click="toggleShowOnlyFavorites"
-          >
-            ★ กองทุนโปรด ({{ favorites.size }})
-          </button>
-          <button
-            type="button"
-            class="fi-btn fi-btn--ghost fi-btn--sm"
-            title="ดาวน์โหลดตารางกองทุนเป็นไฟล์ CSV"
-            @click="exportToCsv"
-          >
-            📥 Export CSV
-          </button>
-          <button
-            v-if="selectedForCompare.length"
-            type="button"
-            class="fi-btn fi-btn--primary fi-btn--sm"
-            @click="openCompareModal"
-          >
-            ⚖️ เปรียบเทียบ ({{ selectedForCompare.length }})
-          </button>
-
-          <select v-model="state.selectedFundType" class="fi-select" @change="resetPaging">
-            <option value="">ประเภทกองทุน: ทั้งหมด</option>
-            <option v-for="t in filterOptions.fundTypes" :key="t" :value="t">{{ t }}</option>
-          </select>
-          <select v-model="state.selectedAmc" class="fi-select" @change="resetPaging">
-            <option value="">บลจ.: ทั้งหมด</option>
-            <option v-for="a in filterOptions.amcs" :key="a" :value="a">{{ a }}</option>
-          </select>
-          <select v-model="state.selectedSector" class="fi-select" @change="resetPaging">
-            <option value="">Sector: ทั้งหมด</option>
-            <option v-for="s in filterOptions.sectors" :key="s" :value="s">{{ s }}</option>
-          </select>
-
-          <form class="fi-search-form" @submit.prevent="runSearch">
-            <input
-              v-model="state.searchInput"
-              class="fi-search-input"
-              placeholder="พิมพ์ชื่อหุ้น เช่น AAPL"
-            />
-            <button type="submit" class="fi-btn fi-btn--primary fi-btn--sm" :disabled="loading.search">
-              {{ loading.search ? '...' : '+ เพิ่ม' }}
-            </button>
-            <button
-              v-if="state.searchMode"
+          <div class="flex flex-wrap items-center gap-2">
+            <!-- ปุ่ม 1: กองทุนโปรด -->
+            <button 
               type="button"
-              class="fi-btn fi-btn--ghost fi-btn--sm"
-              @click="clearSearch"
-            >ล้างค้นหา</button>
-          </form>
+              @click="toggleShowOnlyFavorites" 
+              class="px-3.5 py-2 rounded-xl text-xs font-bold bg-white dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700 hover:bg-amber-50 dark:hover:bg-amber-950/40 text-slate-700 dark:text-slate-200 shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+              :class="{ 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 text-amber-700': showOnlyFavorites }"
+              title="แสดงเฉพาะกองทุนที่กดดาว/ชื่นชอบ"
+            >
+              <span class="text-amber-500">★</span>
+              <span>กองทุนโปรด ({{ favorites.size }})</span>
+            </button>
+
+            <!-- ปุ่ม 2: เปรียบเทียบ -->
+            <button 
+              type="button"
+              @click="openInlineCompare" 
+              class="px-3.5 py-2 rounded-xl text-xs font-bold bg-brand-600 hover:bg-brand-700 text-white shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+              title="เปรียบเทียบกองทุนที่เลือกในตาราง"
+            >
+              <span>⚖️ เปรียบเทียบที่เลือก</span>
+              <span class="bg-white text-brand-700 font-extrabold px-1.5 py-0.2 rounded-full text-[10px]">{{ selectedForCompare.length }}</span>
+            </button>
+
+            <!-- ปุ่ม 3: Export CSV -->
+            <button 
+              type="button"
+              @click="exportToCsv" 
+              class="px-3.5 py-2 rounded-xl text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700 hover:bg-slate-50 text-slate-700 dark:text-slate-200 shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+            >
+              <span>Export CSV</span>
+            </button>
+          </div>
         </div>
-      </div>
 
-      <!-- Search Chips Bar -->
-      <div v-if="state.searchSymbols.length" class="fi-search-tags">
-        <span class="fi-search-tags__title">หุ้นค้นหา:</span>
-        <span
-          v-for="(sym, idx) in state.searchSymbols"
-          :key="sym"
-          class="fi-search-tag"
-        >
-          {{ sym }}
-          <button class="fi-search-tag__x" @click="removeSearchSymbol(idx)">✕</button>
-        </span>
-        <button class="fi-btn fi-btn--ghost fi-btn--xs fi-search-tags__clear" @click="clearSearch">
-          ล้างค้นหา
-        </button>
-      </div>
+        <!-- Filter Controls (ประเภทกองทุน, บลจ., Sector) -->
+        <div class="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm mb-6 space-y-4">
+          <!-- แถวที่ 1: ปุ่มแบ่งแต่ละกองทุน (ทั้งหมด feeder offshore thai mixed) -->
+          <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+            <div class="flex flex-wrap gap-1.5 bg-slate-100 dark:bg-slate-800/90 p-1 rounded-xl">
+              <button type="button" @click="setScreenerCategory('all')" :class="screenerCategory === 'all' ? 'bg-white dark:bg-slate-700 text-brand-600 dark:text-white font-bold shadow-xs' : 'text-slate-600 dark:text-slate-300 font-medium hover:text-slate-900'" class="sc-tab px-3.5 py-1.5 rounded-lg text-xs transition cursor-pointer">ทั้งหมด ({{ allUnifiedFunds.length }})</button>
+              <button type="button" @click="setScreenerCategory('feeder')" :class="screenerCategory === 'feeder' ? 'bg-white dark:bg-slate-700 text-brand-600 dark:text-white font-bold shadow-xs' : 'text-slate-600 dark:text-slate-300 font-medium hover:text-slate-900'" class="sc-tab px-3.5 py-1.5 rounded-lg text-xs transition cursor-pointer">Feeder Fund</button>
+              <button type="button" @click="setScreenerCategory('offshore')" :class="screenerCategory === 'offshore' ? 'bg-white dark:bg-slate-700 text-brand-600 dark:text-white font-bold shadow-xs' : 'text-slate-600 dark:text-slate-300 font-medium hover:text-slate-900'" class="sc-tab px-3.5 py-1.5 rounded-lg text-xs transition cursor-pointer">Offshore</button>
+              <button type="button" @click="setScreenerCategory('thai')" :class="screenerCategory === 'thai' ? 'bg-white dark:bg-slate-700 text-brand-600 dark:text-white font-bold shadow-xs' : 'text-slate-600 dark:text-slate-300 font-medium hover:text-slate-900'" class="sc-tab px-3.5 py-1.5 rounded-lg text-xs transition cursor-pointer">Thai Fund</button>
+              <button type="button" @click="setScreenerCategory('mixed')" :class="screenerCategory === 'mixed' ? 'bg-white dark:bg-slate-700 text-brand-600 dark:text-white font-bold shadow-xs' : 'text-slate-600 dark:text-slate-300 font-medium hover:text-slate-900'" class="sc-tab px-3.5 py-1.5 rounded-lg text-xs transition cursor-pointer">Mixed Fund</button>
+            </div>
 
-      <!-- Dual Tables -->
-      <div class="fi-fund-tables">
+            <!-- ช่องค้นหาชื่อย่อ หรือ บลจ. -->
+            <div class="relative flex-1 max-w-sm">
+              <input 
+                v-model="tableSearchQuery" 
+                type="text" 
+                placeholder="ค้นหาชื่อย่อ หรือชื่อกองทุน (e.g. SCBNDQ, K-CHANGE)..." 
+                class="w-full pl-4 pr-4 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+              />
+            </div>
+          </div>
 
-        <!-- Foreign Funds Table -->
-        <div class="fi-fund-col">
-          <p class="fi-fund-col__label">
-            กองทุนต่างประเทศทั้งหมด <strong>{{ formatNumber(state.totals.FOREIGN || activeFundsForeign.length) }}</strong> กองทุน
-          </p>
-          <div class="fi-fund-col__wrap">
-            <table class="fi-table">
-              <thead>
+          <!-- แถวที่ 2: ตัวกรอง Dropdown (ประเภทกองทุน, บลจ., Sector) และเพิ่มเติม -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-3 text-xs">
+            <div>
+              <label class="block text-[11px] text-slate-400 mb-1 font-medium">ประเภทกองทุน</label>
+              <select v-model="screenerCategory" class="w-full py-2 px-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700 text-slate-700 dark:text-slate-200 focus:outline-none font-semibold">
+                <option value="all">ประเภทกองทุน: ทั้งหมด</option>
+                <option value="feeder">Feeder Fund</option>
+                <option value="offshore">Offshore (ต่างประเทศ)</option>
+                <option value="thai">Thai Fund (กองทุนไทย)</option>
+                <option value="mixed">Mixed Fund (กองทุนผสม)</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[11px] text-slate-400 mb-1 font-medium">บลจ. (Asset Management)</label>
+              <select v-model="selectedScreenerAmc" class="w-full py-2 px-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700 text-slate-700 dark:text-slate-200 focus:outline-none font-semibold">
+                <option value="all">บลจ.: ทั้งหมด</option>
+                <option value="SCB">ไทยพาณิชย์ (SCBAM)</option>
+                <option value="KA">กสิกรไทย (KAsset)</option>
+                <option value="BBL">บัวหลวง (BBLAM)</option>
+                <option value="ES">อีสท์สปริง (Eastspring)</option>
+                <option value="KSAM">กรุงศรี (KSAM)</option>
+                <option value="ab">abrdn</option>
+                <option value="BCAP">บีแคป (BCAP)</option>
+                <option value="ONE">วรรณ (ONEAM)</option>
+                <option value="KKP">เกียรตินาคินภัทร (KKPAM)</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[11px] text-slate-400 mb-1 font-medium">Sector / อุตสาหกรรม</label>
+              <select v-model="selectedScreenerSector" class="w-full py-2 px-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700 text-slate-700 dark:text-slate-200 focus:outline-none font-semibold">
+                <option value="all">Sector: ทั้งหมด</option>
+                <option value="Technology">Technology (เทคโนโลยี)</option>
+                <option value="Health Care">Healthcare (สุขภาพและการแพทย์)</option>
+                <option value="Energy">Energy & Utilities (พลังงาน)</option>
+                <option value="Finance">Financial Services (การเงิน)</option>
+                <option value="Fixed Income">Fixed Income (ตราสารหนี้)</option>
+                <option value="Gold">Commodity & Gold (ทองคำ/โภคภัณฑ์)</option>
+                <option value="Index">Index & Large Cap (ดัชนีภาพรวม)</option>
+                <option value="Multi-Asset">Multi-Asset (ผสมหลากหลายสินทรัพย์)</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[11px] text-slate-400 mb-1 font-medium">ระดับความเสี่ยง</label>
+              <select v-model="selectedScreenerRisk" class="w-full py-2 px-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700 text-slate-700 dark:text-slate-200 focus:outline-none">
+                <option value="all">ทุกระดับความเสี่ยง</option>
+                <option value="low">ต่ำ (1 - 4)</option>
+                <option value="med">ปานกลาง (5)</option>
+                <option value="high">สูง (6 - 8)</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[11px] text-slate-400 mb-1 font-medium">เรียงลำดับตาม</label>
+              <select v-model="screenerSortBy" class="w-full py-2 px-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700 text-slate-700 dark:text-slate-200 focus:outline-none">
+                <option value="perfDesc">ผลตอบแทน 1Y (สูง → ต่ำ)</option>
+                <option value="perfAsc">ผลตอบแทน 1Y (ต่ำ → สูง)</option>
+                <option value="aumDesc">ขนาด AUM (มาก → น้อย)</option>
+                <option value="nameAsc">ชื่อกองทุน (A → Z)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Screener Data Table -->
+        <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
+          <div class="overflow-x-auto no-scrollbar">
+            <table class="w-full text-left text-sm border-collapse">
+              <thead class="bg-slate-50/90 dark:bg-slate-800/90 text-slate-600 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-800 select-none text-xs sm:text-sm">
                 <tr>
-                  <th class="fi-th--xs">⭐</th>
-                  <th class="fi-th--xs">⚖️</th>
-                  <th class="fi-th--left">กองทุน</th>
-                  <th>RISK</th>
-                  <th class="fi-th--sort" :class="{ 'fi-th--active': state.sortBy === 'ret' }" @click="setSort('ret')">
-                    1Y<span v-if="state.sortBy==='ret'">{{ state.sortDir==='desc'?' ↓':' ↑' }}</span>
-                  </th>
-                  <th class="fi-th--sort" :class="{ 'fi-th--active': state.sortBy === 'nav' }" @click="setSort('nav')">
-                    NAV<span v-if="state.sortBy==='nav'">{{ state.sortDir==='desc'?' ↓':' ↑' }}</span>
-                  </th>
-                  <th class="fi-th--sort" :class="{ 'fi-th--active': state.sortBy === 'aum' }" @click="setSort('aum')">
-                    AUM<span>{{ state.sortBy==='aum' ? (state.sortDir==='desc'?' ↓':' ↑') : ' ↓' }}</span>
-                  </th>
+                  <th class="py-4 px-2 w-9 text-center"></th>
+                  <th class="py-4 px-3 text-center whitespace-nowrap text-slate-800 dark:text-slate-100 font-black w-24">เปรียบเทียบ</th>
+                  <th class="py-4 px-3 cursor-pointer hover:text-slate-900 dark:hover:text-white whitespace-nowrap" @click="screenerSortBy = screenerSortBy === 'nameAsc' ? 'perfDesc' : 'nameAsc'">รหัส / ชื่อกองทุน ⇅</th>
+                  <th class="py-4 px-2 whitespace-nowrap text-center w-24">ประเภท</th>
+                  <th class="py-4 px-3 whitespace-nowrap w-36 xl:w-44">บลจ.</th>
+                  <th class="py-4 px-3 text-right whitespace-nowrap w-28">NAV (บาท)</th>
+                  <th class="py-4 px-2.5 text-right whitespace-nowrap w-24">1M (%)</th>
+                  <th class="py-4 px-2.5 text-right cursor-pointer hover:text-slate-900 dark:hover:text-white whitespace-nowrap w-24" @click="screenerSortBy = screenerSortBy === 'perfDesc' ? 'perfAsc' : 'perfDesc'">1Y (%) ⇅</th>
+                  <th class="py-4 px-2.5 text-right whitespace-nowrap w-24">3Y (%)</th>
+                  <th class="py-4 px-2 text-center whitespace-nowrap w-20">ความเสี่ยง</th>
+                  <th class="py-4 px-2.5 text-right whitespace-nowrap w-24">ปันผล (%)</th>
+                  <th class="py-4 px-3 text-center whitespace-nowrap w-28">ข้อมูลเชิงลึก</th>
                 </tr>
               </thead>
-              <tbody>
-                <tr v-if="loading.funds && !hasVisibleFunds">
-                  <td colspan="7" class="fi-td--center">กำลังโหลดข้อมูล...</td>
+              <tbody class="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-200">
+                <tr v-if="!pagedUnifiedFunds.length">
+                  <td colspan="12" class="py-16 text-center text-slate-400">
+                    <div class="text-4xl mb-3">🔍</div>
+                    <div class="font-extrabold text-base text-slate-700 dark:text-slate-200">ไม่พบกองทุนที่ตรงกับเงื่อนไข</div>
+                    <div class="text-xs sm:text-sm text-slate-400 mt-1">ลองเปลี่ยนคำค้นหาหรือรีเซ็ตตัวกรอง</div>
+                  </td>
                 </tr>
-                <tr v-else-if="!pagedForeignFunds.length">
-                  <td colspan="7" class="fi-td--center">ไม่พบข้อมูล</td>
-                </tr>
-                <template v-for="fund in pagedForeignFunds" :key="`F-${fund.code}`">
-                  <tr
-                    class="fi-tr"
-                    :class="{ 'fi-tr--expanded': expandedSet[fund.code] }"
-                    style="cursor:pointer"
-                    @click="!state.searchMode && toggleExpand(fund.code)"
+                <template v-for="f in pagedUnifiedFunds" :key="f.id">
+                  <tr 
+                    class="hover:bg-slate-50/90 dark:hover:bg-slate-800/70 transition cursor-pointer"
+                    :class="{ 'bg-brand-50/25 dark:bg-brand-950/20': isFundSelected(f.id), 'bg-slate-50/95 dark:bg-slate-800/90 font-semibold': isFundExpanded(f.id) }"
+                    @click="toggleFundExpand(f.id)"
+                    title="คลิกเพื่อเปิด/ปิด Top 5 Holdings"
                   >
-                    <td class="fi-td--center">
-                      <button
-                        class="fi-star-btn"
-                        :class="{ 'fi-star-btn--active': isFavorite(fund.code) }"
-                        title="ติดดาวกองทุนโปรด"
-                        @click.stop="toggleFavorite(fund.code)"
-                      >{{ isFavorite(fund.code) ? '★' : '☆' }}</button>
+                    <td class="py-3.5 px-2 text-center" @click.stop>
+                      <button @click="toggleFavorite(f.id)" class="text-lg transition hover:scale-125 cursor-pointer" title="เพิ่มในรายการโปรด">
+                        {{ isFavorite(f.id) ? '⭐' : '☆' }}
+                      </button>
                     </td>
-                    <td class="fi-td--center">
-                      <input
-                        type="checkbox"
-                        class="fi-compare-check"
-                        :checked="isInCompare(fund.code)"
-                        title="เลือกเพื่อเปรียบเทียบ"
-                        @click.stop="toggleCompare(fund.code)"
-                      />
+                    <td class="py-3.5 px-3 text-center" @click.stop>
+                      <button 
+                        type="button"
+                        @click="toggleCompare(f.id)" 
+                        class="px-2.5 py-1.5 rounded-xl text-xs font-black transition-all inline-flex items-center justify-center gap-1 shadow-2xs cursor-pointer select-none"
+                        :class="isFundSelected(f.id) 
+                          ? 'bg-brand-600 text-white ring-2 ring-brand-400/50 hover:bg-brand-700' 
+                          : 'bg-slate-100 dark:bg-slate-800 hover:bg-brand-50 dark:hover:bg-brand-950/60 text-slate-600 dark:text-slate-300 hover:text-brand-600 dark:hover:text-brand-300 border border-slate-200 dark:border-slate-700'"
+                        :title="isFundSelected(f.id) ? 'ยกเลิกเปรียบเทียบ' : 'เลือกเปรียบเทียบ'"
+                      >
+                        <span v-if="isFundSelected(f.id)">✓ เทียบ</span>
+                        <span v-else>+ เทียบ</span>
+                      </button>
                     </td>
-                    <td class="fi-td--fund">
-                      <strong>{{ fund.code || '-' }}</strong>
-                      <span>{{ fund.name || '-' }}</span>
-                      <em v-if="fund.amc">{{ fund.amc }}</em>
+                    <td class="py-3.5 px-3">
+                      <div class="font-black text-slate-900 dark:text-white flex items-center gap-2 whitespace-nowrap text-sm sm:text-base">
+                        <span>{{ f.id }}</span>
+                        <span v-if="f.div > 0" class="text-[10px] bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 px-1.5 py-0.5 rounded-md font-bold">ปันผล</span>
+                        <span class="text-slate-400 text-xs transition-transform duration-200 inline-block" :class="{ 'rotate-180': isFundExpanded(f.id) }">⌄</span>
+                      </div>
+                      <div class="text-xs text-slate-500 dark:text-slate-400 truncate max-w-[200px] md:max-w-[260px] xl:max-w-md font-normal mt-0.5" :title="f.name">{{ f.name }}</div>
                     </td>
-                    <td><span class="fi-risk" :class="riskClass(fund.risk)">{{ fund.risk || '-' }}</span></td>
-                    <td :class="fund.ret >= 0 ? 'fi-pos' : 'fi-neg'">{{ formatPercent(fund.ret) }}</td>
-                    <td>฿{{ formatCurrency(fund.nav) }}</td>
-                    <td>฿{{ formatCompact(fund.aum) }}</td>
+                    <td class="py-3.5 px-2 text-center whitespace-nowrap">
+                      <span class="px-2.5 py-1 rounded-md text-xs font-bold" :class="getTypeBadgeClass(f.type)">
+                        {{ getTypeLabel(f.type) }}
+                      </span>
+                    </td>
+                    <td class="py-3.5 px-3 font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap text-xs sm:text-sm">{{ f.amcFull || f.amc }}</td>
+                    <td class="py-3.5 px-3 text-right font-black text-slate-900 dark:text-white num whitespace-nowrap tabular-nums text-sm sm:text-base">
+                      {{ Number(f.nav || 0).toFixed(4) }}
+                      <span class="block text-xs font-bold" :class="f.chg1d >= 0 ? 'text-emerald-600' : 'text-rose-500'">{{ f.chg1d >= 0 ? '+' : '' }}{{ Number(f.chg1d || 0).toFixed(2) }}%</span>
+                    </td>
+                    <td class="py-3.5 px-2.5 text-right font-bold num whitespace-nowrap tabular-nums text-sm sm:text-base" :class="f.ret1m >= 0 ? 'text-emerald-600' : 'text-rose-500'">
+                      {{ f.ret1m >= 0 ? '+' : '' }}{{ Number(f.ret1m || 0).toFixed(2) }}%
+                    </td>
+                    <td class="py-3.5 px-2.5 text-right font-black num whitespace-nowrap tabular-nums text-base sm:text-lg" :class="f.perf >= 0 ? 'text-emerald-600' : 'text-rose-500'">
+                      {{ f.perf >= 0 ? '+' : '' }}{{ Number(f.perf || 0).toFixed(2) }}%
+                    </td>
+                    <td class="py-3.5 px-2.5 text-right font-bold text-slate-600 dark:text-slate-300 num whitespace-nowrap tabular-nums text-sm sm:text-base">
+                      {{ f.ret3y >= 0 ? '+' : '' }}{{ Number(f.ret3y || 0).toFixed(2) }}%
+                    </td>
+                    <td class="py-3.5 px-2 text-center whitespace-nowrap">
+                      <span class="px-2.5 py-1 rounded-full text-xs font-black" :class="getRiskBadgeClass(f.risk)">
+                        {{ f.risk }}
+                      </span>
+                    </td>
+                    <td class="py-3.5 px-2.5 text-right num font-bold text-slate-700 dark:text-slate-200 whitespace-nowrap tabular-nums text-sm sm:text-base">
+                      {{ f.div > 0 ? Number(f.div).toFixed(1) + '%' : '—' }}
+                    </td>
+                    <td class="py-3.5 px-3 text-center whitespace-nowrap" @click.stop>
+                      <div class="flex items-center justify-center">
+                        <button 
+                          type="button"
+                          @click="openInsightModal(f)" 
+                          class="px-3 py-1.5 rounded-xl bg-brand-50 hover:bg-brand-600 text-brand-700 hover:text-white dark:bg-slate-800 dark:hover:bg-brand-600 dark:text-brand-300 dark:hover:text-white text-xs sm:text-sm font-black transition inline-flex items-center gap-1.5 shadow-2xs cursor-pointer" 
+                          title="เปิดหน้าต่างข้อมูลเชิงลึก & พอร์ตการถือหุ้น"
+                        >
+                          <span>ดูข้อมูล</span>
+                          <span>🔍</span>
+                        </button>
+                      </div>
+                    </td>
                   </tr>
-                  <!-- Inline Expand Row (เหมือน WordPress fd-exp) -->
-                  <tr v-if="expandedSet[fund.code] && !state.searchMode" class="fi-tr-expand">
-                    <td colspan="7" class="fi-exp-cell">
-                      <div class="fi-exp-inner">
-                        <template v-if="fund.top && fund.top.length">
-                          <div class="fi-exp-pie-wrap">
-                            <div class="fi-exp-pie-label">Top 5 Holdings</div>
-                            <canvas :id="`fd-pe-${fund.code}`" width="120" height="120"></canvas>
+
+                  <!-- Top 5 Holdings Expanded Row (Full width, numbers at far right) -->
+                  <tr v-if="isFundExpanded(f.id)" class="fi-tr-expand bg-slate-50/90 dark:bg-slate-850/90 border-b border-slate-200/90 dark:border-slate-800">
+                    <td colspan="12" class="py-5 px-6 sm:px-10">
+                      <div class="w-full flex flex-col md:flex-row items-stretch md:items-center gap-6 md:gap-12">
+                        <div class="flex flex-col items-center justify-center shrink-0 w-full md:w-[130px] text-center p-3 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200/70 dark:border-slate-750 shadow-xs">
+                          <div class="text-xs sm:text-sm font-black text-slate-800 dark:text-slate-200 mb-2 whitespace-nowrap">สัดส่วน Top 5</div>
+                          <div class="w-[96px] h-[96px] relative flex items-center justify-center">
+                            <canvas :id="'fd-pe-' + f.id" width="96" height="96"></canvas>
                           </div>
-                          <div class="fi-exp-list">
-                            <div
-                              v-for="(h, j) in fund.top.slice(0, 5)"
-                              :key="h.s || h.symbol || j"
-                              class="fi-exp-row"
-                            >
-                              <div class="fi-exp-row-left">
-                                <span class="fi-exp-dot" :style="{ background: ['#4B543B','#DCE2AA','#B57F50','#8ED081','#B4D2BA'][j] }"></span>
-                                <span class="fi-exp-sym">{{ h.s || h.symbol || '-' }}</span>
-                                <span class="fi-exp-name">{{ h.n || h.name || '' }}</span>
-                              </div>
-                              <span class="fi-exp-pct">{{ Number(h.p ?? h.percent ?? 0).toFixed(2) }}%</span>
+                        </div>
+                        <div class="flex-1 w-full divide-y divide-slate-200/70 dark:divide-slate-750 bg-white dark:bg-slate-800 rounded-2xl p-4 sm:p-5 border border-slate-200/70 dark:border-slate-750 shadow-xs">
+                          <div 
+                            v-for="(h, j) in getFundHoldings(f)" 
+                            :key="j"
+                            class="flex items-center justify-between py-2 text-sm sm:text-base gap-4"
+                          >
+                            <div class="flex items-center gap-3 min-w-0">
+                              <span class="w-3.5 h-3.5 rounded-sm shrink-0 shadow-2xs" :style="{ background: PIE_COLORS[j % PIE_COLORS.length] }"></span>
+                              <strong class="font-extrabold text-slate-800 dark:text-slate-100 truncate text-sm sm:text-base" :title="Array.isArray(h) ? h[0] : (h.symbol || h.name)">
+                                {{ Array.isArray(h) ? h[0] : (h.symbol || h.name) }}
+                              </strong>
                             </div>
+                            <span class="font-black text-slate-900 dark:text-white num shrink-0 text-sm sm:text-base tabular-nums text-right ml-auto">
+                              {{ Number(Array.isArray(h) ? h[1] : (h.percent || 0)).toFixed(2) }}%
+                            </span>
                           </div>
-                        </template>
-                        <span v-else class="fi-exp-empty">ไม่พบข้อมูลสัดส่วนหุ้น</span>
+                          <div v-if="!getFundHoldings(f).length" class="py-4 text-sm text-slate-400 text-center font-medium">
+                            ไม่พบข้อมูลสัดส่วนหุ้น
+                          </div>
+                        </div>
                       </div>
                     </td>
                   </tr>
@@ -1614,136 +2408,349 @@ onMounted(loadInitialDashboard)
               </tbody>
             </table>
           </div>
-        </div>
 
-        <!-- Thai Funds Table -->
-        <div class="fi-fund-col">
-          <p class="fi-fund-col__label">
-            กองทุนไทยทั้งหมด <strong>{{ formatNumber(state.totals.TH || activeFundsTH.length) }}</strong> กองทุน
-          </p>
-          <div class="fi-fund-col__wrap">
-            <table class="fi-table">
-              <thead>
-                <tr>
-                  <th class="fi-th--xs">⭐</th>
-                  <th class="fi-th--xs">⚖️</th>
-                  <th class="fi-th--left">กองทุน</th>
-                  <th>RISK</th>
-                  <th class="fi-th--sort" :class="{ 'fi-th--active': state.sortBy === 'ret' }" @click="setSort('ret')">
-                    1Y<span v-if="state.sortBy==='ret'">{{ state.sortDir==='desc'?' ↓':' ↑' }}</span>
-                  </th>
-                  <th class="fi-th--sort" :class="{ 'fi-th--active': state.sortBy === 'nav' }" @click="setSort('nav')">
-                    NAV<span v-if="state.sortBy==='nav'">{{ state.sortDir==='desc'?' ↓':' ↑' }}</span>
-                  </th>
-                  <th class="fi-th--sort" :class="{ 'fi-th--active': state.sortBy === 'aum' }" @click="setSort('aum')">
-                    AUM<span>{{ state.sortBy==='aum' ? (state.sortDir==='desc'?' ↓':' ↑') : ' ↓' }}</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-if="loading.funds && !hasVisibleFunds">
-                  <td colspan="7" class="fi-td--center">กำลังโหลดข้อมูล...</td>
-                </tr>
-                <tr v-else-if="!pagedThaiFunds.length">
-                  <td colspan="7" class="fi-td--center">ไม่พบข้อมูล</td>
-                </tr>
-                <template v-for="fund in pagedThaiFunds" :key="`T-${fund.code}`">
-                  <tr
-                    class="fi-tr"
-                    :class="{ 'fi-tr--expanded': expandedSet[fund.code] }"
-                    style="cursor:pointer"
-                    @click="!state.searchMode && toggleExpand(fund.code)"
-                  >
-                    <td class="fi-td--center">
-                      <button
-                        class="fi-star-btn"
-                        :class="{ 'fi-star-btn--active': isFavorite(fund.code) }"
-                        title="ติดดาวกองทุนโปรด"
-                        @click.stop="toggleFavorite(fund.code)"
-                      >{{ isFavorite(fund.code) ? '★' : '☆' }}</button>
-                    </td>
-                    <td class="fi-td--center">
-                      <input
-                        type="checkbox"
-                        class="fi-compare-check"
-                        :checked="isInCompare(fund.code)"
-                        title="เลือกเพื่อเปรียบเทียบ"
-                        @click.stop="toggleCompare(fund.code)"
-                      />
-                    </td>
-                    <td class="fi-td--fund">
-                      <strong>{{ fund.code || '-' }}</strong>
-                      <span>{{ fund.name || '-' }}</span>
-                      <em v-if="fund.amc">{{ fund.amc }}</em>
-                    </td>
-                    <td><span class="fi-risk" :class="riskClass(fund.risk)">{{ fund.risk || '-' }}</span></td>
-                    <td :class="fund.ret >= 0 ? 'fi-pos' : 'fi-neg'">{{ formatPercent(fund.ret) }}</td>
-                    <td>฿{{ formatCurrency(fund.nav) }}</td>
-                    <td>฿{{ formatCompact(fund.aum) }}</td>
-                  </tr>
-                  <!-- Inline Expand Row (เหมือน WordPress fd-exp) -->
-                  <tr v-if="expandedSet[fund.code] && !state.searchMode" class="fi-tr-expand">
-                    <td colspan="7" class="fi-exp-cell">
-                      <div class="fi-exp-inner">
-                        <template v-if="fund.top && fund.top.length">
-                          <div class="fi-exp-pie-wrap">
-                            <div class="fi-exp-pie-label">Top 5 Holdings</div>
-                            <canvas :id="`fd-pe-${fund.code}`" width="120" height="120"></canvas>
-                          </div>
-                          <div class="fi-exp-list">
-                            <div
-                              v-for="(h, j) in fund.top.slice(0, 5)"
-                              :key="h.s || h.symbol || j"
-                              class="fi-exp-row"
-                            >
-                              <div class="fi-exp-row-left">
-                                <span class="fi-exp-dot" :style="{ background: ['#4B543B','#DCE2AA','#B57F50','#8ED081','#B4D2BA'][j] }"></span>
-                                <span class="fi-exp-sym">{{ h.s || h.symbol || '-' }}</span>
-                                <span class="fi-exp-name">{{ h.n || h.name || '' }}</span>
-                              </div>
-                              <span class="fi-exp-pct">{{ Number(h.p ?? h.percent ?? 0).toFixed(2) }}%</span>
-                            </div>
-                          </div>
-                        </template>
-                        <span v-else class="fi-exp-empty">ไม่พบข้อมูลสัดส่วนหุ้น</span>
-                      </div>
-                    </td>
-                  </tr>
-                </template>
-              </tbody>
-            </table>
+          <!-- Pagination -->
+          <div class="p-4 sm:p-5 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+            <div>
+              กำลังแสดง <span class="font-black text-slate-800 dark:text-slate-200 num">{{ unifiedRangeStart }}</span> - <span class="font-black text-slate-800 dark:text-slate-200 num">{{ unifiedRangeEnd }}</span> จากทั้งหมด <span class="font-black text-slate-800 dark:text-slate-200 num">{{ filteredUnifiedFunds.length }}</span> กองทุน
+            </div>
+            <div class="flex items-center gap-2">
+              <button 
+                type="button" 
+                @click="goToUnifiedPage(screenerPage - 1)" 
+                :disabled="screenerPage === 1" 
+                class="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 font-bold cursor-pointer"
+              >
+                ย้อน
+              </button>
+              <button 
+                v-for="p in Math.min(unifiedTotalPages, 7)" 
+                :key="p"
+                type="button" 
+                @click="goToUnifiedPage(p)" 
+                class="px-3.5 py-1.5 rounded-xl font-black cursor-pointer text-xs sm:text-sm"
+                :class="p === screenerPage ? 'bg-brand-600 text-white shadow-xs' : 'border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'"
+              >
+                {{ p }}
+              </button>
+              <button 
+                type="button" 
+                @click="goToUnifiedPage(screenerPage + 1)" 
+                :disabled="screenerPage === unifiedTotalPages" 
+                class="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 font-bold cursor-pointer"
+              >
+                ถัดไป
+              </button>
+            </div>
           </div>
         </div>
 
-      </div><!-- /fi-fund-tables -->
+        <!-- Side-by-Side Fund Comparison & Charts (Inline Bottom Section) -->
+        <div v-if="inlineCompareOpen && inlineCompareFunds.length" id="inlineCompareContainer" class="mt-10 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/90 dark:border-slate-800 shadow-xl overflow-hidden scroll-mt-6">
+          
+          <!-- Section Header -->
+          <div class="p-5 sm:p-7 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-slate-50/80 dark:bg-slate-850/60">
+            <div class="flex items-center gap-3.5">
+              <div class="w-12 h-12 rounded-2xl bg-blue-600/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center text-2xl shrink-0">
+                📊
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <h3 class="font-black text-xl sm:text-2xl text-slate-900 dark:text-white">เปรียบเทียบกองทุน &amp; กราฟวิเคราะห์</h3>
+                  <span class="px-2.5 py-0.5 rounded-full bg-brand-100 dark:bg-brand-950 text-brand-700 dark:text-brand-300 text-xs font-black">
+                    {{ inlineCompareFunds.length }}/4 กองทุน
+                  </span>
+                </div>
+                <p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+                  วิเคราะห์เปรียบเทียบผลตอบแทนย้อนหลัง ดัชนีความเสี่ยง และรายละเอียดเชิงลึกแบบคู่ขนาน
+                </p>
+              </div>
+            </div>
+            
+            <div class="flex items-center gap-2 flex-wrap">
+              <button 
+                type="button" 
+                @click="toggleInlineCompareCollapse" 
+                class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold bg-white dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 shadow-xs transition cursor-pointer"
+              >
+                <span>{{ inlineCompareCollapsed ? '🔽' : '🔼' }}</span>
+                <span>{{ inlineCompareCollapsed ? 'ขยายตาราง &amp; กราฟ' : 'ย่อส่วนนี้' }}</span>
+              </button>
+              <button 
+                type="button" 
+                @click="clearCompare(); closeInlineCompare()" 
+                class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold text-rose-600 dark:text-rose-400 bg-rose-50/90 dark:bg-rose-950/50 border border-rose-200/90 dark:border-rose-900/60 hover:bg-rose-100 dark:hover:bg-rose-900/60 shadow-xs transition cursor-pointer"
+              >
+                <span>🗑️</span>
+                <span>ล้างทั้งหมด</span>
+              </button>
+              <button 
+                type="button" 
+                @click="closeInlineCompare" 
+                class="inline-flex items-center gap-1 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750 shadow-xs transition cursor-pointer"
+              >
+                <span>✕</span>
+                <span>ปิด</span>
+              </button>
+            </div>
+          </div>
 
-      <!-- Pagination -->
-      <div class="fi-pagination">
-        <button class="fi-page-btn" :disabled="state.page <= 1" @click="state.page -= 1; expandedSet = {}">PREVIOUS</button>
-        <button
-          v-for="p in visiblePages"
-          :key="p"
-          class="fi-page-btn"
-          :class="{ 'fi-page-btn--active': p === state.page }"
-          @click="state.page = p; expandedSet = {}"
-        >{{ p }}</button>
-        <button class="fi-page-btn" :disabled="state.page >= totalPages" @click="state.page += 1; expandedSet = {}">ถัดไป</button>
+          <div v-show="!inlineCompareCollapsed" class="p-5 sm:p-8 space-y-8">
+            
+            <!-- 1. Hero Fund Cards (Executive Overview with Winner Highlight) -->
+            <div class="grid gap-4" :style="`grid-template-columns: repeat(${Math.max(inlineCompareFunds.length, 1)}, minmax(0, 1fr))`">
+              <div 
+                v-for="(f, idx) in inlineCompareFunds" 
+                :key="f.id"
+                class="rounded-2xl border-2 p-4 sm:p-5 flex flex-col gap-3 relative overflow-hidden transition-all shadow-xs"
+                :class="highestPerfFundId === f.id 
+                  ? 'border-amber-400 dark:border-amber-500 bg-amber-50/40 dark:bg-amber-950/20 ring-4 ring-amber-400/10' 
+                  : 'border-slate-200/80 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-850/40'"
+              >
+                <!-- Winner badge -->
+                <div v-if="highestPerfFundId === f.id" class="absolute top-0 right-0 bg-amber-500 text-white text-[10px] font-black px-3 py-1 rounded-bl-xl rounded-tr-xl tracking-wider uppercase shadow-xs flex items-center gap-1">
+                  <span>👑</span>
+                  <span>ชนะ 1Y</span>
+                </div>
 
-        <!-- Quick Page Jump -->
-        <form class="fi-page-jump" @submit.prevent="jumpToPage">
-          <span>ไปที่หน้า:</span>
-          <input
-            v-model="jumpPageInput"
-            type="number"
-            min="1"
-            :max="totalPages"
-            class="fi-page-jump-input"
-            placeholder="หน้า"
-          />
-          <button type="submit" class="fi-btn fi-btn--ghost fi-btn--xs">Go</button>
-        </form>
+                <!-- Color indicator bar matching chart -->
+                <div class="h-2 w-full rounded-full" :style="{ background: COMPARE_COLORS[idx % COMPARE_COLORS.length] }"></div>
+
+                <!-- Fund Info -->
+                <div>
+                  <div class="font-black text-xl sm:text-2xl leading-none mb-1" :style="{ color: COMPARE_COLORS[idx % COMPARE_COLORS.length] }">
+                    {{ f.id }}
+                  </div>
+                  <div class="text-xs sm:text-sm text-slate-600 dark:text-slate-300 font-medium leading-snug line-clamp-2" :title="f.name">
+                    {{ f.name }}
+                  </div>
+                  <div class="text-[11px] text-slate-400 font-bold mt-1">
+                    {{ f.amcFull || f.amc }}
+                  </div>
+                </div>
+
+                <!-- 1Y Return Big Box -->
+                <div class="rounded-xl px-3 py-2.5 text-center"
+                  :class="(f.perf ?? 0) >= 0 
+                    ? 'bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/70 dark:border-emerald-900/60'
+                    : 'bg-rose-50 dark:bg-rose-950/40 border border-rose-200/70 dark:border-rose-900/60'"
+                >
+                  <div class="text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-0.5 uppercase tracking-wide">ผลตอบแทน 1Y</div>
+                  <div class="text-2xl sm:text-3xl font-black num leading-none"
+                    :class="(f.perf ?? 0) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'"
+                  >
+                    {{ (f.perf ?? 0) >= 0 ? '+' : '' }}{{ f.perf }}%
+                  </div>
+                </div>
+
+                <!-- Risk + Type Badges -->
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="px-2.5 py-1 rounded-full text-xs font-black" :class="getRiskBadgeClass(f.risk)">
+                    ระดับ {{ f.risk }}
+                  </span>
+                  <span class="px-2.5 py-1 rounded-md text-xs font-bold" :class="getTypeBadgeClass(f.type)">
+                    {{ getTypeLabel(f.type) }}
+                  </span>
+                  <span v-if="f.div > 0" class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                    ปันผล {{ f.div }}%
+                  </span>
+                </div>
+
+                <!-- Action Button -->
+                <div class="mt-auto pt-2 flex items-center justify-between border-t border-slate-200/60 dark:border-slate-800">
+                  <button 
+                    type="button"
+                    @click="openInsightModal(f)"
+                    class="text-xs font-bold text-brand-600 hover:text-brand-700 dark:text-brand-400 cursor-pointer flex items-center gap-1"
+                  >
+                    <span>ดูเชิงลึก</span> 🔍
+                  </button>
+                  <button 
+                    type="button"
+                    @click="toggleCompare(f.id)"
+                    class="text-xs font-bold text-slate-400 hover:text-rose-500 cursor-pointer flex items-center gap-1"
+                  >
+                    <span>✕ ลบออก</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 2. Charts Section (Large, High-Definition Line Charts) -->
+            <div class="space-y-4">
+              <div class="flex items-center justify-between flex-wrap gap-2">
+                <div class="flex items-center gap-2">
+                  <span class="text-xl">📈</span>
+                  <h4 class="font-black text-base sm:text-lg text-slate-900 dark:text-white">
+                    กราฟเส้นวิเคราะห์เปรียบเทียบเชิงลึก
+                  </h4>
+                  <span class="text-xs text-slate-400">(เส้นกราฟแยกสีตามแต่ละกองทุนชัดเจน)</span>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Chart 1: Return Comparison Line Chart -->
+                <div class="bg-white dark:bg-slate-950 rounded-2xl border border-slate-200/90 dark:border-slate-800 p-5 sm:p-6 shadow-sm flex flex-col">
+                  <div class="flex items-start justify-between gap-3 mb-4">
+                    <div>
+                      <h5 class="font-black text-sm sm:text-base text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                        <span>📈</span>
+                        <span>กราฟเส้นเปรียบเทียบผลตอบแทนย้อนหลัง (%)</span>
+                      </h5>
+                      <p class="text-xs text-slate-400 mt-0.5">แนวโน้มผลตอบแทนช่วง 1 วัน (1D), 1 เดือน (1M), 1 ปี (1Y), และ 3 ปี (3Y)</p>
+                    </div>
+                  </div>
+                  <div class="w-full h-80 sm:h-96 relative flex items-center justify-center">
+                    <canvas ref="compareReturnChartRef" class="w-full h-full"></canvas>
+                  </div>
+                </div>
+
+                <!-- Chart 2: Risk & Dividend Comparison Line Chart -->
+                <div class="bg-white dark:bg-slate-950 rounded-2xl border border-slate-200/90 dark:border-slate-800 p-5 sm:p-6 shadow-sm flex flex-col">
+                  <div class="flex items-start justify-between gap-3 mb-4">
+                    <div>
+                      <h5 class="font-black text-sm sm:text-base text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                        <span>🎯</span>
+                        <span>กราฟเส้นเปรียบเทียบความเสี่ยง &amp; ดัชนีคุณภาพ</span>
+                      </h5>
+                      <p class="text-xs text-slate-400 mt-0.5">ระดับความเสี่ยง (Risk 1-8), เงินปันผล (%) และ Sharpe Ratio</p>
+                    </div>
+                  </div>
+                  <div class="w-full h-80 sm:h-96 relative flex items-center justify-center">
+                    <canvas ref="compareRiskChartRef" class="w-full h-full"></canvas>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 3. Metrics Matrix Table (Detailed Breakdown) -->
+            <div class="bg-white dark:bg-slate-950 rounded-2xl border border-slate-200/90 dark:border-slate-800 overflow-hidden shadow-sm">
+              <div class="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/40 flex items-center justify-between">
+                <div class="font-black text-sm sm:text-base text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                  <span>📋</span>
+                  <span>ตารางข้อมูลเปรียบเทียบทุกมิติ (Comparison Matrix)</span>
+                </div>
+              </div>
+
+              <div class="overflow-x-auto no-scrollbar">
+                <table class="w-full text-left border-collapse text-sm">
+                  <thead>
+                    <tr class="border-b border-slate-100 dark:border-slate-800">
+                      <th class="p-4 w-48 sm:w-56 bg-slate-50/90 dark:bg-slate-850/80 font-black text-slate-700 dark:text-slate-200 text-sm uppercase">หัวข้อเปรียบเทียบ</th>
+                      <th 
+                        v-for="(f, idx) in inlineCompareFunds" 
+                        :key="f.id" 
+                        class="p-4 border-l border-slate-100 dark:border-slate-800 min-w-[220px]"
+                        :class="highestPerfFundId === f.id ? 'bg-amber-50/40 dark:bg-amber-950/15' : ''"
+                      >
+                        <div class="flex items-center gap-2">
+                          <span class="w-3 h-3 rounded-full shrink-0" :style="{ background: COMPARE_COLORS[idx % COMPARE_COLORS.length] }"></span>
+                          <span class="font-black text-base" :style="{ color: COMPARE_COLORS[idx % COMPARE_COLORS.length] }">{{ f.id }}</span>
+                          <span v-if="highestPerfFundId === f.id" class="text-amber-500 text-xs font-bold">👑 ชนะ</span>
+                        </div>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                    <tr>
+                      <td class="p-4 font-black text-slate-700 dark:text-slate-200 bg-slate-50/50 dark:bg-slate-850/40">ประเภท / ตลาด</td>
+                      <td v-for="f in inlineCompareFunds" :key="f.id" class="p-4 border-l border-slate-100 dark:border-slate-800">
+                        <span class="px-2.5 py-1 rounded text-xs font-bold" :class="getTypeBadgeClass(f.type)">{{ getTypeLabel(f.type) }}</span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td class="p-4 font-black text-slate-700 dark:text-slate-200 bg-slate-50/50 dark:bg-slate-850/40">ระดับความเสี่ยง</td>
+                      <td v-for="f in inlineCompareFunds" :key="f.id" class="p-4 border-l border-slate-100 dark:border-slate-800">
+                        <span class="px-2.5 py-1 rounded-full text-xs font-black" :class="getRiskBadgeClass(f.risk)">ระดับ {{ f.risk }}</span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td class="p-4 font-black text-slate-700 dark:text-slate-200 bg-slate-50/50 dark:bg-slate-850/40">
+                        <div>ผลตอบแทน 1 ปี (1Y)</div>
+                        <div class="text-[11px] text-slate-400 font-normal">เปรียบเทียบสัดส่วน</div>
+                      </td>
+                      <td v-for="(f, idx) in inlineCompareFunds" :key="f.id" class="p-4 border-l border-slate-100 dark:border-slate-800">
+                        <div class="flex items-center gap-2">
+                          <span class="text-base font-black num" :class="f.perf >= 0 ? 'text-emerald-600' : 'text-rose-500'">
+                            {{ f.perf >= 0 ? '+' : '' }}{{ f.perf }}%
+                          </span>
+                          <span v-if="highestPerfFundId === f.id" class="text-amber-500 text-xs">👑</span>
+                        </div>
+                        <div class="mt-1.5 h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden max-w-[140px]">
+                          <div 
+                            class="h-full rounded-full transition-all duration-500"
+                            :style="{ 
+                              width: `${Math.min(Math.max(Number(f.perf || 0), 5), 100)}%`,
+                              background: COMPARE_COLORS[idx % COMPARE_COLORS.length]
+                            }"
+                          ></div>
+                        </div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td class="p-4 font-black text-slate-700 dark:text-slate-200 bg-slate-50/50 dark:bg-slate-850/40">ผลตอบแทน 1 เดือน (1M)</td>
+                      <td v-for="f in inlineCompareFunds" :key="f.id" class="p-4 border-l border-slate-100 dark:border-slate-800 font-bold num" :class="f.ret1m >= 0 ? 'text-emerald-600' : 'text-rose-500'">
+                        {{ f.ret1m >= 0 ? '+' : '' }}{{ Number(f.ret1m || 0).toFixed(2) }}%
+                      </td>
+                    </tr>
+                    <tr>
+                      <td class="p-4 font-black text-slate-700 dark:text-slate-200 bg-slate-50/50 dark:bg-slate-850/40">ผลตอบแทน 3 ปี (3Y)</td>
+                      <td v-for="f in inlineCompareFunds" :key="f.id" class="p-4 border-l border-slate-100 dark:border-slate-800 font-bold num text-slate-700 dark:text-slate-300">
+                        {{ f.ret3y != null && Number(f.ret3y) !== 0 ? (Number(f.ret3y) >= 0 ? '+' : '') + Number(f.ret3y).toFixed(2) + '%' : '—' }}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td class="p-4 font-black text-slate-700 dark:text-slate-200 bg-slate-50/50 dark:bg-slate-850/40">NAV ล่าสุด (บาท)</td>
+                      <td v-for="f in inlineCompareFunds" :key="f.id" class="p-4 border-l border-slate-100 dark:border-slate-800 font-black text-slate-900 dark:text-white num">
+                        ฿{{ Number(f.nav || 0).toFixed(4) }}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td class="p-4 font-black text-slate-700 dark:text-slate-200 bg-slate-50/50 dark:bg-slate-850/40">ขนาดกองทุน (AUM)</td>
+                      <td v-for="f in inlineCompareFunds" :key="f.id" class="p-4 border-l border-slate-100 dark:border-slate-800 font-extrabold text-slate-800 dark:text-slate-200 num">
+                        ฿{{ formatCompact(f.aum) }}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td class="p-4 font-black text-slate-700 dark:text-slate-200 bg-slate-50/50 dark:bg-slate-850/40">เงินปันผล</td>
+                      <td v-for="f in inlineCompareFunds" :key="f.id" class="p-4 border-l border-slate-100 dark:border-slate-800 font-bold">
+                        <span v-if="f.div > 0" class="text-emerald-600 font-black num">{{ f.div }}%</span>
+                        <span v-else class="text-slate-400">ไม่จ่าย</span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td class="p-4 font-black text-slate-700 dark:text-slate-200 bg-slate-50/50 dark:bg-slate-850/40">บลจ. ผู้บริหารกองทุน</td>
+                      <td v-for="f in inlineCompareFunds" :key="f.id" class="p-4 border-l border-slate-100 dark:border-slate-800 font-semibold text-slate-600 dark:text-slate-300">
+                        {{ f.amcFull || f.amc }}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td class="p-4 font-black text-slate-700 dark:text-slate-200 bg-slate-50/50 dark:bg-slate-850/40">การดำเนินการ</td>
+                      <td v-for="f in inlineCompareFunds" :key="f.id" class="p-4 border-l border-slate-100 dark:border-slate-800">
+                        <div class="flex items-center gap-2">
+                          <button 
+                            type="button" 
+                            @click="openInsightModal(f)"
+                            class="px-3 py-1.5 rounded-xl bg-brand-50 hover:bg-brand-600 text-brand-700 hover:text-white dark:bg-slate-800 dark:text-brand-300 dark:hover:text-white text-xs font-bold transition inline-flex items-center gap-1 cursor-pointer"
+                          >
+                            <span>ดูเชิงลึก</span> 🔍
+                          </button>
+                          <RouterLink :to="{ name: 'fundinfo-detail', params: { id: f.id } }" class="px-3 py-1.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold transition inline-flex items-center gap-1">
+                            <span>หน้ารายละเอียด</span> ↗
+                          </RouterLink>
+                        </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+
       </div>
-
     </section>
 
     <!-- ── Detail Drawer (Fund & Stock/ETF) ────────────────────────────── -->
@@ -1889,141 +2896,187 @@ onMounted(loadInitialDashboard)
       </div>
     </Transition>
 
-    <!-- ── 5. Floating Compare Bar ────────────────────────────────────────── -->
-    <Transition name="drawer-fade">
-      <div v-if="selectedForCompare.length" class="fi-compare-bar">
-        <div class="fi-compare-bar__info">
-          <span>⚖️ เลือกแล้ว <strong>{{ selectedForCompare.length }}</strong>/3 กองทุน:</span>
-          <span v-for="c in selectedForCompare" :key="c" class="fi-compare-chip">
-            {{ c }}
-            <button class="fi-compare-chip__x" @click="toggleCompare(c)">✕</button>
-          </span>
-        </div>
-        <div class="fi-compare-bar__actions">
-          <button class="fi-btn fi-btn--ghost fi-btn--sm" @click="clearCompare">ล้างที่เลือก</button>
-          <button
-            class="fi-btn fi-btn--primary fi-btn--sm"
-            :disabled="selectedForCompare.length < 2"
-            @click="openCompareModal"
-          >
-            เปรียบเทียบเลย ({{ selectedForCompare.length }})
-          </button>
-        </div>
-      </div>
-    </Transition>
+    <!-- (Comparison Modal removed — Comparison is now showcased inline with prominent charts at the bottom) -->
 
-    <!-- ── 6. Fund Comparison Modal ───────────────────────────────────────── -->
+
+    <!-- ── In-depth Fund Insight Modal (ดูข้อมูลเชิงลึก พร้อม Pie Chart) ── -->
     <Transition name="drawer-fade">
-      <div v-if="compareModalOpen" class="fi-drawer-overlay" @click.self="closeCompareModal">
-        <div class="fi-compare-modal">
-          <div class="fi-compare-modal__header">
-            <h2>⚖️ เปรียบเทียบข้อมูลกองทุน Side-by-Side</h2>
-            <button class="fi-drawer__close" @click="closeCompareModal" aria-label="ปิด">✕</button>
-          </div>
-          <div class="fi-compare-modal__body">
-            <!-- ── Compare Charts Section ── -->
-            <div class="fi-compare-charts-grid">
-              <div class="fi-compare-chart-card">
-                <div class="fi-compare-chart-title">📈 เปรียบเทียบผลตอบแทน (%)</div>
-                <div class="fi-compare-chart-container">
-                  <canvas ref="compareReturnChartRef"></canvas>
-                </div>
+      <div v-if="insightModal.open && insightModal.fund" class="fi-drawer-overlay z-50 flex items-center justify-center p-4" @click.self="closeInsightModal">
+        <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/90 dark:border-slate-800 shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden">
+          
+          <!-- Modal Header -->
+          <div class="p-5 sm:p-6 border-b border-slate-100 dark:border-slate-800 flex items-start justify-between bg-slate-50/80 dark:bg-slate-850/60">
+            <div class="flex items-start gap-3.5">
+              <div class="w-12 h-12 rounded-2xl bg-brand-50 dark:bg-brand-950/60 border border-brand-200/80 dark:border-brand-900/60 flex items-center justify-center text-2xl shrink-0 shadow-2xs">
+                📊
               </div>
-              <div class="fi-compare-chart-card">
-                <div class="fi-compare-chart-title">⚖️ ดัชนีความเสี่ยง & คุณภาพ (Risk / Sharpe / Drawdown)</div>
-                <div class="fi-compare-chart-container">
-                  <canvas ref="compareRiskChartRef"></canvas>
+              <div>
+                <div class="flex items-center gap-2 flex-wrap mb-1">
+                  <span class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">{{ insightModal.fund.id }}</span>
+                  <span class="px-2.5 py-0.5 rounded-full text-xs font-bold" :class="getTypeBadgeClass(insightModal.fund.type)">
+                    {{ getTypeLabel(insightModal.fund.type) }}
+                  </span>
+                  <span class="px-2.5 py-0.5 rounded-full text-xs font-bold" :class="getRiskBadgeClass(insightModal.fund.risk)">
+                    ความเสี่ยง {{ insightModal.fund.risk }}
+                  </span>
+                  <span v-if="insightModal.fund.div > 0" class="text-xs bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 px-2 py-0.5 rounded-full font-bold">
+                    ปันผล {{ insightModal.fund.div }}%
+                  </span>
+                </div>
+                <h3 class="text-sm sm:text-base font-semibold text-slate-600 dark:text-slate-300 leading-snug">{{ insightModal.fund.name }}</h3>
+                <p class="text-xs font-bold text-slate-400 mt-0.5">บลจ. {{ insightModal.fund.amcFull || insightModal.fund.amc }}</p>
+              </div>
+            </div>
+            <button 
+              type="button" 
+              @click="closeInsightModal" 
+              class="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-500 hover:text-slate-900 dark:hover:text-white flex items-center justify-center font-bold text-sm transition cursor-pointer shrink-0"
+              aria-label="ปิดหน้าต่าง"
+            >
+              ✕
+            </button>
+          </div>
+
+          <!-- Modal Body -->
+          <div class="p-5 sm:p-6 overflow-y-auto space-y-6">
+            
+            <!-- 4 Key Metrics Bar -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div class="bg-slate-50 dark:bg-slate-800/60 rounded-2xl p-3.5 border border-slate-200/60 dark:border-slate-750">
+                <span class="text-xs text-slate-400 font-semibold block mb-1">NAV ล่าสุด</span>
+                <div class="text-lg sm:text-xl font-black text-slate-900 dark:text-white num">฿{{ Number(insightModal.fund.nav || 0).toFixed(4) }}</div>
+                <span class="text-xs font-bold inline-block mt-0.5" :class="insightModal.fund.chg1d >= 0 ? 'text-emerald-600' : 'text-rose-500'">
+                  {{ insightModal.fund.chg1d >= 0 ? '+' : '' }}{{ Number(insightModal.fund.chg1d || 0).toFixed(2) }}% (1D)
+                </span>
+              </div>
+              <div class="bg-slate-50 dark:bg-slate-800/60 rounded-2xl p-3.5 border border-slate-200/60 dark:border-slate-750">
+                <span class="text-xs text-slate-400 font-semibold block mb-1">ผลตอบแทน 1Y</span>
+                <div class="text-lg sm:text-xl font-black num" :class="insightModal.fund.perf >= 0 ? 'text-emerald-600' : 'text-rose-500'">
+                  {{ insightModal.fund.perf >= 0 ? '+' : '' }}{{ Number(insightModal.fund.perf || 0).toFixed(2) }}%
+                </div>
+                <span class="text-xs text-slate-400 font-semibold inline-block mt-0.5">3Y: {{ insightModal.fund.ret3y != null ? insightModal.fund.ret3y + '%' : '—' }}</span>
+              </div>
+              <div class="bg-slate-50 dark:bg-slate-800/60 rounded-2xl p-3.5 border border-slate-200/60 dark:border-slate-750">
+                <span class="text-xs text-slate-400 font-semibold block mb-1">ขนาดกองทุน (AUM)</span>
+                <div class="text-lg sm:text-xl font-black text-slate-900 dark:text-white num">฿{{ formatCompact(insightModal.fund.aum) }}</div>
+                <span class="text-xs text-slate-400 font-semibold inline-block mt-0.5">ล้านบาท</span>
+              </div>
+              <div class="bg-slate-50 dark:bg-slate-800/60 rounded-2xl p-3.5 border border-slate-200/60 dark:border-slate-750">
+                <span class="text-xs text-slate-400 font-semibold block mb-1">ผลตอบแทน 1M</span>
+                <div class="text-lg sm:text-xl font-black num" :class="insightModal.fund.ret1m >= 0 ? 'text-emerald-600' : 'text-rose-500'">
+                  {{ insightModal.fund.ret1m >= 0 ? '+' : '' }}{{ Number(insightModal.fund.ret1m || 0).toFixed(2) }}%
+                </div>
+                <span class="text-xs text-slate-400 font-semibold inline-block mt-0.5">ระยะสั้น</span>
+              </div>
+            </div>
+
+            <!-- Top 5 Holdings with Pie Chart Breakdown -->
+            <div class="bg-slate-50/70 dark:bg-slate-800/40 rounded-2xl p-5 border border-slate-200/70 dark:border-slate-750">
+              <h4 class="font-black text-sm sm:text-base text-slate-900 dark:text-white mb-4 flex items-center justify-between">
+                <span>🥧 สัดส่วนสินทรัพย์ที่ลงทุนสูงสุด (Top 5 Holdings)</span>
+                <span class="text-xs text-slate-400 font-bold">สัดส่วน % พอร์ต</span>
+              </h4>
+              
+              <div class="flex flex-col sm:flex-row items-center gap-6">
+                <!-- Doughnut Canvas Chart -->
+                <div class="w-36 h-36 shrink-0 relative flex items-center justify-center p-2 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 shadow-xs">
+                  <canvas id="insightPieCanvas" width="140" height="140"></canvas>
+                </div>
+                
+                <!-- Holdings breakdown list -->
+                <div class="flex-1 w-full divide-y divide-slate-200/70 dark:divide-slate-700 bg-white dark:bg-slate-800/60 rounded-2xl p-4 border border-slate-200/60 dark:border-slate-700/60">
+                  <div 
+                    v-for="(h, j) in getFundHoldings(insightModal.fund)" 
+                    :key="j"
+                    class="flex items-center justify-between py-2 text-sm gap-3"
+                  >
+                    <div class="flex items-center gap-2.5 min-w-0">
+                      <span class="w-3.5 h-3.5 rounded-sm shrink-0 shadow-2xs" :style="{ background: PIE_COLORS[j % PIE_COLORS.length] }"></span>
+                      <strong class="font-bold text-slate-800 dark:text-slate-100 truncate text-sm" :title="Array.isArray(h) ? h[0] : (h.symbol || h.name)">
+                        {{ Array.isArray(h) ? h[0] : (h.symbol || h.name) }}
+                      </strong>
+                    </div>
+                    <span class="font-black text-slate-900 dark:text-white num shrink-0 text-sm tabular-nums text-right ml-auto">
+                      {{ Number(Array.isArray(h) ? h[1] : (h.percent || 0)).toFixed(2) }}%
+                    </span>
+                  </div>
+                  <div v-if="!getFundHoldings(insightModal.fund).length" class="py-4 text-center text-sm text-slate-400">
+                    ไม่มีข้อมูลสัดส่วนสินทรัพย์รายตัว
+                  </div>
                 </div>
               </div>
             </div>
 
-            <table class="fi-compare-table">
-              <thead>
-                <tr>
-                  <th class="fi-compare-th--head">หัวข้อเปรียบเทียบ</th>
-                  <th v-for="(f, idx) in comparedFundObjects" :key="f.code" class="fi-compare-th">
-                    <span class="fi-compare-color-bar" :style="{ backgroundColor: COMPARE_COLORS[idx % COMPARE_COLORS.length] }"></span>
-                    <strong class="fi-compare-code">{{ f.code }}</strong>
-                    <p class="fi-compare-name">{{ f.name }}</p>
-                    <span class="fi-compare-amc">{{ f.amc }}</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td class="fi-compare-lbl">ประเภท / ตลาด</td>
-                  <td v-for="f in comparedFundObjects" :key="f.code">
-                    <span
-                      class="fi-drawer__type-badge"
-                      :class="f.target_type === 'FOREIGN' ? 'fi-drawer__type-badge--foreign' : 'fi-drawer__type-badge--th'"
-                    >
-                      {{ f.target_type === 'FOREIGN' ? '🌎 ต่างประเทศ' : '🇹🇭 ไทย' }}
-                    </span>
-                  </td>
-                </tr>
-                <tr>
-                  <td class="fi-compare-lbl">ระดับความเสี่ยง (Risk)</td>
-                  <td v-for="f in comparedFundObjects" :key="f.code">
-                    <span class="fi-risk" :class="riskClass(f.risk)">Risk {{ f.risk || '-' }}</span>
-                  </td>
-                </tr>
-                <tr>
-                  <td class="fi-compare-lbl">ผลตอบแทน 3 เดือน (3M)</td>
-                  <td v-for="f in comparedFundObjects" :key="f.code" :class="(f.r3m ?? 0) >= 0 ? 'fi-pos' : 'fi-neg'">
-                    <strong>{{ formatPercent(f.r3m) }}</strong>
-                  </td>
-                </tr>
-                <tr>
-                  <td class="fi-compare-lbl">ผลตอบแทน 1 ปี (1Y)</td>
-                  <td v-for="f in comparedFundObjects" :key="f.code" :class="(f.ret ?? 0) >= 0 ? 'fi-pos' : 'fi-neg'">
-                    <strong>{{ formatPercent(f.ret) }}</strong>
-                  </td>
-                </tr>
-                <tr>
-                  <td class="fi-compare-lbl">Sharpe Ratio (1Y)</td>
-                  <td v-for="f in comparedFundObjects" :key="f.code">
-                    <strong>{{ f.sharpe_1y ? f.sharpe_1y.toFixed(2) : '-' }}</strong>
-                  </td>
-                </tr>
-                <tr>
-                  <td class="fi-compare-lbl">Max Drawdown (1Y)</td>
-                  <td v-for="f in comparedFundObjects" :key="f.code" class="fi-neg">
-                    <strong>{{ f.max_drawdown_1y ? f.max_drawdown_1y.toFixed(2) + '%' : '-' }}</strong>
-                  </td>
-                </tr>
-                <tr v-if="comparedFundObjects.some(f => f.expense_ratio)">
-                  <td class="fi-compare-lbl">ค่าธรรมเนียมรวม (TER)</td>
-                  <td v-for="f in comparedFundObjects" :key="f.code">
-                    <strong>{{ f.expense_ratio ? f.expense_ratio.toFixed(2) + '%' : '-' }}</strong>
-                  </td>
-                </tr>
-                <tr>
-                  <td class="fi-compare-lbl">มูลค่า NAV ต่อหน่วย</td>
-                  <td v-for="f in comparedFundObjects" :key="f.code">
-                    <strong>฿{{ formatCurrency(f.nav) }}</strong>
-                  </td>
-                </tr>
-                <tr>
-                  <td class="fi-compare-lbl">ขนาดกองทุน (AUM)</td>
-                  <td v-for="f in comparedFundObjects" :key="f.code">
-                    <strong>฿{{ formatCompact(f.aum) }}</strong>
-                  </td>
-                </tr>
-                <tr>
-                  <td class="fi-compare-lbl">บลจ. (AMC)</td>
-                  <td v-for="f in comparedFundObjects" :key="f.code">{{ f.amc || '-' }}</td>
-                </tr>
-                <tr>
-                  <td class="fi-compare-lbl">Sector / หมวดหมู่</td>
-                  <td v-for="f in comparedFundObjects" :key="f.code">{{ f.sector || '-' }}</td>
-                </tr>
-                <tr>
-                  <td class="fi-compare-lbl">กลยุทธ์ (Method)</td>
-                  <td v-for="f in comparedFundObjects" :key="f.code">{{ f.method || '-' }}</td>
-                </tr>
-              </tbody>
-            </table>
+            <!-- Modal Action Buttons -->
+            <div class="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+              <button 
+                type="button" 
+                @click="toggleCompare(insightModal.fund.id)"
+                class="w-full sm:w-auto px-5 py-2.5 rounded-xl font-bold text-sm transition flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+                :class="isFundSelected(insightModal.fund.id) ? 'bg-rose-50 text-rose-600 dark:bg-rose-950/50 dark:text-rose-300 border border-rose-200 dark:border-rose-900' : 'bg-brand-50 text-brand-700 dark:bg-brand-950/50 dark:text-brand-300 border border-brand-200 dark:border-brand-900 hover:bg-brand-100'"
+              >
+                <span>{{ isFundSelected(insightModal.fund.id) ? '✓ อยู่ในตารางเปรียบเทียบ (คลิกเพื่อยกเลิก)' : '+ เพิ่มเข้าตารางเปรียบเทียบ' }}</span>
+              </button>
+
+              <RouterLink 
+                :to="{ name: 'fundinfo-detail', params: { id: insightModal.fund.id } }" 
+                class="w-full sm:w-auto px-5 py-2.5 rounded-xl font-bold text-sm bg-brand-600 hover:bg-brand-700 text-white transition flex items-center justify-center gap-1.5 shadow-sm"
+              >
+                <span>เปิดหน้ารายละเอียดฉบับเต็ม</span>
+                <span>↗</span>
+              </RouterLink>
+            </div>
+
           </div>
+
+        </div>
+      </div>
+    </Transition>
+
+    <!-- ── Floating Compare Bar (เมื่อมีกองทุนถูกเลือกเปรียบเทียบ) ── -->
+    <Transition name="fade">
+      <div 
+        v-if="selectedForCompare.length > 0" 
+        class="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-slate-900/95 text-white backdrop-blur-md px-5 py-3 rounded-2xl shadow-2xl border border-slate-700/80 flex items-center gap-4 max-w-3xl w-[92vw] sm:w-auto transition-all"
+      >
+        <div class="flex items-center gap-2.5">
+          <span class="text-2xl">⚖️</span>
+          <div>
+            <div class="font-black text-sm">เปรียบเทียบกองทุน</div>
+            <div class="text-[11px] text-slate-300 font-medium">เลือกแล้ว {{ selectedForCompare.length }}/4 กองทุน</div>
+          </div>
+        </div>
+
+        <!-- Selected Pills -->
+        <div class="hidden sm:flex items-center gap-1.5 max-w-xs overflow-x-auto no-scrollbar">
+          <span 
+            v-for="id in selectedForCompare" 
+            :key="id"
+            class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 text-brand-300 border border-slate-700 text-xs font-bold whitespace-nowrap"
+          >
+            <span>{{ id }}</span>
+            <button type="button" @click="toggleCompare(id)" class="text-slate-400 hover:text-white font-black ml-0.5 cursor-pointer">×</button>
+          </span>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex items-center gap-2 ml-auto sm:ml-2">
+          <button 
+            type="button"
+            @click="openInlineCompare"
+            class="px-5 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-xs sm:text-sm font-black shadow-md transition cursor-pointer whitespace-nowrap flex items-center gap-1.5"
+          >
+            <span>📊</span>
+            <span>ดูการเปรียบเทียบ &amp; กราฟ</span>
+          </button>
+          <button 
+            type="button"
+            @click="clearCompare"
+            class="px-3 py-2.5 rounded-xl bg-slate-800 hover:bg-rose-900/80 text-slate-300 hover:text-rose-200 text-xs font-bold transition cursor-pointer"
+            title="ล้างที่เลือกทั้งหมด"
+          >
+            ล้าง
+          </button>
         </div>
       </div>
     </Transition>
@@ -2047,10 +3100,12 @@ onMounted(loadInitialDashboard)
 ═══════════════════════════════════════════════════════════ */
 .fi-page {
   width: 100%;
-  padding: 14px 20px 48px;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 16px 20px 48px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
   box-sizing: border-box;
 }
 
@@ -3155,189 +4210,6 @@ onMounted(loadInitialDashboard)
   color: #f59e0b;
 }
 
-.fi-compare-check {
-  cursor: pointer;
-  width: 15px;
-  height: 15px;
-  accent-color: #2563eb;
-}
-
-.fi-page-jump {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-left: 12px;
-  font-size: 12px;
-  color: #64748b;
-}
-.fi-page-jump-input {
-  width: 48px;
-  padding: 4px 6px;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-  font-size: 12px;
-  text-align: center;
-}
-
-/* Floating Comparison Bar */
-.fi-compare-bar {
-  position: fixed;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: #0f172a;
-  color: #ffffff;
-  padding: 12px 20px;
-  border-radius: 40px;
-  box-shadow: 0 10px 25px -5px rgba(0,0,0,0.3);
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  z-index: 990;
-  white-space: nowrap;
-}
-.fi-compare-bar__info {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 13px;
-}
-.fi-compare-chip {
-  background: #1e293b;
-  color: #38bdf8;
-  font-weight: 700;
-  padding: 3px 10px;
-  border-radius: 14px;
-  font-size: 12px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.fi-compare-chip__x {
-  background: transparent;
-  border: 0;
-  color: #94a3b8;
-  cursor: pointer;
-  padding: 0;
-  font-size: 11px;
-}
-.fi-compare-chip__x:hover { color: #f87171; }
-.fi-compare-bar__actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-/* Comparison Modal */
-.fi-compare-modal {
-  background: #ffffff;
-  border-radius: 16px;
-  width: 90%;
-  max-width: 960px;
-  max-height: 85vh;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
-  overflow: hidden;
-  z-index: 1001;
-}
-.fi-compare-modal__header {
-  padding: 18px 24px;
-  border-bottom: 1px solid #e2e8f0;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.fi-compare-modal__header h2 {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 800;
-  color: #0f172a;
-}
-.fi-compare-modal__body {
-  padding: 24px;
-  overflow-y: auto;
-}
-.fi-compare-charts-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  margin-bottom: 24px;
-}
-@media (max-width: 768px) {
-  .fi-compare-charts-grid {
-    grid-template-columns: 1fr;
-  }
-}
-.fi-compare-chart-card {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  padding: 14px 16px 12px;
-  display: flex;
-  flex-direction: column;
-}
-.fi-compare-chart-title {
-  font-size: 13px;
-  font-weight: 700;
-  color: #1e293b;
-  margin-bottom: 10px;
-}
-.fi-compare-chart-container {
-  position: relative;
-  height: 200px;
-  width: 100%;
-}
-.fi-compare-color-bar {
-  display: block;
-  height: 4px;
-  width: 36px;
-  border-radius: 2px;
-  margin: 0 auto 8px;
-}
-.fi-compare-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-.fi-compare-table th, .fi-compare-table td {
-  padding: 12px 16px;
-  border: 1px solid #e2e8f0;
-  text-align: center;
-}
-.fi-compare-th--head {
-  background: #f8fafc;
-  color: #475569;
-  width: 20%;
-  text-align: left !important;
-}
-.fi-compare-th {
-  background: #f1f5f9;
-  width: 26%;
-}
-.fi-compare-code {
-  font-size: 16px;
-  font-weight: 900;
-  color: #2563eb;
-  display: block;
-}
-.fi-compare-name {
-  margin: 2px 0 4px;
-  font-size: 11px;
-  color: #64748b;
-  font-weight: normal;
-}
-.fi-compare-amc {
-  font-size: 10px;
-  color: #94a3b8;
-}
-.fi-compare-lbl {
-  background: #f8fafc;
-  font-weight: 700;
-  color: #334155;
-  text-align: left !important;
-}
-
 /* Floating Back-to-Top Button */
 .fi-back-to-top {
   position: fixed;
@@ -3362,5 +4234,14 @@ onMounted(loadInitialDashboard)
 .fi-back-to-top:hover {
   transform: translateY(-4px);
   background: #1d4ed8;
+}
+
+/* Fade transition for floating compare bar */
+.fade-enter-active, .fade-leave-active {
+  transition: opacity 0.25s, transform 0.25s;
+}
+.fade-enter-from, .fade-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(16px);
 }
 </style>

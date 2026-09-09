@@ -12,9 +12,9 @@ defineEmits(['clear-all', 'remove-fund'])
 
 const collapsed = ref(false)
 
-// ---------- Fund colors (up to 3 funds) ----------
-const FUND_COLORS = ['#2456d8', '#12b76a', '#e0a411']
-const FUND_COLORS_ALPHA = ['rgba(36,86,216,0.15)', 'rgba(18,183,106,0.15)', 'rgba(224,164,17,0.15)']
+// ---------- Fund colors (up to 4 funds) ----------
+const FUND_COLORS = ['#2456d8', '#12b76a', '#e0a411', '#7a5af5']
+const FUND_COLORS_ALPHA = ['rgba(36,86,216,0.15)', 'rgba(18,183,106,0.15)', 'rgba(224,164,17,0.15)', 'rgba(122,90,245,0.15)']
 
 // ---------- Chart refs ----------
 const returnChartRef = ref(null)
