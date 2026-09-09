@@ -5,8 +5,7 @@ function unique(values) {
   return [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b))
 }
 
-// เอาออกมาเป็น util แยกเพราะ useFundinfoScreener.js ต้องเรียง screenedFunds (ผลลัพธ์หลังผ่าน
-// ตัวกรองขั้นสูงเพิ่มเติม) ด้วย logic การเรียงเดียวกันเป๊ะๆ กับตารางกองทุนปกติ ไม่อยากก็อปโค้ดซ้ำ
+// Extracted so useFundinfoScreener.js can sort screenedFunds with identical logic (avoid duplicating).
 export function sortFundsBy(list, sortBy, sortDir) {
   const dir = sortDir === 'desc' ? -1 : 1
   return [...list].sort((a, b) => {
@@ -21,10 +20,8 @@ export function sortFundsBy(list, sortBy, sortDir) {
   })
 }
 
-// instances ถูก cache ต่อ type (เหมือน useFundinfoRanking) เพราะตอนนี้มีมากกว่าหนึ่งจุดที่ต้อง
-// อ่าน/เขียน state เดียวกันของแต่ละแท็บ — ตาราง FundView เดิม กับ ThaiFundSearchFilterSection.vue
-// (ผ่าน useFundinfoScreener) ต้องเห็น state.search / state.selectedAmc ชุดเดียวกัน ไม่งั้นพิมพ์ค้นหา
-// ในกล่องค้นหาใหม่แล้วตารางจะไม่กรองตาม
+// Cached per type (like useFundinfoRanking) — FundView and ThaiFundSearchFilterSection
+// (via useFundinfoScreener) must share the same state.search/selectedAmc.
 const instances = new Map()
 
 export function useFundinfoCategory(type, options = {}) {
@@ -35,14 +32,21 @@ export function useFundinfoCategory(type, options = {}) {
 }
 
 function createFundinfoCategory(type, { defaultSortBy = 'perf' } = {}) {
-  // Store-backed (src/stores/fundinfoStore.js -> src/services/fundinfoApi.js):
-  // reads local mock data today, will read the real backend once
-  // VITE_FUNDINFO_API_MODE flips — nothing here needs to change when it does.
+  // Store-backed (fundinfoStore.js -> fundinfoApi.js) — nothing here needs to
+  // change across API modes.
   const fundinfoStore = useFundinfoStore()
   fundinfoStore.loadFundsByType(type)
   const funds = computed(() => fundinfoStore.getFundsByType(type))
   const isLoading = computed(() => fundinfoStore.isLoading(type))
   const loadError = computed(() => fundinfoStore.getError(type))
+
+  // Search placeholder promises matching held stocks, but fund.top5 is empty for
+  // list-fetched funds (holdings only come from the detail endpoint). /stocks/top
+  // already publishes the reverse mapping (topHoldingFundCodes) and is already
+  // cached here (Ranking Cards / Exposure Trend), so reuse it instead of an N+1 fetch.
+  const stockMarket = type === 'thai' || type === 'mixed' ? 'TH' : 'FOREIGN'
+  fundinfoStore.loadTopStocksByMarket(stockMarket)
+  const topStocks = computed(() => fundinfoStore.getTopStocksByMarket(stockMarket))
 
   const state = reactive({
     search: '',
@@ -55,8 +59,23 @@ function createFundinfoCategory(type, { defaultSortBy = 'perf' } = {}) {
 
   const amcOptions = computed(() => unique(funds.value.map((fund) => fund.amc)))
 
+  // Fund codes holding a stock whose name/symbol matches the query — merged into
+  // the search haystack so "NVIDIA" finds funds that hold it, not just funds named it.
+  const stockMatchedFundIds = computed(() => {
+    const query = state.search.trim().toLowerCase()
+    if (!query) return null
+
+    const ids = new Set()
+    topStocks.value.forEach((stock) => {
+      const matches = stock.name.toLowerCase().includes(query) || stock.symbol.toLowerCase().includes(query)
+      if (matches) stock.topHoldingFundCodes.forEach((code) => ids.add(code))
+    })
+    return ids
+  })
+
   const filteredFunds = computed(() => {
     const query = state.search.trim().toLowerCase()
+    const stockMatches = stockMatchedFundIds.value
 
     let rows = funds.value.filter((fund) => {
       if (!query) return true
@@ -64,7 +83,7 @@ function createFundinfoCategory(type, { defaultSortBy = 'perf' } = {}) {
         .filter(Boolean)
         .join(' ')
         .toLowerCase()
-      return haystack.includes(query)
+      return haystack.includes(query) || stockMatches.has(fund.id)
     })
 
     if (state.selectedAmc) rows = rows.filter((fund) => fund.amc === state.selectedAmc)

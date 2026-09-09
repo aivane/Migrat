@@ -1,0 +1,52 @@
+server {
+    listen 80;
+    server_name _;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # Required for TLS SNI on outbound proxy_pass — without it, CDN-fronted
+    # upstreams (e.g. Cloudflare) reject the handshake.
+    proxy_ssl_server_name on;
+
+    # Vue Router history mode — let the SPA handle unknown paths client-side.
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Recon / Fund / Dashboard / Insights API (mirrors vite.config.js dev proxy)
+    location /api/recon/v2 {
+        proxy_pass ${PROXY_FUND_API};
+        proxy_set_header Host $proxy_host;
+        proxy_set_header ngrok-skip-browser-warning 1;
+    }
+
+    location /api/fund {
+        proxy_pass ${PROXY_FUND_API};
+        proxy_set_header Host $proxy_host;
+        proxy_set_header ngrok-skip-browser-warning 1;
+    }
+
+    # Auth API — strip the /api/backend prefix, same as vite.config.js's rewrite
+    location /api/backend/ {
+        rewrite ^/api/backend/(.*)$ /$1 break;
+        proxy_pass ${PROXY_FUND_BACKEND};
+        proxy_set_header Host $proxy_host;
+        proxy_set_header ngrok-skip-browser-warning 1;
+    }
+
+    # WordPress AJAX / REST / media
+    location /wp-admin/admin-ajax.php {
+        proxy_pass ${PROXY_WP_SITE};
+        proxy_set_header Host $proxy_host;
+    }
+
+    location /wp-json {
+        proxy_pass ${PROXY_WP_SITE};
+        proxy_set_header Host $proxy_host;
+    }
+
+    location /wp-content {
+        proxy_pass ${PROXY_WP_SITE};
+        proxy_set_header Host $proxy_host;
+    }
+}

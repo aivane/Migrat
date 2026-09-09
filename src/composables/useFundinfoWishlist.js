@@ -7,9 +7,8 @@ const STORAGE_KEY = 'fi321-pins'
 // Storage Hardening — cap entry count so tampered/bloated storage can't grow unbounded
 const MAX_PINS = 200
 
-// Input Validation — localStorage is attacker-writable (devtools, other tabs,
-// a compromised extension). Never trust its shape: parse defensively and keep
-// only values matching the same id pattern the API layer accepts.
+// localStorage is attacker-writable (devtools, other tabs, extensions) — parse
+// defensively and keep only values matching the API's id pattern.
 function readInitial() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY))
@@ -21,9 +20,8 @@ function readInitial() {
   return []
 }
 
-// Module-scoped (singleton) reactive state — shared by every component that
-// calls useFundinfoWishlist(), so the header ⭐ button and star icons inside
-// each fund table stay in sync without a global store library.
+// Module-scoped singleton — shared by every useFundinfoWishlist() caller so
+// the header star button and table star icons stay in sync without a store.
 const pinnedIds = reactive(new Set(readInitial()))
 
 function persist() {
@@ -35,11 +33,8 @@ function persist() {
 }
 
 export function useFundinfoWishlist() {
-  // Pins can span any of the 4 fund types, so resolve each id individually
-  // through fundinfoStore.loadFundById (store-backed -> fundinfoApi.js) rather
-  // than importing FUNDS directly — same switch point as everything else once
-  // VITE_FUNDINFO_API_MODE flips to a real backend. loadFundById caches per id,
-  // so calling it for already-loaded ids here is a cheap no-op.
+  // Pins can span any of the 4 fund types, so resolve each id individually via
+  // fundinfoStore.loadFundById (cached per id, so re-calling for loaded ids is a no-op).
   const fundinfoStore = useFundinfoStore()
   pinnedIds.forEach((id) => fundinfoStore.loadFundById(id))
 
@@ -54,8 +49,7 @@ export function useFundinfoWishlist() {
   }
 
   function toggleWish(id) {
-    // Input Validation — reject anything that doesn't look like a real fund id
-    // before it ever reaches the Set/localStorage
+    // Reject anything that doesn't look like a real fund id before it reaches the Set/localStorage.
     if (!isValidFundId(id)) return
 
     if (pinnedIds.has(id)) {

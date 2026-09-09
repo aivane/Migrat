@@ -1,5 +1,5 @@
 <script setup>
-import { FUND_TYPES } from '../../data/fundinfoData'
+import { FUND_TYPES } from '../../data/fundinfoConstants'
 import ThemeTrendSection from '../../components/fundinfo/ThemeTrendSection.vue'
 import RankingCardsSection from '../../components/fundinfo/RankingCardsSection.vue'
 import InsightCompareSection from '../../components/fundinfo/InsightCompareSection.vue'

@@ -6,21 +6,20 @@ import {
   THAI_INDUSTRY_GROUPS,
   OFFSHORE_REGION_GROUPS,
   OFFSHORE_THEME_GROUPS,
-} from '../data/fundinfoData'
+} from '../data/fundinfoConstants'
 import { useFundinfoStore } from '../stores/fundinfoStore'
-import { fundinfoApiMode } from '../services/fundinfoApi'
-import { performanceSeries, CMP_LABELS } from './useFundinfoThemeTrend'
+import { membersTrendSeries, CMP_LABELS } from './useFundinfoThemeTrend'
 
 // ==========================================================================
 // Section ① Region / Industry Exposure — "Stock Exposure" (Offshore & Thai)
-// Ported from computeScopes() (isStockTab branch) + buildStockEntities() +
-// renderStockExposure() in the fundinfo v3.2.1 HTML prototype. Unlike the
-// Feeder "Theme Pulse" cards, these scopes are built from Top Holdings stock
-// weights (STOCK_META), not from fund-level performance — so cards show an
-// exposure proportion bar instead of a 1Y sparkline.
+// Unlike Feeder "Theme Pulse" cards, these scopes are built from Top Holdings
+// stock weights (STOCK_META), not fund-level performance — cards show an
+// exposure bar instead of a 1Y sparkline.
 // ==========================================================================
 
-const MAX_SELECTED = 5
+// Matches Feeder/Ranking Card compare caps (useFundinfoThemeTrend.js /
+// useFundinfoRanking.js) — no reason to cap Offshore/Thai 2 lower.
+const MAX_SELECTED = 7
 
 const BENCHMARKS = {
   thai: { name: 'SET TRI', ret: 3.2, short: 'SET' },
@@ -64,17 +63,10 @@ export function holdingIcon(title) {
   return HOLDING_ICON[title] || '◼'
 }
 
-function isDirectEquityFund(fund) {
-  return (fund.top5 || []).some((h) => STOCK_META[h.name])
-}
-
-function seedFromId(id) {
-  return [...String(id)].reduce((sum, ch) => sum + ch.charCodeAt(0), 71)
-}
-
-// ใช้ perf ของ scope (ผลตอบแทนถ่วงน้ำหนักของหุ้นในหมวด) เป็นจุดปลายทางของกราฟจำลอง เหมือนต้นแบบ
+// Real checkpoint returns averaged across member funds (see
+// useFundinfoThemeTrend.js); falls back to a flat 0% line only if none have data.
 export function trendSeries(scope) {
-  return performanceSeries(seedFromId(scope.id), scope.perf ?? 0, CMP_LABELS.length)
+  return membersTrendSeries(scope.members, CMP_LABELS.length) || new Array(CMP_LABELS.length).fill(100)
 }
 
 function taxonomyFor(type, scopeMode) {
@@ -82,79 +74,9 @@ function taxonomyFor(type, scopeMode) {
   return scopeMode === 'theme' ? OFFSHORE_THEME_GROUPS : OFFSHORE_REGION_GROUPS
 }
 
-// รวมน้ำหนักหุ้น (exposure) และผลตอบแทนถ่วงน้ำหนักของหุ้นในแต่ละหมวด taxonomy
-function computeScopes(funds, type, scopeMode) {
-  const defs = taxonomyFor(type, scopeMode)
-
-  return defs.map((def, idx) => {
-    let members = []
-    let stockNames = []
-
-    if (def.fundIds) {
-      members = funds.filter((f) => def.fundIds.includes(f.id))
-      stockNames = [
-        ...new Set(members.flatMap((f) => (f.top5 || []).map((h) => h.name)).filter((name) => STOCK_META[name])),
-      ]
-    } else {
-      const wanted = new Set(def.stocks || [])
-      stockNames = [...wanted].filter(
-        (name) => STOCK_META[name] && funds.some((f) => (f.top5 || []).some((h) => h.name === name)),
-      )
-      members = funds.filter((f) => (f.top5 || []).some((h) => wanted.has(h.name)))
-    }
-
-    const memberIds = new Set(members.map((f) => f.id))
-    let exposure = 0
-    let weightedReturn = 0
-    funds.forEach((f) => {
-      ;(f.top5 || []).forEach((h) => {
-        if (!STOCK_META[h.name] || !stockNames.includes(h.name)) return
-        if (def.fundIds && !memberIds.has(f.id)) return
-        exposure += h.percent
-        weightedReturn += h.percent * STOCK_META[h.name].ret
-      })
-    })
-
-    const hasData = exposure > 0
-    return {
-      id: def.id,
-      title: def.title,
-      subtitle: def.subtitle,
-      idx,
-      members,
-      stocks: stockNames,
-      stockCount: stockNames.length,
-      exposure: +exposure.toFixed(1),
-      perf: hasData ? +(weightedReturn / exposure).toFixed(1) : null,
-      hasData,
-    }
-  })
-}
-
-// หุ้นทุกตัวที่พบใน Top Holdings ของกองทุนกลุ่มนี้ (ไม่กรองตาม scope) — ใช้หา "หุ้นที่หลายกองถือร่วมกัน"
-function buildStockEntities(funds) {
-  const g = {}
-  funds.forEach((f) => {
-    ;(f.top5 || []).forEach((h) => {
-      const meta = STOCK_META[h.name]
-      if (!meta) return
-      const x = g[h.name] || (g[h.name] = { name: h.name, ticker: meta.ticker, membersMap: new Map(), totalWeight: 0 })
-      x.membersMap.set(f.id, f)
-      x.totalWeight += h.percent
-    })
-  })
-  return Object.values(g).map((x) => ({
-    name: x.name,
-    ticker: x.ticker,
-    fundCount: x.membersMap.size,
-    totalWeight: +x.totalWeight.toFixed(1),
-  }))
-}
-
 // ---- Offshore-only persistence ----
-// offshore ต้อง auto-select scope ตอนเข้าครั้งแรก และห้ามหายเมื่อสลับหน้าไปมา "หรือสลับมุมมอง region/theme"
-// เก็บ selection แยกตามโหมด (region / theme) เพื่อไม่ให้การสลับมุมมองไปมาล้างของอีกฝั่งทิ้ง
-// thai ใช้ reactive() สดใหม่ทุกครั้งเหมือนเดิม (ของเดิมทำงานถูกต้องอยู่แล้ว ไม่แตะ)
+// Offshore auto-selects on first entry and persists across navigation and
+// region/theme switches (kept separately per mode); thai stays fresh reactive() each time.
 const OFFSHORE_STORAGE_KEY = 'fundinfo:exposureTrend:offshore'
 let offshoreStateCache = null
 
@@ -200,30 +122,26 @@ function getOffshoreState() {
 }
 
 export function useFundinfoExposureTrend(type = 'offshore') {
-  // Store-backed (fundinfoStore.js -> fundinfoApi.js): reads local mock data
-  // today, will read the real backend once VITE_FUNDINFO_API_MODE flips.
+  // Store-backed (fundinfoStore.js -> fundinfoApi.js): reads the real backend.
   const fundinfoStore = useFundinfoStore()
   fundinfoStore.loadFundsByType(type)
   const allFunds = computed(() => fundinfoStore.getFundsByType(type))
   const stockMarket = type === 'thai' ? 'TH' : 'FOREIGN'
-  const shouldLoadApiStocks = fundinfoApiMode !== 'mock'
 
-  if (shouldLoadApiStocks) {
-    fundinfoStore.loadTopStocksByMarket(stockMarket)
-    fundinfoStore.loadPortfolioAllocation({ marketType: stockMarket })
+  fundinfoStore.loadTopStocksByMarket(stockMarket)
+  fundinfoStore.loadPortfolioAllocation({ marketType: stockMarket })
+
+  const apiStocks = computed(() => fundinfoStore.getTopStocksByMarket(stockMarket))
+  const portfolioAllocation = computed(() => fundinfoStore.getPortfolioAllocation({ marketType: stockMarket }))
+  // Previously fell back to a STOCK_META-only mock path when apiStocks was empty,
+  // fabricating exposure numbers instead of showing "no data" — that path is gone;
+  // stocksLoading/stocksError below now surface load state honestly instead.
+  const stocksLoading = computed(() => fundinfoStore.isLoading(`stocks:${stockMarket}`))
+  const stocksError = computed(() => fundinfoStore.getError(`stocks:${stockMarket}`))
+  function retryStocks() {
+    fundinfoStore.loadTopStocksByMarket(stockMarket, { force: true })
+    fundinfoStore.loadPortfolioAllocation({ marketType: stockMarket }, { force: true })
   }
-
-  const apiStocks = computed(() => (
-    shouldLoadApiStocks ? fundinfoStore.getTopStocksByMarket(stockMarket) : []
-  ))
-  const portfolioAllocation = computed(() => (
-    shouldLoadApiStocks ? fundinfoStore.getPortfolioAllocation({ marketType: stockMarket }) : []
-  ))
-  const usesApiExposure = computed(() => shouldLoadApiStocks && apiStocks.value.length > 0)
-  // Mock mode retains the original STOCK_META-only behavior exactly.
-  const funds = computed(() => (
-    usesApiExposure.value ? allFunds.value : allFunds.value.filter(isDirectEquityFund)
-  ))
 
   const bench = BENCHMARKS[type] || BENCHMARKS.offshore
   const accent = FUND_TYPES[type]?.accent || '#2456d8'
@@ -233,9 +151,7 @@ export function useFundinfoExposureTrend(type = 'offshore') {
   const state = foreign ? getOffshoreState() : reactive({ scopeMode: 'region', selected: [] })
 
   function scopesFor(scopeMode) {
-    return usesApiExposure.value
-      ? computeApiScopes(allFunds.value, apiStocks.value, portfolioAllocation.value, type, scopeMode)
-      : computeScopes(funds.value, type, scopeMode)
+    return computeApiScopes(allFunds.value, apiStocks.value, portfolioAllocation.value, type, scopeMode)
   }
 
   const allScopes = computed(() => scopesFor(state.scopeMode))
@@ -243,9 +159,7 @@ export function useFundinfoExposureTrend(type = 'offshore') {
   const unavailable = computed(() => allScopes.value.filter((s) => !s.hasData))
   const maxExposure = computed(() => Math.max(...scopes.value.map((s) => s.exposure), 1))
 
-  const stockEntities = computed(() => (
-    usesApiExposure.value ? buildApiStockEntities(apiStocks.value) : buildStockEntities(funds.value)
-  ))
+  const stockEntities = computed(() => buildApiStockEntities(apiStocks.value))
   const mostHeld = computed(
     () => [...stockEntities.value].sort((a, b) => b.fundCount - a.fundCount || b.totalWeight - a.totalWeight)[0],
   )
@@ -274,8 +188,8 @@ export function useFundinfoExposureTrend(type = 'offshore') {
       : 'นำเปอร์เซ็นต์หุ้นมารวมกัน',
   )
 
-  // offshore: sync state.selected กลับเข้า selectedByMode[scopeMode ปัจจุบัน] แล้ว persist ลง sessionStorage "ทันทีแบบ synchronous"
-  // (ไม่ใช้ watch แบบ async) กันกรณีผู้ใช้กด toggle/สลับมุมมองแล้วเปลี่ยนหน้าทันที ก่อนที่ watcher จะทำงานทัน
+  // Offshore: sync state.selected into selectedByMode and persist synchronously
+  // (not via async watch) so a toggle right before navigating isn't lost.
   function syncOffshore() {
     if (!foreign) return
     state.selectedByMode[state.scopeMode] = state.selected.slice()
@@ -318,11 +232,9 @@ export function useFundinfoExposureTrend(type = 'offshore') {
     }
   }
 
-  // Store-backed funds resolve asynchronously (even under mock mode, one
-  // microtask tick), so `scopes` is empty on the very first synchronous
-  // evaluation — this seeding must wait for real data instead of running
-  // once at setup time. `seeded` gates it to fire exactly once per composable
-  // call (i.e. once per component mount), matching the original behavior.
+  // Store-backed funds resolve asynchronously, so `scopes` is empty on the first
+  // sync evaluation — seeding must wait for real data. `seeded` gates it to fire
+  // once per composable call (once per component mount).
   let seeded = false
   watch(
     scopes,
@@ -332,12 +244,11 @@ export function useFundinfoExposureTrend(type = 'offshore') {
 
       if (foreign) {
         if (!state.initialized) {
-          // ยังไม่เคยมี state ค้างอยู่เลย (ไม่มี cache/sessionStorage) — ตั้งค่าเริ่มต้นแค่ครั้งแรก
+          // No prior state (no cache/sessionStorage) — set the initial default once.
           state.selected = value.slice(0, MAX_SELECTED).map((scope) => scope.id)
           state.initialized = true
         } else {
-          // มี state เดิมค้างอยู่แล้ว (จาก cache ในหน่วยความจำ หรือกู้จาก sessionStorage) — คงรายการที่เลือกไว้เดิม
-          // กันไว้เฉพาะกรณี scope id เดิมหายไปจากชุดข้อมูลปัจจุบัน ไม่ให้ chip ค้างเลือกทั้งที่ไม่มีในลิสต์
+          // Existing state — keep prior selection, dropping ids no longer present.
           const validIds = new Set(value.map((s) => s.id))
           state.selected = state.selected.filter((id) => validIds.has(id))
         }
@@ -371,6 +282,9 @@ export function useFundinfoExposureTrend(type = 'offshore') {
     toggle,
     clear,
     setScopeMode,
+    stocksLoading,
+    stocksError,
+    retryStocks,
   }
 }
 
@@ -467,9 +381,8 @@ function allocationExposureForScope(allocation, type, scopeMode, scopeId) {
   ))
   if (!matches.length) return null
 
-  // API Contract — Thai taxonomy combines several published sectors, while
-  // regional labels overlap. Sum the former and use the largest published
-  // regional weight rather than falsely adding overlapping regions together.
+  // API Contract — Thai taxonomy sums several sectors; regional labels overlap,
+  // so use the largest published weight instead (summing would double-count).
   const value = type === 'thai'
     ? matches.reduce((sum, item) => sum + item.weightedPercent, 0)
     : Math.max(...matches.map((item) => item.weightedPercent))
@@ -513,9 +426,8 @@ function matchingStocksForScope(stocks, scopeId, type, scopeMode, memberIds) {
   })
 }
 
-// API Contract — list records contain fund performance while /stocks/top
-// contains aggregate holdings. Join only the API's disclosed holder codes;
-// never invent stock returns or allocations for an unknown stock.
+// API Contract — list records carry fund performance, /stocks/top carries
+// aggregate holdings; join only via disclosed holder codes, never invent data.
 function computeApiScopes(funds, stocks, portfolioAllocation, type, scopeMode) {
   const defs = taxonomyFor(type, scopeMode)
   const totalHoldingValue = stocks.reduce((sum, stock) => sum + Number(stock.totalHoldingValueMThb || 0), 0)
@@ -545,13 +457,11 @@ function computeApiScopes(funds, stocks, portfolioAllocation, type, scopeMode) {
       members,
       stocks: matchedStocks,
       stockCount: matchedStocks.length,
-      // API Compatibility — prefer `portfolio-allocation`'s published
-      // weighted allocation. The top-stock ratio remains a direct fallback
-      // when no equivalent taxonomy label exists in the endpoint response.
+      // Prefer portfolio-allocation's published weighted allocation; fall back
+      // to the top-stock ratio when no matching taxonomy label exists.
       exposure: allocationExposure ?? +holdingExposure.toFixed(1),
       perf: averageReturn(members),
-      // API Contract — do not show a taxonomy group until the ranking API
-      // supplies at least one actual holding that can be matched to it.
+      // Don't show a taxonomy group until the ranking API has a matching holding.
       hasData: members.length > 0 && matchedStocks.length > 0,
     }
   })
@@ -562,8 +472,7 @@ function buildApiStockEntities(stocks) {
     name: stock.name,
     ticker: stock.symbol,
     fundCount: stock.fundCount,
-    // UI Adapter — this view expects a percentage, and the API's average
-    // holding weight is the only corresponding aggregate it publishes.
+    // UI expects a percentage; avgHoldingWeight is the only matching API aggregate.
     totalWeight: stock.avgHoldingWeight,
   }))
 }

@@ -90,7 +90,7 @@ export async function getInsightSectors(limit = 10) {
   }
 
   // Swagger: GET /api/v1/insights/sectors
-  return reconGet('/insights/sectors', { limit })
+  return reconGet('/api/v1/insights/sectors', { limit })
 }
 
 /** หุ้นไทยที่กองทุนไทยถือครองมากที่สุด */
@@ -102,7 +102,7 @@ export async function getInsightSectorsThai(params = {}) {
   }
 
   // Swagger: GET /api/v1/insights/sectors/thai
-  return extractArray(await reconGet('/insights/sectors/thai', query))
+  return extractArray(await reconGet('/api/v1/insights/sectors/thai', query))
 }
 
 /** หุ้น US/Global ที่กองทุนต่างประเทศถือครองมากที่สุด */
@@ -114,7 +114,7 @@ export async function getInsightSectorsForeign(params = {}) {
   }
 
   // Swagger: GET /api/v1/insights/sectors/foreign
-  return extractArray(await reconGet('/insights/sectors/foreign', query))
+  return extractArray(await reconGet('/api/v1/insights/sectors/foreign', query))
 }
 
 /** Sector ของ Foreign Master Funds ตาม AUM/Flow */
@@ -126,7 +126,7 @@ export async function getInsightSectorsFeeder(params = {}) {
   }
 
   // Swagger: GET /api/v1/insights/sectors/feeder
-  return extractArray(await reconGet('/insights/sectors/feeder', query))
+  return extractArray(await reconGet('/api/v1/insights/sectors/feeder', query))
 }
 
 /** สัดส่วนสินทรัพย์กองทุนผสม Mixed Fund */
@@ -138,7 +138,7 @@ export async function getInsightSectorsMixed(params = {}) {
   }
 
   // Swagger: GET /api/v1/insights/sectors/mixed
-  return extractArray(await reconGet('/insights/sectors/mixed', query))
+  return extractArray(await reconGet('/api/v1/insights/sectors/mixed', query))
 }
 
 // -----------------------------------------------------------------
@@ -153,7 +153,7 @@ export async function getFlowTrend(params = {}) {
   }
 
   // Swagger: GET /api/v1/insights/flow-trend
-  return reconGet('/insights/flow-trend', query)
+  return reconGet('/api/v1/insights/flow-trend', query)
 }
 
 export async function getGlobalFlow(params = {}) {
@@ -162,7 +162,7 @@ export async function getGlobalFlow(params = {}) {
   const payload =
     apiMode === 'wordpress'
       ? await wpGet('fund_insights_global_flow', query)
-      : await reconGet('/insights/flow-trend', query)
+      : await reconGet('/api/v1/insights/flow-trend', query)
 
   return {
     flows: extractArray(payload, ['flows', 'data', 'funds']),
@@ -182,7 +182,7 @@ export async function getInsightThemes() {
   }
 
   // Swagger: GET /api/v1/insights/themes
-  return extractArray(await reconGet('/insights/themes'))
+  return extractArray(await reconGet('/api/v1/insights/themes'))
 }
 
 export async function getThemeFunds(themes = [], limit = 10, params = {}) {
@@ -194,7 +194,7 @@ export async function getThemeFunds(themes = [], limit = 10, params = {}) {
   const payload =
     apiMode === 'wordpress'
       ? await wpGet('fund_insights_theme_funds', query)
-      : await reconGet('/insights/theme-funds', query)
+      : await reconGet('/api/v1/insights/theme-funds', query)
 
   return normalizeThemeFunds(payload, themes)
 }
@@ -208,7 +208,7 @@ export async function getThemeFundsRaw(themes = [], limit = 10, params = {}) {
 
   return apiMode === 'wordpress'
     ? wpGet('fund_insights_theme_funds', query)
-    : reconGet('/insights/theme-funds', query)
+    : reconGet('/api/v1/insights/theme-funds', query)
 }
 
 // -----------------------------------------------------------------
@@ -223,7 +223,7 @@ export async function getFundTrend(code) {
   }
 
   // Swagger: GET /api/v1/funds/{code}/trend
-  return reconGet(`/funds/${encodeURIComponent(code)}/trend`)
+  return reconGet(`/api/v1/funds/${encodeURIComponent(code)}/trend`)
 }
 
 // -----------------------------------------------------------------

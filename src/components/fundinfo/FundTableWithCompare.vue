@@ -1,27 +1,28 @@
 <!-- FundTableWithCompare.vue -->
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import { useFundinfoScreener } from '../../composables/useFundinfoScreener'
 import { useFundinfoWishlist } from '../../composables/useFundinfoWishlist'
 import { useFundinfoStore } from '../../stores/fundinfoStore'
-import { STOCK_META } from '../../data/fundinfoData'
+import { STOCK_META } from '../../data/fundinfoConstants'
 import { formatPercent } from '../../utils/fundinfoFormat'
 import FundCompareTable from './FundCompareTable.vue'
 import FundDetailRow from '../../views/fundinfo/FundDetailRow.vue'
 import InfoTooltip from '../common/InfoTooltip.vue'
+import ApiErrorBanner from '../common/ApiErrorBanner.vue'
+import LoadingIndicator from '../common/LoadingIndicator.vue'
 
 const props = defineProps({ type: { type: String, default: 'offshore' } })
 
-const { screenedFunds, toggleCompare, compareFunds, compareOrderOf } = useFundinfoScreener(props.type)
+const { screenedFunds, toggleCompare, compareFunds, compareOrderOf, loadError, isLoading } = useFundinfoScreener(props.type)
 const { isWished, toggleWish } = useFundinfoWishlist()
-// API Compatibility — /funds/list never returns a fund's own holdings/
-// allocations (only /funds/{code} does), so every row starts with an empty
-// top5/asset/sectorMix. Fetching the full profile on expand fills those in
-// via the store's existing list-merge (fundinfoStore.mergeFundIntoCachedLists),
-// so both the expanded panel and this row's own columns pick up real data.
+// /funds/list omits holdings/allocations (only /funds/{code} has them, one at
+// a time) — rows start empty and fill in via toggleDetails or scroll-prefetch
+// (IntersectionObserver below), both landing in fundinfoStore.mergeFundIntoCachedLists.
 const fundinfoStore = useFundinfoStore()
 const expandedFundId = ref(null)
 const selectedFundsList = computed(() => compareFunds.value)
+const showsHoldingsColumns = props.type === 'offshore' || props.type === 'thai'
 
 // ลด columnCount ลง 1 เพราะเอาคอลัมน์ บลจ. ออก
 const columnCount = computed(() => (props.type === 'offshore' || props.type === 'thai' ? 12 : 10))
@@ -68,12 +69,22 @@ const displayFunds = computed(() => {
   return funds.sort((a, b) => (sortValue(a, localSortKey.value) - sortValue(b, localSortKey.value)) * dir)
 })
 
-// Perf: badge/ticker/weight/tax-label are pure functions of `fund` alone, so
-// derive them once per displayFunds change instead of re-running them for
-// every visible row on every render (expand toggle, star toggle, compare
-// toggle previously re-evaluated all of these for all rows every click).
+// Perf: rendering every <tr> at once froze the page on large matches (tens of
+// thousands of rows). Page the render only; displayFunds.length still reflects the full count.
+const PAGE_SIZE = 50
+const currentPage = ref(1)
+const totalPages = computed(() => Math.max(1, Math.ceil(displayFunds.value.length / PAGE_SIZE)))
+const pagedFunds = computed(() => {
+  const start = (currentPage.value - 1) * PAGE_SIZE
+  return displayFunds.value.slice(start, start + PAGE_SIZE)
+})
+
+watch([screenedFunds, localSortKey, localSortDir], () => { currentPage.value = 1 })
+
+// Perf: derive badge/ticker/weight/tax-label once per page change instead of
+// re-running them per row on every render (expand/star/compare toggles used to).
 const tableRows = computed(() =>
-  displayFunds.value.map((fund) => ({
+  pagedFunds.value.map((fund) => ({
     fund,
     badge: badgeLabel(fund),
     badgeCls: badgeTone(fund),
@@ -103,6 +114,70 @@ function toggleDetails(fundId) {
   if (opening && !fundinfoStore.hasFundDetail(fundId)) fundinfoStore.loadFundById(fundId)
 }
 function clearAllCompare() { selectedFundsList.value.forEach((fund) => toggleCompare(fund.id)) }
+function retryLoadFunds() { fundinfoStore.loadFundsByType(props.type, { force: true }) }
+
+// Lazy-load holdings for offshore/thai rows as they scroll into view — same
+// fetch as the row-chevron click, but on-demand instead of firing for every row at once.
+const scrollContainerRef = ref(null)
+const rowEls = new Map()
+let rowObserver = null
+
+// Cap concurrent fetches — a fast scroll can queue many rows in one
+// IntersectionObserver batch, and firing them all at once resets TLS connections
+// through the dev proxy tunnel. Drain a small queue instead.
+const MAX_CONCURRENT_ROW_FETCHES = 3
+const rowFetchQueue = []
+let activeRowFetches = 0
+
+function drainRowFetchQueue() {
+  while (activeRowFetches < MAX_CONCURRENT_ROW_FETCHES && rowFetchQueue.length) {
+    const fundId = rowFetchQueue.shift()
+    if (fundinfoStore.hasFundDetail(fundId)) continue
+    activeRowFetches++
+    fundinfoStore.loadFundById(fundId).finally(() => {
+      activeRowFetches--
+      drainRowFetchQueue()
+    })
+  }
+}
+
+function handleRowIntersect(entries) {
+  entries.forEach((entry) => {
+    if (!entry.isIntersecting) return
+    const fundId = entry.target.dataset.fundId
+    if (fundId && !fundinfoStore.hasFundDetail(fundId)) rowFetchQueue.push(fundId)
+    rowObserver?.unobserve(entry.target)
+  })
+  drainRowFetchQueue()
+}
+
+function setRowRef(fundId, el) {
+  if (!showsHoldingsColumns) return
+  const prevEl = rowEls.get(fundId)
+  if (prevEl && prevEl !== el) rowObserver?.unobserve(prevEl)
+
+  if (el) {
+    rowEls.set(fundId, el)
+    if (!fundinfoStore.hasFundDetail(fundId)) rowObserver?.observe(el)
+  } else {
+    rowEls.delete(fundId)
+  }
+}
+
+onMounted(() => {
+  if (!showsHoldingsColumns || typeof IntersectionObserver === 'undefined') return
+  rowObserver = new IntersectionObserver(handleRowIntersect, {
+    root: scrollContainerRef.value,
+    rootMargin: '200px 0px', // prefetch a bit before the row is actually visible
+    threshold: 0.01,
+  })
+  rowEls.forEach((el) => rowObserver.observe(el))
+})
+
+onUnmounted(() => {
+  rowObserver?.disconnect()
+  rowObserver = null
+})
 
 // ฟังก์ชันสำหรับจำกัดการเพิ่มลงตารางเปรียบเทียบแค่ 4 ตัว
 function handleToggleCompare(fundId) {
@@ -131,29 +206,29 @@ function handleToggleCompare(fundId) {
       <table class="w-full text-left table-fixed">
         <thead class="sticky top-0 bg-[#f8fafc] z-10 shadow-sm">
           <tr>
-            <th class="w-[260px]">กองทุน</th>
-            
-            <!-- แสดงทั้ง Thai Fund และ Offshore Fund -->
-            <th v-if="type === 'offshore' || type === 'thai'" class="w-[170px]">หุ้นที่ถือเยอะ</th>
-            <th v-if="type === 'offshore' || type === 'thai'" class="text-right w-[90px]">น้ำหนักรวม</th>
-            
-            <!-- นำ <th>บลจ.</th> ออกไปแล้ว -->
-            
-            <th class="w-[90px]">สิทธิภาษี</th>
-            <th class="text-center sortable w-[100px]" @click="setSortLocal('minInvestment')">ขั้นต่ำ <span class="sort-arrow" :class="{ active: localSortKey === 'minInvestment' }">{{ sortIcon('minInvestment') }}</span></th>
-            <th class="text-center sortable w-[100px]" @click="setSortLocal('nav')">NAV/หน่วย <span class="sort-arrow" :class="{ active: localSortKey === 'nav' }">{{ sortIcon('nav') }}</span></th>
+            <th :class="type === 'offshore' || type === 'thai' ? 'w-[20%]' : 'w-[40%]'">กองทุน</th>
 
-            <th class="text-center sortable w-[90px]" @click="setSortLocal('risk')">ความเสี่ยง <span class="sort-arrow" :class="{ active: localSortKey === 'risk' }">{{ sortIcon('risk') }}</span></th>
-            <th class="text-center sortable w-[110px]" @click="setSortLocal('perf')">ผลตอบแทน 1 ปี <span class="sort-arrow" :class="{ active: localSortKey === 'perf' }">{{ sortIcon('perf') }}</span></th>
-            <th class="text-center sortable w-[80px]" @click="setSortLocal('sd')">SD <span class="sort-arrow" :class="{ active: localSortKey === 'sd' }">{{ sortIcon('sd') }}</span></th>
-            <th class="text-right sortable w-[80px]" @click="setSortLocal('sharpe')">Sharpe <span class="sort-arrow" :class="{ active: localSortKey === 'sharpe' }">{{ sortIcon('sharpe') }}</span></th>
-            <th class="text-center font-['Inter'] sub sortable w-[80px]" @click="setSortLocal('fee')">TER <span class="sort-arrow" :class="{ active: localSortKey === 'fee' }">{{ sortIcon('fee') }}</span></th>
-            <th class="text-center w-[50px]"></th>
+            <!-- แสดงทั้ง Thai Fund และ Offshore Fund -->
+            <th v-if="type === 'offshore' || type === 'thai'" class="w-[13%]">หุ้นที่ถือเยอะ</th>
+            <th v-if="type === 'offshore' || type === 'thai'" class="text-center w-[7%]">น้ำหนักรวม</th>
+
+            <!-- นำ <th>บลจ.</th> ออกไปแล้ว -->
+
+            <th class="w-[7%]">สิทธิภาษี</th>
+            <th class="text-center sortable w-[8%]" @click="setSortLocal('minInvestment')">ขั้นต่ำ <span class="sort-arrow" :class="{ active: localSortKey === 'minInvestment' }">{{ sortIcon('minInvestment') }}</span></th>
+            <th class="text-center sortable w-[8%]" @click="setSortLocal('nav')">NAV/หน่วย <span class="sort-arrow" :class="{ active: localSortKey === 'nav' }">{{ sortIcon('nav') }}</span></th>
+
+            <th class="text-center sortable w-[7%]" @click="setSortLocal('risk')">ความเสี่ยง <span class="sort-arrow" :class="{ active: localSortKey === 'risk' }">{{ sortIcon('risk') }}</span></th>
+            <th class="text-center sortable w-[8%]" @click="setSortLocal('perf')">ผลตอบแทน 1 ปี <span class="sort-arrow" :class="{ active: localSortKey === 'perf' }">{{ sortIcon('perf') }}</span></th>
+            <th class="text-center sortable w-[6%]" @click="setSortLocal('sd')">SD <span class="sort-arrow" :class="{ active: localSortKey === 'sd' }">{{ sortIcon('sd') }}</span></th>
+            <th class="text-center sortable w-[6%]" @click="setSortLocal('sharpe')">Sharpe <span class="sort-arrow" :class="{ active: localSortKey === 'sharpe' }">{{ sortIcon('sharpe') }}</span></th>
+            <th class="text-center font-['Inter'] sub sortable w-[6%]" @click="setSortLocal('fee')">TER <span class="sort-arrow" :class="{ active: localSortKey === 'fee' }">{{ sortIcon('fee') }}</span></th>
+            <th class="text-center w-[4%]"></th>
           </tr>
         </thead>
         <tbody>
           <template v-for="{ fund, badge, badgeCls, tickers, weight, taxBenefit, minInvestment } in tableRows" :key="fund.id">
-            <tr :id="`fund-row-${fund.id}`" class="fund-result-row" :class="{ selected: compareOrderOf(fund.id) > -1, expanded: expandedFundId === fund.id }" role="button" tabindex="0" :aria-expanded="expandedFundId === fund.id" @click="toggleDetails(fund.id)" @keydown.enter.prevent="toggleDetails(fund.id)" @keydown.space.prevent="toggleDetails(fund.id)">
+            <tr :id="`fund-row-${fund.id}`" :ref="(el) => setRowRef(fund.id, el)" :data-fund-id="fund.id" class="fund-result-row" :class="{ selected: compareOrderOf(fund.id) > -1, expanded: expandedFundId === fund.id }" role="button" tabindex="0" :aria-expanded="expandedFundId === fund.id" @click="toggleDetails(fund.id)" @keydown.enter.prevent="toggleDetails(fund.id)" @keydown.space.prevent="toggleDetails(fund.id)">
               
               <!-- 1. กองทุน -->
               <td>
@@ -176,7 +251,7 @@ function handleToggleCompare(fundId) {
               <td v-if="type === 'offshore' || type === 'thai'" class="sub max-w-[170px] truncate font-['Inter']" :title="tickers">{{ tickers }}</td>
 
               <!-- 3. น้ำหนักรวม (แสดงสำหรับ Thai และ Offshore) -->
-              <td v-if="type === 'offshore' || type === 'thai'" class="text-right font-['Inter'] sub">{{ weight }}</td>
+              <td v-if="type === 'offshore' || type === 'thai'" class="text-center font-['Inter'] sub">{{ weight }}</td>
 
               <!-- นำ <td> ของ บลจ. ออกไปแล้ว -->
 
@@ -187,7 +262,7 @@ function handleToggleCompare(fundId) {
               <td class="text-center sub">{{ minInvestment }}</td>
               
               <!-- 6. NAV/หน่วย -->
-              <td class="text-right font-['Inter'] sub">{{ fund.nav ? fund.nav.toFixed(4) : '-' }}</td>
+              <td class="text-center font-['Inter'] sub">{{ fund.nav ? fund.nav.toFixed(4) : '-' }}</td>
 
               <!-- 7. ความเสี่ยง -->
               <td class="text-center font-bold whitespace-nowrap" style="color: #475569;">
@@ -205,7 +280,7 @@ function handleToggleCompare(fundId) {
               </td>
 
               <!-- 10. Sharpe -->
-              <td class="text-right font-['Inter'] sub">{{ fund.sharpe || '-' }}</td>
+              <td class="text-center font-['Inter'] sub">{{ fund.sharpe || '-' }}</td>
 
               <!-- 11. TER -->
               <td class="text-center font-['Inter'] sub">{{ fund.fee?.toFixed(2) || '-' }}%</td>
@@ -220,13 +295,36 @@ function handleToggleCompare(fundId) {
             <FundDetailRow v-if="expandedFundId === fund.id" :fund="fund" :colspan="columnCount" :in-compare="compareOrderOf(fund.id) > -1" @compare="handleToggleCompare(fund.id)" />
           </template>
 
-          <tr v-if="!displayFunds.length">
+          <tr v-if="isLoading">
+            <td :colspan="columnCount"><LoadingIndicator label="กำลังโหลดข้อมูลกองทุน..." /></td>
+          </tr>
+          <tr v-else-if="!displayFunds.length">
             <td :colspan="columnCount" class="fund-results-empty">ไม่พบกองทุนที่ตรงกับเงื่อนไข</td>
           </tr>
         </tbody>
       </table>
     </div>
-    
+
+    <div v-if="totalPages > 1" class="flex items-center justify-center gap-3 mt-3 text-sm">
+      <button
+        type="button"
+        class="px-3 py-1 rounded border border-slate-300 disabled:opacity-40 disabled:cursor-not-allowed"
+        :disabled="currentPage <= 1"
+        @click="currentPage--"
+      >
+        ← ก่อนหน้า
+      </button>
+      <span class="text-slate-500">หน้า {{ currentPage }} / {{ totalPages }}</span>
+      <button
+        type="button"
+        class="px-3 py-1 rounded border border-slate-300 disabled:opacity-40 disabled:cursor-not-allowed"
+        :disabled="currentPage >= totalPages"
+        @click="currentPage++"
+      >
+        ถัดไป →
+      </button>
+    </div>
+
     <!-- ไม่จำเป็นต้องแก้โค้ดคอมโพเนนต์เปรียบเทียบตาราง เพราะมันผูกกับ selectedFundsList อยู่แล้ว -->
     <FundCompareTable :id="`fund-compare-${props.type}`" :selected-funds="selectedFundsList" @clear-all="clearAllCompare" @remove-fund="toggleCompare" />
     <p class="fund-results-footnote">Fundinfo v3.2.1 · Master Fund Comparison Workspace · ข้อมูลเพื่อการออกแบบ ไม่ใช่คำแนะนำการลงทุน</p>

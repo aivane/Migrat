@@ -35,9 +35,8 @@ function portfolioAllocationKey(request) {
   return `${request.marketType || 'ALL'}:${request.allocationType || 'ALL'}:${request.fundCodes.join(',')}`
 }
 
-// Secure State — public market data only (no tokens/PII), kept in-memory only.
-// Never persisted to localStorage: avoids stale/unbounded cache growth and
-// keeps this store safe to expose to devtools without a data-exposure concern.
+// Secure State — public market data only (no tokens/PII), kept in-memory only,
+// never persisted to localStorage (avoids stale/unbounded cache growth and devtools exposure).
 export const useFundinfoStore = defineStore('fundinfo', {
   state: () => ({
     fundsByType: {}, // { feeder: [...], offshore: [...], thai: [...], mixed: [...] }
@@ -99,8 +98,7 @@ export const useFundinfoStore = defineStore('fundinfo', {
           return mergedFunds
         })
         .catch((err) => {
-          // Error Handling — store only the sanitized message from fundinfoApi,
-          // never the raw exception/axios response.
+          // Error Handling — store only fundinfoApi's sanitized message, never the raw exception.
           this.error[type] = err?.message || 'ไม่สามารถโหลดข้อมูลกองทุนได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง'
           return []
         })
@@ -187,8 +185,7 @@ export const useFundinfoStore = defineStore('fundinfo', {
     async loadPortfolioAllocation(options = {}, { force = false } = {}) {
       const requestOptions = normalizePortfolioRequest(options)
 
-      // Input Validation — never construct a cache key or API query from an
-      // unvalidated market, allocation type, or fund code.
+      // Input Validation — never build a cache key or API query from unvalidated input.
       if (!requestOptions) {
         this.error['allocation:invalid'] = 'เงื่อนไขสัดส่วนการลงทุนไม่ถูกต้อง'
         return []
