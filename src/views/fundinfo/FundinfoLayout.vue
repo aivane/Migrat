@@ -61,10 +61,6 @@ function handleOutsideClick(event) {
   }
 }
 
-function goBack() {
-  router.push({ name: 'home' })
-}
-
 onMounted(() => document.addEventListener('click', handleOutsideClick))
 onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
 </script>
@@ -73,22 +69,17 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
   <div class="fundinfo-scope min-h-screen" :class="{ dark: isDark }" :style="{ '--brand': activeTab?.accent || '#2456d8' }">
     <main class="min-h-screen bg-[var(--bg)] text-[var(--txt)] font-['Prompt'] antialiased">
 
-      <header class="sticky top-0 z-30 surf brdb px-4 py-3.5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md">
-        
-        <div class="max-w-[1240px] mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4 h-full">
+      <!-- py-4 (not fixed h-16) so header height flexes with content -->
+      <header class="sticky top-0 z-30 surf brdb px-4 py-4">
 
-          <!-- Branding: < Fundinfo + Subtitle -->
-          <div>
-            <a
-              href="#"
-              class="inline-flex items-center gap-1 font-bold group"
-              title="กลับสู่หน้าหลัก"
-              @click.prevent="goBack"
-            >
-              <span class="text-3xl font-extrabold text-slate-800 dark:text-white transition group-hover:-translate-x-1">&lt;</span>
-              <span class="text-3xl font-extrabold txt tracking-tight">Fundinfo</span>
-            </a>
-            <div class="text-[9px] font-extrabold uppercase tracking-widest sub mt-0.5">INVESTMENT EXPOSURE WORKSPACE</div>
+        <div class="max-w-[1120px] mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4 h-full">
+
+          <!-- Branding: FI mark + Fundinfo / Investment Exposure Workspace -->
+          <div class="flex items-center gap-3">           
+            <div>
+              <div class="text-4xl font-extrabold txt leading-tight">Fundinfo</div>
+              <div class="text-[10px] font-bold uppercase tracking-wider sub leading-tight">Investment Exposure Workspace</div>
+            </div>
           </div>
 
           <div class="flex items-center gap-3 justify-between md:justify-end">
@@ -111,17 +102,16 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
               <div class="relative" ref="wishPanelRef">
                 <button
                   type="button"
-                  class="wishlist-trigger surf brd h-9 px-2.5 rounded-lg font-bold flex items-center gap-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+                  class="wishlist-trigger surf brd h-10 min-w-10 px-2.5 rounded-lg font-bold flex items-center gap-1"
                   title="รายการติดตาม"
                   @click="wishPanelOpen = !wishPanelOpen"
                 >
-                  <span class="wishlist-icon text-amber-500 text-sm" aria-hidden="true">★</span>
-                  <span class="num text-xs font-bold txt">{{ count }}</span>
+                  <span class="wishlist-icon" aria-hidden="true">★</span><span class="num text-[11px]">{{ count }}</span>
                 </button>
 
                 <div
                   v-if="wishPanelOpen"
-                  class="absolute right-0 mt-2 w-72 surf brd rounded-2xl z-50 overflow-hidden shadow-xl"
+                  class="absolute right-0 mt-2 w-72 surf brd rounded-xl z-50 overflow-hidden shadow-lg"
                 >
                   <div class="px-3 py-2 brdb flex items-center justify-between">
                     <span class="text-xs font-bold txt">รายการติดตาม</span>
@@ -152,8 +142,8 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
               <!-- Dark mode toggle -->
               <button
                 type="button"
-                class="surf brd w-9 h-9 rounded-lg shrink-0 flex items-center justify-center text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition"
-                title="สลับโหมดมืด/สว่าง"
+                class="surf brd w-9 h-9 rounded-lg shrink-0 flex items-center justify-center"
+                title="สลับโหมด"
                 @click="toggleTheme"
               >
                 {{ isDark ? '☀️' : '🌙' }}
@@ -164,7 +154,7 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
         </div>
       </header>
 
-      <div class="max-w-[1240px] mx-auto px-4 py-7 md:py-8">
+      <div class="max-w-[1120px] mx-auto px-4 py-7 md:py-8">
         <RouterView />
       </div>
 

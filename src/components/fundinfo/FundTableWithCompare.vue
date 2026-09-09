@@ -179,11 +179,11 @@ onUnmounted(() => {
   rowObserver = null
 })
 
-// ฟังก์ชันสำหรับจำกัดการเพิ่มลงตารางเปรียบเทียบแค่ 4 ตัว
+// ฟังก์ชันสำหรับจำกัดการเพิ่มลงตารางเปรียบเทียบแค่ 3 ตัว
 function handleToggleCompare(fundId) {
-  // หากยังไม่เคยถูกเลือก และตารางมีครบ 4 ตัวแล้ว ให้แจ้งเตือนและยกเลิก
-  if (compareOrderOf(fundId) === -1 && selectedFundsList.value.length >= 4) {
-    alert('คุณสามารถเปรียบเทียบกองทุนได้สูงสุด 4 กองทุนพร้อมกัน');
+  // หากยังไม่เคยถูกเลือก และตารางมีครบ 3 ตัวแล้ว ให้แจ้งเตือนและยกเลิก
+  if (compareOrderOf(fundId) === -1 && selectedFundsList.value.length >= 3) {
+    alert('คุณสามารถเปรียบเทียบกองทุนได้สูงสุด 3 กองทุนพร้อมกัน');
     return;
   }
   toggleCompare(fundId);
@@ -199,11 +199,15 @@ function handleToggleCompare(fundId) {
       <button type="button" class="fund-sort-button" @click="sortRiskHighToLow">ความเสี่ยงสูง → ต่ำ</button>
     </div>
 
-    <div class="fund-results-table overflow-x-auto relative">
+    <ApiErrorBanner v-if="loadError" :message="loadError" @retry="retryLoadFunds" />
+
+    <!-- เพิ่ม max-h-[300px] และ overflow-y-auto เพื่อให้แสดงประมาณ 3 กองแล้วที่เหลือให้เลื่อน -->
+    <div ref="scrollContainerRef" class="fund-results-table overflow-x-auto max-h-[250px] overflow-y-auto relative ">
       <!-- Layout Fix: table-fixed กันคอลัมน์ "สั่น"/ไม่ตรงกับ sticky thead ทุกครั้งที่ sort/filter
            เปลี่ยน displayFunds (เดิม auto width คำนวณจากความยาว content ทุกแถว ทำให้ truncate
            max-w ใน <td> "กองทุน" ทำงานไม่ตรงกับความกว้างจริงของคอลัมน์) -->
       <table class="w-full text-left table-fixed">
+        <!-- เพิ่ม sticky top-0 และพื้นหลังสีขาว (bg-white หรือสีที่ใช้) เพื่อให้หัวตารางติดขอบเวลาเลื่อน -->
         <thead class="sticky top-0 bg-[#f8fafc] z-10 shadow-sm">
           <tr>
             <th :class="type === 'offshore' || type === 'thai' ? 'w-[20%]' : 'w-[40%]'">กองทุน</th>

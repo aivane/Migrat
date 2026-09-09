@@ -10,16 +10,6 @@ defineEmits(['clear-all', 'remove-fund'])
 
 const collapsed = ref(false)
 
-// ---------- Fund colors (up to 4 funds) ----------
-const FUND_COLORS = ['#2456d8', '#12b76a', '#e0a411', '#7a5af5']
-const FUND_COLORS_ALPHA = ['rgba(36,86,216,0.15)', 'rgba(18,183,106,0.15)', 'rgba(224,164,17,0.15)', 'rgba(122,90,245,0.15)']
-
-// ---------- Chart refs ----------
-const returnChartRef = ref(null)
-const sharpeChartRef = ref(null)
-const feeChartRef = ref(null)
-const chartInstances = {}
-
 function fundType(fund) {
   return { thai: 'Thai Fund', offshore: 'Offshore Fund', feeder: 'Feeder Fund', mixed: 'Mixed Fund' }[fund.type] || 'Fund'
 }
