@@ -109,36 +109,41 @@ export function normalizeScopeLabel(label) {
   return SCOPE_LABELS[label] || label
 }
 
+// ticker/sector lookup for stock names appearing in fund holdings — real
+// per-stock financials (return, drawdown, P/E, P/B, dividend yield) now come
+// from the live /stocks/top record instead (see fundinfoApi.js's mapTopStock
+// and useFundinfoRanking.js's buildApiStockRankEntities); no market-cap field
+// exists on the API yet, so there's nothing to source a `cap` lookup from.
 export const STOCK_META = {
-  'Eli Lilly': { ticker: 'LLY', sector: 'สุขภาพ', country: 'สหรัฐฯ', ret: 33.5, dd: -18.4, div: 0.7, pe: 37.8, pb: 20.4, cap: 'US$ 775B' },
-  UnitedHealth: { ticker: 'UNH', sector: 'สุขภาพ', country: 'สหรัฐฯ', ret: -8.2, dd: -31.6, div: 1.6, pe: 17.2, pb: 5.1, cap: 'US$ 455B' },
-  'Novo Nordisk': { ticker: 'NVO', sector: 'สุขภาพ', country: 'เดนมาร์ก', ret: -18.5, dd: -34.1, div: 1.8, pe: 22.6, pb: 14.2, cap: 'US$ 310B' },
-  'Johnson & Johnson': { ticker: 'JNJ', sector: 'สุขภาพ', country: 'สหรัฐฯ', ret: 6.1, dd: -12.8, div: 3.1, pe: 15.4, pb: 5.3, cap: 'US$ 370B' },
-  AbbVie: { ticker: 'ABBV', sector: 'สุขภาพ', country: 'สหรัฐฯ', ret: 14.7, dd: -14.2, div: 3.4, pe: 16.8, pb: 32.1, cap: 'US$ 305B' },
-  'Kweichow Moutai': { ticker: '600519', sector: 'สินค้าอุปโภคบริโภค', country: 'จีน', ret: -6.2, dd: -24.8, div: 3.2, pe: 21.4, pb: 7.6, cap: 'US$ 255B' },
-  CATL: { ticker: '300750', sector: 'อุตสาหกรรม', country: 'จีน', ret: 18.4, dd: -28.3, div: 0.9, pe: 19.8, pb: 4.9, cap: 'US$ 155B' },
-  'Ping An': { ticker: '601318', sector: 'การเงิน', country: 'จีน', ret: 9.1, dd: -22.6, div: 5.1, pe: 8.2, pb: 0.9, cap: 'US$ 110B' },
-  'Midea Group': { ticker: '000333', sector: 'สินค้าอุปโภคบริโภค', country: 'จีน', ret: 14.7, dd: -17.9, div: 4.2, pe: 13.6, pb: 3.1, cap: 'US$ 78B' },
-  BYD: { ticker: '002594', sector: 'สินค้าอุปโภคบริโภค', country: 'จีน', ret: 22.5, dd: -26.7, div: 0.6, pe: 25.7, pb: 5.8, cap: 'US$ 125B' },
-  Microsoft: { ticker: 'MSFT', sector: 'เทคโนโลยี', country: 'สหรัฐฯ', ret: 18.9, dd: -16.4, div: 0.7, pe: 31.5, pb: 10.8, cap: 'US$ 3.2T' },
-  Meta: { ticker: 'META', sector: 'สื่อและแพลตฟอร์มดิจิทัล', country: 'สหรัฐฯ', ret: 35.6, dd: -19.7, div: 0.4, pe: 24.1, pb: 8.9, cap: 'US$ 1.5T' },
-  TSMC: { ticker: 'TSM', sector: 'เทคโนโลยี', country: 'ไต้หวัน', ret: 31.5, dd: -22.1, div: 1.4, pe: 23.8, pb: 7.2, cap: 'US$ 980B' },
-  LVMH: { ticker: 'MC', sector: 'สินค้าอุปโภคบริโภค', country: 'ฝรั่งเศส', ret: -4.8, dd: -27.5, div: 2.1, pe: 20.4, pb: 4.3, cap: '€ 305B' },
-  DELTA: { ticker: 'DELTA', sector: 'อิเล็กทรอนิกส์', country: 'ไทย', ret: -12.0, dd: -31.4, div: 0.4, pe: 52.3, pb: 14.8, cap: '฿ 1.4T' },
-  GULF: { ticker: 'GULF', sector: 'พลังงานและสาธารณูปโภค', country: 'ไทย', ret: 9.5, dd: -18.9, div: 1.8, pe: 29.6, pb: 5.4, cap: '฿ 540B' },
-  PTT: { ticker: 'PTT', sector: 'พลังงานและสาธารณูปโภค', country: 'ไทย', ret: -3.1, dd: -16.2, div: 6.2, pe: 9.4, pb: 0.8, cap: '฿ 940B' },
-  ADVANC: { ticker: 'ADVANC', sector: 'เทคโนโลยีและสื่อสาร', country: 'ไทย', ret: 14.2, dd: -11.8, div: 3.8, pe: 23.1, pb: 8.2, cap: '฿ 685B' },
-  KBANK: { ticker: 'KBANK', sector: 'การเงิน', country: 'ไทย', ret: 11.6, dd: -15.4, div: 4.5, pe: 7.8, pb: 0.7, cap: '฿ 305B' },
-  AOT: { ticker: 'AOT', sector: 'ขนส่งและท่องเที่ยว', country: 'ไทย', ret: -6.4, dd: -23.7, div: 1.2, pe: 36.8, pb: 6.1, cap: '฿ 880B' },
-  CPALL: { ticker: 'CPALL', sector: 'พาณิชย์', country: 'ไทย', ret: 7.9, dd: -14.3, div: 2.4, pe: 24.6, pb: 4.8, cap: '฿ 575B' },
-  KTB: { ticker: 'KTB', sector: 'การเงิน', country: 'ไทย', ret: 18.9, dd: -10.6, div: 5.3, pe: 7.2, pb: 0.8, cap: '฿ 255B' },
-  INTUCH: { ticker: 'INTUCH', sector: 'เทคโนโลยีและสื่อสาร', country: 'ไทย', ret: 12.1, dd: -9.8, div: 4.7, pe: 20.1, pb: 6.7, cap: '฿ 245B' },
-  TISCO: { ticker: 'TISCO', sector: 'การเงิน', country: 'ไทย', ret: 6.5, dd: -8.4, div: 7.2, pe: 10.6, pb: 1.9, cap: '฿ 78B' },
-  BJC: { ticker: 'BJC', sector: 'พาณิชย์', country: 'ไทย', ret: 3.1, dd: -19.8, div: 3.0, pe: 22.4, pb: 1.1, cap: '฿ 92B' },
-  COM7: { ticker: 'COM7', sector: 'พาณิชย์', country: 'ไทย', ret: -9.4, dd: -28.2, div: 3.6, pe: 18.2, pb: 6.4, cap: '฿ 58B' },
-  BCH: { ticker: 'BCH', sector: 'การแพทย์', country: 'ไทย', ret: 5.6, dd: -17.4, div: 2.8, pe: 25.1, pb: 3.9, cap: '฿ 41B' },
-  AMATA: { ticker: 'AMATA', sector: 'นิคมอุตสาหกรรม', country: 'ไทย', ret: 12.7, dd: -15.6, div: 2.5, pe: 13.8, pb: 1.4, cap: '฿ 27B' },
-  SPA: { ticker: 'SPA', sector: 'ขนส่งและท่องเที่ยว', country: 'ไทย', ret: -4.1, dd: -25.3, div: 1.0, pe: 29.4, pb: 5.7, cap: '฿ 8B' },
+  'Eli Lilly': { ticker: 'LLY', sector: 'สุขภาพ' },
+  UnitedHealth: { ticker: 'UNH', sector: 'สุขภาพ' },
+  'Novo Nordisk': { ticker: 'NVO', sector: 'สุขภาพ' },
+  'Johnson & Johnson': { ticker: 'JNJ', sector: 'สุขภาพ' },
+  AbbVie: { ticker: 'ABBV', sector: 'สุขภาพ' },
+  'Kweichow Moutai': { ticker: '600519', sector: 'สินค้าอุปโภคบริโภค' },
+  CATL: { ticker: '300750', sector: 'อุตสาหกรรม' },
+  'Ping An': { ticker: '601318', sector: 'การเงิน' },
+  'Midea Group': { ticker: '000333', sector: 'สินค้าอุปโภคบริโภค' },
+  BYD: { ticker: '002594', sector: 'สินค้าอุปโภคบริโภค' },
+  Microsoft: { ticker: 'MSFT', sector: 'เทคโนโลยี' },
+  Meta: { ticker: 'META', sector: 'สื่อและแพลตฟอร์มดิจิทัล' },
+  TSMC: { ticker: 'TSM', sector: 'เทคโนโลยี' },
+  LVMH: { ticker: 'MC', sector: 'สินค้าอุปโภคบริโภค' },
+  DELTA: { ticker: 'DELTA', sector: 'อิเล็กทรอนิกส์' },
+  GULF: { ticker: 'GULF', sector: 'พลังงานและสาธารณูปโภค' },
+  PTT: { ticker: 'PTT', sector: 'พลังงานและสาธารณูปโภค' },
+  ADVANC: { ticker: 'ADVANC', sector: 'เทคโนโลยีและสื่อสาร' },
+  KBANK: { ticker: 'KBANK', sector: 'การเงิน' },
+  AOT: { ticker: 'AOT', sector: 'ขนส่งและท่องเที่ยว' },
+  CPALL: { ticker: 'CPALL', sector: 'พาณิชย์' },
+  KTB: { ticker: 'KTB', sector: 'การเงิน' },
+  INTUCH: { ticker: 'INTUCH', sector: 'เทคโนโลยีและสื่อสาร' },
+  TISCO: { ticker: 'TISCO', sector: 'การเงิน' },
+  BJC: { ticker: 'BJC', sector: 'พาณิชย์' },
+  COM7: { ticker: 'COM7', sector: 'พาณิชย์' },
+  BCH: { ticker: 'BCH', sector: 'การแพทย์' },
+  AMATA: { ticker: 'AMATA', sector: 'นิคมอุตสาหกรรม' },
+  SPA: { ticker: 'SPA', sector: 'ขนส่งและท่องเที่ยว' },
 }
 
 export const THAI_INDUSTRY_GROUPS = [
@@ -176,96 +181,30 @@ export const OFFSHORE_THEME_GROUPS = [
   { id: 'MEGA_REIT', title: 'อสังหาริมทรัพย์ทั่วโลก', subtitle: 'Global REITs', stocks: [] },
 ]
 
+// theme: groups a feeder fund's master name into a category for the Theme
+// Pulse chart (useFundinfoThemeTrend.js). bench: the benchmark index name
+// shown next to a fund's own performance (FundPerformancePanel.vue) — its
+// return series is still a placeholder line (see performanceSeries() in
+// useFundinfoThemeTrend.js), since no live field publishes benchmark returns.
+// Both fields have no API source and are curated by hand.
+// narr/pe/pb/flow/master{}/top[] used to live here as fabricated per-theme
+// financials (analyst narrative, valuation, fund flow, master-fund detail,
+// fake top-10 holdings) — removed 2026-09-10: /api/v1/insights/themes only
+// ever returns theme_name/funds_count/total_aum_m_thb/avg_return_1m/
+// avg_return_1y, so none of those fields had (or could have) a real source,
+// and none of them were rendered anywhere in the app.
 export const INSIGHT = {
-  'Invesco NASDAQ-100 ETF': {
-    theme: 'US Technology (NASDAQ-100)',
-    narr: 'หุ้นเทคโนโลยีสหรัฐฯ ขนาดใหญ่ 100 บริษัทในตลาด NASDAQ ผู้นำเทรนด์ AI, คลาวด์ และเซมิคอนดักเตอร์ที่ขับเคลื่อนเศรษฐกิจดิจิทัลของโลก',
-    pe: 31.2, pb: 7.8, flow: 3820, bench: 'NASDAQ-100 Index',
-    master: { name: 'Invesco NASDAQ-100 ETF (QQQM)', amc: 'Invesco', aum: 'US$ 42.6B', incep: 'ต.ค. 2020', te: 0.18, pm: 'ยังคงน้ำหนักกลุ่ม AI/เซมิคอนดักเตอร์ที่ได้อานิสงส์การลงทุน data center ทั่วโลก แม้ valuation ตึงตัว แต่การเติบโตของกำไรยังหนุนราคาในระยะกลาง' },
-    top: [['NVIDIA', 'NVDA', 9.1, 62.4], ['Apple', 'AAPL', 8.8, 12.1], ['Microsoft', 'MSFT', 8.0, 18.9], ['Broadcom', 'AVGO', 4.8, 41.2], ['Amazon', 'AMZN', 4.6, 22.7], ['Meta', 'META', 4.1, 35.6], ['Alphabet', 'GOOGL', 3.4, 15.3], ['Tesla', 'TSLA', 2.6, -8.4], ['Costco', 'COST', 2.3, 19.0], ['Netflix', 'NFLX', 2.0, 28.5]],
-  },
-  'Baillie Gifford Positive Change': {
-    theme: 'Global Sustainable Growth',
-    narr: 'กองหุ้นเติบโตทั่วโลกที่คัดเฉพาะบริษัทซึ่งสร้างผลกระทบเชิงบวกต่อสังคมและสิ่งแวดล้อม เน้นนวัตกรรมและการเติบโตระยะยาว',
-    pe: 28.5, pb: 4.9, flow: -540, bench: 'MSCI ACWI',
-    master: { name: 'Baillie Gifford Positive Change', amc: 'Baillie Gifford', aum: '£ 2.1B', incep: 'ม.ค. 2017', te: 6.2, pm: 'พอร์ตกระจุกตัวในหุ้นเติบโตสูง จึงผันผวนกว่าตลาดในช่วงดอกเบี้ยสูง แต่เรายังเชื่อมั่นในธีมการเปลี่ยนผ่านพลังงานและเฮลท์แคร์ระยะยาว' },
-    top: [['NVIDIA', 'NVDA', 5.4, 62.4], ['ASML', 'ASML', 4.9, 9.8], ['MercadoLibre', 'MELI', 4.2, 24.1], ['TSMC', 'TSM', 3.8, 31.5], ['Moderna', 'MRNA', 3.1, -22.0], ['Tesla', 'TSLA', 2.9, -8.4], ['Ørsted', 'ORST', 2.4, -14.2], ['Shopify', 'SHOP', 2.2, 17.6], ['Dexcom', 'DXCM', 2.0, -5.1], ['Novonesis', 'NVZ', 1.8, 6.3]],
-  },
-  'iShares MSCI South Korea ETF': {
-    theme: 'Korea Equity',
-    narr: 'หุ้นเกาหลีใต้ ศูนย์กลางเซมิคอนดักเตอร์และเทคโนโลยีของเอเชีย โดดเด่นด้วย Samsung และ SK Hynix ผู้ผลิตชิปหน่วยความจำระดับโลก',
-    pe: 11.4, pb: 1.1, flow: 1240, bench: 'MSCI Korea Index',
-    master: { name: 'iShares MSCI South Korea ETF (EWY)', amc: 'BlackRock', aum: 'US$ 3.9B', incep: 'พ.ค. 2000', te: 0.34, pm: 'วัฏจักรหน่วยความจำ (memory) ฟื้นตัวหนุนกำไร Samsung/SK Hynix จากดีมานด์ HBM สำหรับงาน AI' },
-    top: [['Samsung Elec.', '005930', 24.9, 18.2], ['SK Hynix', '000660', 11.2, 44.6], ['Hyundai Motor', '005380', 4.1, 7.9], ['KB Financial', '105560', 3.4, 21.3], ['SK Square', '402340', 2.8, 33.1], ['Samsung SDI', '006400', 2.4, -12.5], ['NAVER', '035420', 2.2, -6.8], ['Celltrion', '068270', 2.0, 4.1], ['Kia', '000270', 1.9, 9.5], ['POSCO', '005490', 1.7, -3.2]],
-  },
-  'abrdn European Sustainable Equity': {
-    theme: 'European Sustainability',
-    narr: 'หุ้นยุโรปคุณภาพสูงที่ผ่านเกณฑ์ความยั่งยืน เน้นบริษัทที่มีความได้เปรียบเชิงแข่งขันและงบดุลแข็งแรง โดยมี valuation อยู่ในระดับต่ำกว่าหุ้นสหรัฐฯ',
-    pe: 16.8, pb: 2.3, flow: 180, bench: 'MSCI Europe Index',
-    master: { name: 'abrdn European Sustainable Equity', amc: 'abrdn', aum: '€ 1.4B', incep: 'มี.ค. 2019', te: 3.1, pm: 'ยุโรปมี valuation อยู่ในระดับต่ำกว่าสหรัฐฯ และมีแรงหนุนจากการฟื้นตัวของภาคการเงิน พอร์ตเน้นหุ้นคุณภาพที่จ่ายกระแสเงินสดสม่ำเสมอ' },
-    top: [['ASML', 'ASML', 6.8, 9.8], ['Finecobank', 'FBK', 5.2, 14.1], ['Prudential', 'PRU', 3.9, -2.3], ['Hiscox', 'HSX', 3.8, 11.7], ['LSE Group', 'LSEG', 3.6, 8.2], ['Novo Nordisk', 'NOVO', 3.4, -18.5], ['SAP', 'SAP', 3.1, 27.4], ['Schneider', 'SU', 2.8, 15.0], ['Nestlé', 'NESN', 2.5, -4.6], ['ASM Intl', 'ASM', 2.3, 19.2]],
-  },
-  'SPDR Gold Shares': {
-    theme: 'Gold (สินทรัพย์ปลอดภัย)',
-    narr: 'ทองคำแท่ง สินทรัพย์ปลอดภัยที่ป้องกันความเสี่ยงเงินเฟ้อและความไม่แน่นอนทางภูมิรัฐศาสตร์ ได้แรงหนุนจากการซื้อของธนาคารกลางทั่วโลก',
-    pe: null, pb: null, flow: 5210, bench: 'LBMA Gold Price',
-    master: { name: 'SPDR Gold Shares (GLD)', amc: 'State Street', aum: 'US$ 78.4B', incep: 'พ.ย. 2004', te: 0.09, pm: 'ทองคำทำจุดสูงสุดใหม่จากการอ่อนค่าของดอลลาร์และความต้องการสินทรัพย์ปลอดภัย ธนาคารกลางยังเป็นผู้ซื้อสุทธิต่อเนื่อง' },
-    top: [['Physical Gold Bullion', 'GOLD', 100.0, 21.0]],
-  },
-  สุขภาพ: {
-    theme: 'Global Healthcare',
-    narr: 'เมกะเทรนด์การดูแลสุขภาพระยะยาวจากสังคมสูงวัยและนวัตกรรมยา เช่น ยาลดน้ำหนัก (GLP-1) และเทคโนโลยีชีวภาพ',
-    pe: 22.4, pb: 4.1, flow: 430, bench: 'MSCI World Health Care',
-    master: { name: 'MSCI World Health Care Index', amc: 'ดัชนีอ้างอิง', aum: '—', incep: '—', te: 1.2, pm: 'ธีมเฮลท์แคร์ได้แรงหนุนจากยา GLP-1 และดีมานด์ยาในตลาดเกิดใหม่ แม้เผชิญแรงกดดันด้านราคายาในสหรัฐฯ' },
-    top: [['Eli Lilly', 'LLY', 6.2, 33.5], ['UnitedHealth', 'UNH', 5.1, -8.2], ['Novo Nordisk', 'NOVO', 4.7, -18.5], ['J&J', 'JNJ', 4.0, 6.1], ['AbbVie', 'ABBV', 3.6, 14.7], ['Merck', 'MRK', 3.2, -5.4], ['Roche', 'ROG', 2.9, 11.2], ['AstraZeneca', 'AZN', 2.7, 9.8], ['Thermo Fisher', 'TMO', 2.4, -3.1], ['Abbott', 'ABT', 2.2, 8.5]],
-  },
-  จีน: {
-    theme: 'China A-Shares',
-    narr: 'หุ้นจีนแผ่นดินใหญ่ (A-Shares) เข้าถึงการบริโภคในประเทศและผู้นำ EV/แบตเตอรี่ ราคาถูกเชิง valuation หลังปรับฐานยาว',
-    pe: 12.1, pb: 1.4, flow: 760, bench: 'CSI 300 Index',
-    master: { name: 'CSI 300 Index (อ้างอิง)', amc: 'ดัชนีอ้างอิง', aum: '—', incep: '—', te: 1.6, pm: 'มาตรการกระตุ้นเศรษฐกิจของจีนเริ่มเห็นผล ภาคบริโภคและ EV ฟื้นตัว แต่ความเสี่ยงภูมิรัฐศาสตร์ยังกดดัน sentiment' },
-    top: [['Kweichow Moutai', '600519', 5.8, -6.2], ['CATL', '300750', 4.9, 18.4], ['Ping An', '601318', 3.6, 9.1], ['Midea', '000333', 3.1, 14.7], ['BYD', '002594', 2.9, 22.5], ['CM Bank', '600036', 2.6, 11.2], ['Wuliangye', '000858', 2.2, -8.5], ['LONGi', '601012', 1.9, -15.3], ['Zijin Mining', '601899', 1.8, 26.1], ['East Money', '300059', 1.6, 7.4]],
-  },
-  หุ้นโลก: {
-    theme: 'Global Equity',
-    narr: 'กระจายลงทุนหุ้นทั่วโลก ตัวเลือกครบจบสำหรับพอร์ตหลัก ลดความเสี่ยงเฉพาะประเทศและกระจายไปยังหลายอุตสาหกรรม',
-    pe: 19.5, pb: 3.0, flow: 520, bench: 'MSCI ACWI',
-    master: { name: 'MSCI ACWI (อ้างอิง)', amc: 'ดัชนีอ้างอิง', aum: '—', incep: '—', te: 2.4, pm: 'ตลาดหุ้นโลกยังได้แรงหนุนจากหุ้นเทคสหรัฐฯ เราคงน้ำหนักหุ้นคุณภาพและกระจายไปยังตลาดพัฒนาแล้วนอกสหรัฐฯ เพื่อลดการกระจุกตัว' },
-    top: [['Microsoft', 'MSFT', 3.4, 18.9], ['Apple', 'AAPL', 3.0, 12.1], ['NVIDIA', 'NVDA', 2.9, 62.4], ['Amazon', 'AMZN', 2.2, 22.7], ['Meta', 'META', 1.7, 35.6], ['Alphabet', 'GOOGL', 1.5, 15.3], ['Novo Nordisk', 'NOVO', 1.2, -18.5], ['TSMC', 'TSM', 1.1, 31.5], ['Broadcom', 'AVGO', 1.0, 41.2], ['JPMorgan', 'JPM', 0.9, 13.8]],
-  },
-  ตราสารหนี้: {
-    theme: 'Global Bond',
-    narr: 'ตราสารหนี้ทั่วโลกคุณภาพสูง สร้างรายได้สม่ำเสมอและลดความผันผวนพอร์ต ได้ประโยชน์เมื่อดอกเบี้ยอยู่ในช่วงขาลง',
-    pe: null, pb: null, flow: 260, bench: 'Bloomberg Global Aggregate',
-    master: { name: 'Bloomberg Global Aggregate (อ้างอิง)', amc: 'ดัชนีอ้างอิง', aum: '—', incep: '—', te: 0.9, pm: 'วัฏจักรดอกเบี้ยขาลงหนุนราคาตราสารหนี้ เราเพิ่ม duration ในพันธบัตรคุณภาพสูงเพื่อรับ capital gain' },
-    top: [['US Treasury 10Y', 'UST10', 6.0, 3.2], ['German Bund', 'BUND', 4.2, 2.1], ['US Treasury 5Y', 'UST5', 3.8, 2.8], ['UK Gilt 10Y', 'GILT', 2.6, 1.4], ['JGB 10Y', 'JGB', 2.1, -0.6], ['US TIPS', 'TIPS', 1.9, 3.0], ['France OAT', 'OAT', 1.6, 1.1], ['Canada 10Y', 'CAN', 1.4, 2.2], ['Australia 10Y', 'ACGB', 1.2, 1.8], ['Corp IG', 'IG', 1.0, 4.1]],
-  },
-  'คัดเลือกเชิงรุก (Active)': {
-    theme: 'Thai Active Equity',
-    narr: 'กองหุ้นไทยบริหารเชิงรุก ผู้จัดการคัดหุ้นพื้นฐานดีเพื่อมุ่งเอาชนะดัชนี SET เหมาะกับผู้เชื่อในการคัดเลือกหุ้นรายตัว',
-    pe: 15.8, pb: 1.5, flow: -180, bench: 'SET Index',
-    master: { name: 'SET Total Return Index (อ้างอิง)', amc: 'ดัชนีอ้างอิง', aum: '—', incep: '—', te: 4.5, pm: 'ตลาดหุ้นไทยฟื้นตัวช้าตามเศรษฐกิจในประเทศ เราเน้นหุ้นที่มีกำไรเติบโตชัดเจนและได้ประโยชน์จากการท่องเที่ยว' },
-    top: [['DELTA', 'DELTA', 8.4, -12.0], ['GULF', 'GULF', 6.1, 9.5], ['PTT', 'PTT', 5.2, -3.1], ['ADVANC', 'ADVANC', 4.8, 14.2], ['KBANK', 'KBANK', 4.2, 11.6], ['CPALL', 'CPALL', 3.8, 7.9], ['AOT', 'AOT', 3.4, -6.4], ['SCB', 'SCB', 3.0, 10.1], ['BDMS', 'BDMS', 2.7, 4.3], ['GPSC', 'GPSC', 2.2, -8.7]],
-  },
-  'ดัชนี (Index)': {
-    theme: 'SET50 Index',
-    narr: 'ลงทุนล้อดัชนี SET50 หุ้นใหญ่ 50 ตัวของไทย ค่าธรรมเนียมต่ำ โปร่งใส เหมาะเป็นพอร์ตแกน (core) ของหุ้นไทย',
-    pe: 16.2, pb: 1.6, flow: 340, bench: 'SET50 Index',
-    master: { name: 'SET50 Total Return Index (อ้างอิง)', amc: 'ดัชนีอ้างอิง', aum: '—', incep: '—', te: 0.4, pm: 'กองดัชนีเน้นล้อตามตลาด เหมาะเป็นพอร์ตแกนต้นทุนต่ำ ความเบี่ยงเบนจากดัชนี (tracking error) อยู่ในระดับต่ำมาก' },
-    top: [['DELTA', 'DELTA', 10.1, -12.0], ['AOT', 'AOT', 6.4, -6.4], ['PTT', 'PTT', 5.9, -3.1], ['ADVANC', 'ADVANC', 5.2, 14.2], ['CPALL', 'CPALL', 4.7, 7.9], ['GULF', 'GULF', 4.3, 9.5], ['KBANK', 'KBANK', 4.0, 11.6], ['BDMS', 'BDMS', 3.6, 4.3], ['PTTEP', 'PTTEP', 3.2, -5.5], ['SCB', 'SCB', 3.0, 10.1]],
-  },
-  ปันผลสูง: {
-    theme: 'High Dividend (SETHD)',
-    narr: 'หุ้นไทยที่จ่ายปันผลสูงสม่ำเสมอ สร้างกระแสเงินสดระหว่างถือครอง เหมาะกับผู้ต้องการรายได้ประจำและความผันผวนต่ำ',
-    pe: 12.9, pb: 1.2, flow: 240, bench: 'SETHD Index',
-    master: { name: 'SET High Dividend 30 (อ้างอิง)', amc: 'ดัชนีอ้างอิง', aum: '—', incep: '—', te: 2.0, pm: 'หุ้นปันผลสูงมักเป็นกลุ่มพลังงานและธนาคารที่กระแสเงินสดแข็งแรง ให้ผลตอบแทนรวมสม่ำเสมอในภาวะตลาดผันผวน' },
-    top: [['PTT', 'PTT', 6.8, -3.1], ['ADVANC', 'ADVANC', 6.0, 14.2], ['KTB', 'KTB', 5.1, 18.9], ['INTUCH', 'INTUCH', 4.4, 12.1], ['TISCO', 'TISCO', 3.9, 6.5], ['SCB', 'SCB', 3.6, 10.1], ['TTB', 'TTB', 3.2, 8.0], ['BBL', 'BBL', 3.0, 5.4], ['RATCH', 'RATCH', 2.6, -4.2], ['LH', 'LH', 2.3, -7.1]],
-  },
-  'หุ้นเล็ก-กลาง': {
-    theme: 'Thai Mid/Small Cap',
-    narr: 'หุ้นขนาดกลาง-เล็กของไทยที่กำลังเติบโต ให้โอกาสสร้างผลตอบแทนสูง แลกกับความผันผวนที่มากขึ้นกว่าหุ้นขนาดใหญ่',
-    pe: 18.4, pb: 1.8, flow: 120, bench: 'sSET Index',
-    master: { name: 'sSET Index (อ้างอิง)', amc: 'ดัชนีอ้างอิง', aum: '—', incep: '—', te: 5.2, pm: 'หุ้นเล็ก-กลางให้ผลตอบแทนกระจายตัวสูง การคัดเลือกรายตัวสำคัญมาก เราเน้นบริษัทที่กำไรเติบโตและมีสภาพคล่องเพียงพอ' },
-    top: [['BJC', 'BJC', 4.2, 3.1], ['COM7', 'COM7', 3.8, -9.4], ['BCH', 'BCH', 3.3, 5.6], ['AMATA', 'AMATA', 3.0, 12.7], ['SPA', 'SPA', 2.7, -4.1], ['SAPPE', 'SAPPE', 2.5, 18.2], ['TIDLOR', 'TIDLOR', 2.3, 7.9], ['ORI', 'ORI', 2.0, -14.5], ['Sabuy', 'SABUY', 1.8, 2.2], ['MEGA', 'MEGA', 1.6, 9.0]],
-  },
+  'Invesco NASDAQ-100 ETF': { theme: 'US Technology (NASDAQ-100)', bench: 'NASDAQ-100 Index' },
+  'Baillie Gifford Positive Change': { theme: 'Global Sustainable Growth', bench: 'MSCI ACWI' },
+  'iShares MSCI South Korea ETF': { theme: 'Korea Equity', bench: 'MSCI Korea Index' },
+  'abrdn European Sustainable Equity': { theme: 'European Sustainability', bench: 'MSCI Europe Index' },
+  'SPDR Gold Shares': { theme: 'Gold (สินทรัพย์ปลอดภัย)', bench: 'LBMA Gold Price' },
+  สุขภาพ: { theme: 'Global Healthcare', bench: 'MSCI World Health Care' },
+  จีน: { theme: 'China A-Shares', bench: 'CSI 300 Index' },
+  หุ้นโลก: { theme: 'Global Equity', bench: 'MSCI ACWI' },
+  ตราสารหนี้: { theme: 'Global Bond', bench: 'Bloomberg Global Aggregate' },
+  'คัดเลือกเชิงรุก (Active)': { theme: 'Thai Active Equity', bench: 'SET Index' },
+  'ดัชนี (Index)': { theme: 'SET50 Index', bench: 'SET50 Index' },
+  ปันผลสูง: { theme: 'High Dividend (SETHD)', bench: 'SETHD Index' },
+  'หุ้นเล็ก-กลาง': { theme: 'Thai Mid/Small Cap', bench: 'sSET Index' },
 }

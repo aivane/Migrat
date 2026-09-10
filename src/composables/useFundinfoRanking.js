@@ -21,8 +21,9 @@ function isStockTab(type) {
   return type === 'offshore' || type === 'thai'
 }
 
-// /stocks/top aggregates holdings across funds and publishes return_1m/
-// return_1y/industry/sector per stock; no valuation/dividend/drawdown fields.
+// /stocks/top publishes return_1m/return_1y/industry/sector plus pe_ratio/
+// pb_ratio/dividend_yield/max_drawdown (added after this was first written —
+// see mapTopStock in fundinfoApi.js); no market-cap field yet.
 function buildApiStockRankEntities(stocks) {
   return stocks.map((stock, idx) => ({
     idx,
@@ -34,8 +35,8 @@ function buildApiStockRankEntities(stocks) {
     sector: stock.sector || (stock.marketType === 'TH' ? 'หุ้นไทย' : 'หุ้นต่างประเทศ'),
     industry: stock.industry || '',
     country: stock.marketType === 'TH' ? 'ประเทศไทย' : 'ต่างประเทศ',
-    // No valuation/dividend/drawdown from the API yet — keep comparison shape safe.
-    meta: { dd: null, pe: null, pb: null, div: null, cap: null },
+    // cap: no market-cap field from the API — stays null, not fabricated.
+    meta: { dd: stock.maxDrawdown, pe: stock.peRatio, pb: stock.pbRatio, div: stock.dividendYield, cap: null },
     // retP: same "0-for-missing" convention as fund.retP (retPRaw is null-aware).
     // /stocks/top only has return_1m/return_1y, hence 1M/1Y-only pills below.
     perf: stock.return1y ?? 0,
@@ -43,7 +44,7 @@ function buildApiStockRankEntities(stocks) {
     // Null-aware (like fund.retPRaw) so useFundinfoInsight can tell "0%" apart from "no data".
     return1m: stock.return1m,
     return1y: stock.return1y,
-    div: 0,
+    div: stock.dividendYield ?? 0,
     fundCount: stock.fundCount,
     totalHoldingValueMThb: stock.totalHoldingValueMThb,
     avgHoldingWeight: stock.avgHoldingWeight,

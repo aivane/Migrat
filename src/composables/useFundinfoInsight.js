@@ -51,7 +51,9 @@ export function useFundinfoInsight(type = 'feeder') {
       // Stock entities come only from the real /stocks/top ranking now (mock STOCK_META path removed).
       if (ent.kind === 'stock') {
         const perf = finiteNumber(ent.return1y)
-        // /stocks/top has no valuation/dividend/drawdown fields — kept null until the API adds them.
+        // /stocks/top publishes pe_ratio/pb_ratio/dividend_yield/max_drawdown now
+        // (see mapTopStock in fundinfoApi.js) — no market-cap field, so `cap`
+        // below still falls back to the aggregate holding value, not a real cap.
         return {
           id: ent.id,
           kind: 'stock',
@@ -59,10 +61,10 @@ export function useFundinfoInsight(type = 'feeder') {
           subtitle: `${ent.sector} · ${ent.country}`,
           perf,
           gap: perf === null ? null : +(perf - bench.ret).toFixed(1),
-          maxDrawdown: null,
-          pe: null,
-          pb: null,
-          div: null,
+          maxDrawdown: finiteNumber(ent.meta?.dd),
+          pe: finiteNumber(ent.meta?.pe),
+          pb: finiteNumber(ent.meta?.pb),
+          div: finiteNumber(ent.meta?.div),
           cap: ent.totalHoldingValueMThb,
           fundCount: ent.fundCount,
           totalWeight: ent.totalWeight,

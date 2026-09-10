@@ -395,6 +395,12 @@ function mapTopStock(record) {
     maxHoldingWeight,
     // API caps this list; fundCount above is the full aggregate count
     topHoldingFundCodes: mapTopHoldingFundCodes(record.top_holding_funds),
+    // Backend added these after buildApiStockRankEntities was written assuming
+    // they didn't exist (see useFundinfoRanking.js) — no market cap field yet.
+    peRatio: optionalRounded(record.pe_ratio),
+    pbRatio: optionalRounded(record.pb_ratio),
+    dividendYield: optionalRounded(record.dividend_yield),
+    maxDrawdown: optionalRounded(record.max_drawdown),
   }
 }
 
