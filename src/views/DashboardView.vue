@@ -318,17 +318,12 @@ const allocationSegments = computed(() => {
   }
 
   // 2. สัดส่วนมาตรฐาน 4 หมวดของพอร์ตภาพรวม (Feeder 31.0%, Off Shore 27.5%, Thai Fund 25.2%, Mixed Fund 16.3%) พร้อมสีกำหนดเฉพาะ
-  const feederPct = 31.0
-  const offShorePct = 27.5
-  const thaiPct = 25.2
-  const mixedPct = 16.3
+  const FALLBACK_PCT = { feeder_fund: 31.0, off_shore: 27.5, thai_fund: 25.2, mixed_fund: 16.3 }
 
-  return [
-    { key: 'feeder_fund', label: 'Feeder Fund', color: '#FF6633', icon: '🔍', bg: '#fff7ed', pct: feederPct.toFixed(1), rawPct: feederPct, val: (total * feederPct) / 100 },
-    { key: 'off_shore',   label: 'Off Shore',   color: '#06b6d4', icon: '🌎', bg: '#ecfeff', pct: offShorePct.toFixed(1), rawPct: offShorePct, val: (total * offShorePct) / 100 },
-    { key: 'thai_fund',   label: 'Thai Fund',   color: '#FF0066', icon: 'TH', bg: '#ffe4e6', isBadge: true, pct: thaiPct.toFixed(1), rawPct: thaiPct, val: (total * thaiPct) / 100 },
-    { key: 'mixed_fund',  label: 'Mixed Fund',  color: '#f59e0b', icon: '📊', bg: '#fef3c7', pct: mixedPct.toFixed(1), rawPct: mixedPct, val: (total * mixedPct) / 100 },
-  ]
+  return ALLOC_META.map(meta => {
+    const pct = FALLBACK_PCT[meta.key]
+    return { ...meta, pct: pct.toFixed(1), rawPct: pct, val: (total * pct) / 100 }
+  })
 })
 
 // ── 2. Stats Panels Normalization (Foreign & Thai Sectors) ────────────────────
