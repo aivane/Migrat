@@ -140,6 +140,7 @@ export function useFundinfoInsight(type = 'feeder') {
 
   return {
     stock,
+    bench,
     itemLabel,
     selectedEntities,
     maxSelected,

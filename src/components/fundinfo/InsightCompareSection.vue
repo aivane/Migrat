@@ -12,7 +12,7 @@ const props = defineProps({
   type: { type: String, default: 'offshore' },
 })
 
-const { cardsData, itemLabel, maxSelected, stock } = useFundinfoInsight(props.type)
+const { bench, cardsData, itemLabel, maxSelected, stock } = useFundinfoInsight(props.type)
 const { clearSelection } = useFundinfoRanking(props.type)
 
 const combinedCanvas = ref(null)
@@ -187,6 +187,12 @@ onUnmounted(destroyChart)
     <article class="comparison-panel">
       <div class="comparison-panel-body">
         <template v-if="cardsData.length && hasHistoricalSeries">
+          <!-- จุดอ้างอิง -->
+          <div class="industry-benchmark">
+            <span class="dashed-line">------</span>
+            <b>จุดอ้างอิง: {{ bench.name }}</b>
+            <span>ใช้เป็นเส้นกลางเพื่ออ่านทิศทาง ไม่ใช่ benchmark ทางการของ{{ itemLabel }}ทุกตัว</span>
+          </div>
           <p class="text-[10px] sub text-right">
             * หมายเหตุ: เส้นกราฟลากเชื่อมผลตอบแทนสะสมจริงตามช่วงเวลาที่ API เปิดเผย (1M/3M/1Y/3Y/5Y/10Y) ด้วยเส้นตรง ไม่ใช่ราคาปิดรายวันจริง
           </p>

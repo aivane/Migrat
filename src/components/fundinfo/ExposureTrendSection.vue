@@ -233,7 +233,7 @@ onUnmounted(() => detailChart?.destroy())
           <div class="industry-chart-title" style="width: 100%; text-align: left; margin-bottom: 12px;">
             <div style="display: inline-flex; align-items: center; gap: 6px;">
               <b style="font-size: 14px; font-weight: 800; color: #64748b;">เปรียบเทียบ Performance บนกราฟเดียวกัน</b>
-              <InfoTooltip text="ผลตอบแทนแบบฐาน 100 ย้อนหลัง 12 เดือน" />
+              <InfoTooltip :text="`ผลตอบแทนแบบฐาน 100 ย้อนหลัง 12 เดือน · เส้นประคือ ${bench.name}`" />
             </div>
           </div>
 
@@ -269,6 +269,13 @@ onUnmounted(() => detailChart?.destroy())
                 ล้างทั้งหมด
               </button>
             </div>
+          </div>
+
+          <!-- 3. แถบจุดอ้างอิง Benchmark (ชิดซ้ายสุด) -->
+          <div class="industry-benchmark" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 10px; font-size: 12px; text-align: center;">
+            <span class="dashed-line" style="color: #9aa9bd; font-weight: bold;">------</span>
+            <b>จุดอ้างอิง: {{ bench.name }}</b>
+            <span style="color: var(--sub);">Performance คำนวณจากตะกร้าหุ้นที่พบใน Top Holdings ไม่ใช่ดัชนีหมวดอย่างเป็นทางการ</span>
           </div>
 
           <!-- 4. ส่วนกราฟ + รายชื่อกลุ่ม (วางขนานกันในบรรทัดนี้เพื่อให้อยู่ชิดกัน) -->

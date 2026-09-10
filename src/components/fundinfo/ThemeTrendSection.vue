@@ -29,6 +29,9 @@ const {
   setView,
 } = useFundinfoThemeTrend(props.type)
 
+// Name only — no live index-return field exists (see [[project-fundinfo-known-gaps]]),
+// so no number is ever derived from this; it just labels the intended comparison.
+const BENCH_LABEL = 'MSCI ACWI'
 const detailCanvas = ref(null)
 const chartGroupsOpen = ref(true)
 let detailChart = null
@@ -113,7 +116,7 @@ onUnmounted(() => detailChart?.destroy())
 
 <div class="theme-toolbar">
       <div>
-        <b>เปรียบเทียบ Performance บนกราฟเดียวกัน <InfoTooltip text="ผลตอบแทนแบบฐาน 100 ย้อนหลัง 12 เดือน" /></b>
+        <b>เปรียบเทียบ Performance บนกราฟเดียวกัน <InfoTooltip text="ผลตอบแทนแบบฐาน 100 ย้อนหลัง 12 เดือน · เส้นประคือ MSCI ACWI" /></b>
       </div>
       
       <!-- ย้ายช่องค้นหามาไว้ที่นี่ จะแสดงและถูกดันชิดขวาเฉพาะในโหมดเลือกธีมเอง (state.view === 'all') -->
@@ -148,6 +151,11 @@ onUnmounted(() => detailChart?.destroy())
           
           <!-- ปุ่มล้างทั้งหมด -->
           <button v-if="selectedStats.length" type="button" class="theme-clear-btn" @click="clear">ล้างทั้งหมด</button>
+        </div>
+
+        <!-- จุดอ้างอิง Benchmark -->
+        <div v-if="selectedStats.length" class="theme-benchmark-text">
+          <span class="dashed-line">------</span> <b>จุดอ้างอิง: {{ BENCH_LABEL }}</b> <span>Performance คำนวณจากตะกร้าหุ้นที่พบใน Top Holdings ไม่ใช่ดัชนีหมวดอย่างเป็นทางการ</span>
         </div>
       </div>
     </div>

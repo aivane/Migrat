@@ -10,6 +10,8 @@ import { membersTrendSeries, CMP_LABELS } from './useFundinfoThemeTrend'
 // ==========================================================================
 
 const MAX_LINES = 5
+// Name only — no live index-return field exists (see [[project-fundinfo-known-gaps]]).
+const BENCH = { name: 'พอร์ตผสม 60/40' }
 
 // Real checkpoint returns averaged across member funds (see
 // useFundinfoThemeTrend.js); falls back to a flat 0% line only if none have data.
@@ -170,6 +172,7 @@ export function useFundinfoMarketLens(type = 'mixed') {
     positiveCount,
     chartLines,
     chartTitle,
+    bench: BENCH,
     setScope,
     clearScope,
   }

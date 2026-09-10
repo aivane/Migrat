@@ -16,6 +16,7 @@ const {
   positiveCount,
   chartLines,
   chartTitle,
+  bench,
   setScope,
   clearScope,
 } = useFundinfoMarketLens(props.type)
@@ -121,12 +122,18 @@ onUnmounted(() => chartInstance?.destroy())
       <div class="industry-chart-title" style="display: flex; flex-direction: column; gap: 6px; align-items: flex-start; margin-top: 20px;">
         <div style="display: flex; align-items: center; gap: 6px;">
           <b style="font-size: 14px; font-weight: 800; color: #64748b;">เปรียบเทียบ Performance บนกราฟเดียวกัน</b>
-          <InfoTooltip text="ผลตอบแทนแบบฐาน 100 ย้อนหลัง 12 เดือน" />
+          <InfoTooltip :text="`ผลตอบแทนแบบฐาน 100 ย้อนหลัง 12 เดือน · เส้นประคือ ${bench.name}`" />
         </div>
       </div>
 
+      <div class="industry-benchmark" style="width: 100%; max-width: 800px; display: flex; justify-content: center; margin: 12px auto 0 auto; margin-bottom: 12px;">
+        <span class="dashed-line">------</span>
+        <b>จุดอ้างอิง: {{ bench.name }}</b>
+        <span>Performance คำนวณจากตะกร้าหุ้นที่พบใน Top Holdings ไม่ได้อ้างอิงดัชนีอย่างเป็นทางการ</span>
+      </div>
+
       <div class="industry-chart">
-        <canvas ref="chartCanvas" :aria-label="`กราฟ ${chartTitle}`"></canvas>
+        <canvas ref="chartCanvas" :aria-label="`กราฟ ${chartTitle} เทียบ ${bench.name}`"></canvas>
       </div>
 
       <span style="font-size: 13px; color: var(--sub);">เลือกสินทรัพย์เพื่อดูเฉพาะกลุ่ม</span>
