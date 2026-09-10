@@ -36,8 +36,13 @@ function finiteApiNumber(value) {
 export function useFundAnalytics(fundRef) {
   const registrationDate = computed(() => fundRef.value?.inceptionDate || '-')
 
-  // No turnover-ratio field published by the API (see context.md §3).
-  const turnoverRatio = computed(() => '-')
+  // turnover_ratio exists on the API record (mapped in fundinfoApi.js) but was
+  // 100% null across a 1,244-fund sample (2026-09-10) — schema field added,
+  // not populated yet. Renders real data automatically once the backend does.
+  const turnoverRatio = computed(() => {
+    const value = fundRef.value?.turnoverRatio
+    return typeof value === 'number' && Number.isFinite(value) ? percentageText(value) : '-'
+  })
 
   const countryAllocation = computed(() => {
     const f = fundRef.value
@@ -61,14 +66,16 @@ export function useFundAnalytics(fundRef) {
   })
 
   // ---------- Benchmark / alpha / beta / recovery ----------
-  // API has alpha_1y/beta_1y but no recovery-period figure — surface the two
-  // it has instead of hiding all three behind one `available` flag. If the
-  // API ever adds a recovery-period field, flip `available` and
-  // recoveringPeriodText below picks it up without further changes.
+  // recovery_period (recoveryPeriodMonths, mapped in fundinfoApi.js) was 100%
+  // null across a 1,244-fund sample (2026-09-10) — schema field added, not
+  // populated yet — so `available` still resolves false for every fund today.
+  // Wired for real now so recoveringPeriodText below picks up real values
+  // automatically once the backend starts sending them, no further changes.
   const alphaBetaRecover = computed(() => {
     const f = fundRef.value
     if (!f) return { alpha: 0, beta: 0, recover: 0 }
-    return { alpha: finiteApiNumber(f.alpha), beta: finiteApiNumber(f.beta), recover: null, available: false }
+    const recover = finiteApiNumber(f.recoveryPeriodMonths)
+    return { alpha: finiteApiNumber(f.alpha), beta: finiteApiNumber(f.beta), recover, available: recover !== null }
   })
 
   const recoveringPeriodText = computed(() => {

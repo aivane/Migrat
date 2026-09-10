@@ -322,13 +322,20 @@ function normalizeFund(record, requestedType, details = {}) {
     sharpe: optionalNumber(record.sharpe_ratio_1y),
     drawdown: maxDrawdown === null ? '-' : `${rounded(maxDrawdown)}%`,
     // benchmark/alpha/beta are vs. the fund's AIMC category, not a market index.
-    // peRatio/pbRatio are still null for every fund observed — kept nullable, not defaulted.
+    // peRatio/pbRatio: populated for ~20-30% of funds (verified 2026-09-10 across
+    // feeder/offshore/thai samples), null for the rest — kept nullable, not defaulted.
     benchmarkName: safeText(record.benchmark_name, 120),
     benchmarkReturn1y: optionalNumber(record.benchmark_return_1y ?? record.category_avg_return_1y),
     alpha: optionalNumber(record.alpha_1y),
     beta: optionalNumber(record.beta_1y),
     peRatio: optionalNumber(record.pe_ratio),
     pbRatio: optionalNumber(record.pb_ratio),
+    // turnover_ratio/recovery_period exist as keys on every record but were 100%
+    // null across a 1,244-fund sample (2026-09-10) — the backend added the
+    // schema fields but hasn't started populating them. Mapped anyway so real
+    // values show up automatically once it does, same as alpha/beta below.
+    turnoverRatio: optionalNumber(record.turnover_ratio),
+    recoveryPeriodMonths: optionalNumber(record.recovery_period),
     stats: {
       sharpe: optionalRounded(record.sharpe_ratio_1y),
       sd: optionalRounded(record.std_1y),
@@ -401,6 +408,11 @@ function mapTopStock(record) {
     pbRatio: optionalRounded(record.pb_ratio),
     dividendYield: optionalRounded(record.dividend_yield),
     maxDrawdown: optionalRounded(record.max_drawdown),
+    // record.beta also exists but deliberately NOT mapped — verified 2026-09-10
+    // it only ever returns exactly 0 or 1 across every stock sampled, which
+    // isn't a real market beta (that's a continuous value, e.g. 0.8/1.2/1.5).
+    // Looks like a broken/mislabeled flag on the backend, not real data —
+    // showing it as "Beta: 1.0" would be worse than showing nothing.
   }
 }
 

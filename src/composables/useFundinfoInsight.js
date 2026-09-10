@@ -89,7 +89,7 @@ export function useFundinfoInsight(type = 'feeder') {
           maxDrawdown: ent.fund.stats.maxdd,
           fee: ent.fund.fee,
           risk: ent.fund.risk,
-          // P/E, P/B exist in the schema but are null for every fund observed — kept nullable, not defaulted.
+          // P/E, P/B: populated for ~20-30% of funds (verified 2026-09-10), null for the rest.
           pe: finiteNumber(ent.fund.peRatio),
           pb: finiteNumber(ent.fund.pbRatio),
           benchName: ent.fund.benchmarkName || null,
@@ -120,7 +120,8 @@ export function useFundinfoInsight(type = 'feeder') {
         gap: perf === null || avgBenchReturn === null ? null : +(perf - avgBenchReturn).toFixed(1),
         maxDrawdown: avgMaxDrawdown(ent),
         characteristics: null,
-        // Averaged across members — null while pe_ratio/pb_ratio are unpopulated API-side.
+        // Averaged across members that have a real value (averageFinite skips null) —
+        // pe_ratio/pb_ratio are only populated for ~20-30% of funds (verified 2026-09-10).
         pe: averageFinite(ent.members.map((fund) => fund.peRatio)),
         pb: averageFinite(ent.members.map((fund) => fund.pbRatio)),
         exposure: '',
