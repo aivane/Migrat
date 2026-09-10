@@ -408,11 +408,16 @@ function mapTopStock(record) {
     pbRatio: optionalRounded(record.pb_ratio),
     dividendYield: optionalRounded(record.dividend_yield),
     maxDrawdown: optionalRounded(record.max_drawdown),
-    // record.beta also exists but deliberately NOT mapped — verified 2026-09-10
-    // it only ever returns exactly 0 or 1 across every stock sampled, which
-    // isn't a real market beta (that's a continuous value, e.g. 0.8/1.2/1.5).
-    // Looks like a broken/mislabeled flag on the backend, not real data —
-    // showing it as "Beta: 1.0" would be worse than showing nothing.
+    // record.beta also exists but deliberately NOT mapped — full-dataset check
+    // 2026-09-10 (all 537 FOREIGN + 158 TH stocks, not just a sample): 81.8%
+    // are exactly 0, 16.4% exactly 1, 95.6% of TH rows are null — only 1.9%
+    // (FOREIGN) / 2.5% (TH) have a real-looking continuous value (0.02-1.12),
+    // and even those cluster suspiciously at the low-rank tail of the FOREIGN
+    // list (looks like an in-progress backend rollout, not finished data) plus
+    // one clear outlier (SCC beta=-2.15, implausible for a cement stock). At
+    // ~98% placeholder-or-null, showing this as "Beta: 1.0" would be
+    // indistinguishable from a real value and actively misleading. Re-check
+    // the full distribution (not a small sample) before ever wiring this up.
   }
 }
 
