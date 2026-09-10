@@ -4,7 +4,6 @@ import { useRouter } from 'vue-router'
 import Chart from 'chart.js/auto'
 import { useDashboardStore } from '../stores/dashboardStore'
 import { getFundDetail, normalizeFund } from '../services/fundApi'
-import { FUNDS } from '../data/fund2_mock_data'
 
 const dashboardStore = useDashboardStore()
 const router = useRouter()
@@ -76,50 +75,6 @@ function isValidTopHoldings(list) {
   return true
 }
 
-function generateHoldingsForFund(f) {
-  const text = `${f.name || ''} ${f.id || ''} ${f.sector || ''} ${f.method || ''}`.toLowerCase()
-  if (text.includes('เกาหลี') || text.includes('korea') || text.includes('eqtg')) {
-    return [['Samsung Electronics', 24.5], ['SK Hynix', 14.8], ['LG Energy Solution', 7.2], ['Samsung Biologics', 5.6], ['Hyundai Motor', 4.9]]
-  }
-  if (text.includes('semicon') || text.includes('semi') || text.includes('ชิป')) {
-    return [['NVIDIA Corp', 14.2], ['TSMC (Taiwan Semi)', 12.8], ['Broadcom Inc', 9.4], ['ASML Holding', 8.6], ['Qualcomm Inc', 6.5]]
-  }
-  if (text.includes('tech') || text.includes('ndq') || text.includes('nasdaq') || text.includes('เทคโนโลยี')) {
-    return [['Apple Inc', 9.2], ['Microsoft Corp', 8.8], ['NVIDIA Corp', 8.4], ['Amazon.com', 5.6], ['Alphabet Inc', 5.1]]
-  }
-  if (text.includes('gold') || text.includes('precious') || text.includes('ทอง') || text.includes('โลหะ')) {
-    return [['SPDR Gold Trust (GLD)', 82.5], ['Physical Gold Bullion', 7.8], ['Newmont Corp', 4.2], ['Barrick Gold', 3.5], ['Cash & Equivalents', 2.0]]
-  }
-  if (text.includes('health') || text.includes('biotech') || text.includes('แพทย์') || text.includes('สุขภาพ')) {
-    return [['Eli Lilly & Co', 8.6], ['UnitedHealth Group', 6.8], ['Novo Nordisk', 6.1], ['Johnson & Johnson', 4.9], ['Merck & Co', 4.4]]
-  }
-  if (text.includes('china') || text.includes('จีน') || text.includes('cha') || text.includes('csi') || text.includes('cnnext')) {
-    return [['Tencent Holdings', 8.9], ['Alibaba Group', 7.4], ['Meituan', 5.6], ['BYD Company', 5.1], ['China Construction Bank', 4.2]]
-  }
-  if (text.includes('japan') || text.includes('ญี่ปุ่น') || text.includes('nikkei')) {
-    return [['Toyota Motor', 7.2], ['Sony Group', 6.4], ['Mitsubishi UFJ', 5.8], ['Keyence Corp', 5.1], ['Tokyo Electron', 4.6]]
-  }
-  if (text.includes('india') || text.includes('อินเดีย')) {
-    return [['Reliance Industries', 9.2], ['HDFC Bank', 8.4], ['ICICI Bank', 6.9], ['Infosys', 5.8], ['Tata Consultancy', 4.7]]
-  }
-  if (text.includes('asia') || text.includes('atech') || text.includes('เอเชีย')) {
-    return [['TSMC (Taiwan Semi)', 14.5], ['Samsung Electronics', 12.1], ['Tencent Holdings', 8.4], ['SK Hynix', 6.9], ['Alibaba Group', 5.6]]
-  }
-  if (text.includes('energy') || text.includes('oil') || text.includes('พลังงาน')) {
-    return [['Exxon Mobil Corp', 11.8], ['Chevron Corp', 9.4], ['Shell PLC', 7.8], ['TotalEnergies', 6.2], ['ConocoPhillips', 5.1]]
-  }
-  if (text.includes('vietnam') || text.includes('เวียดนาม')) {
-    return [['FPT Corporation', 10.2], ['Vinhomes JSC', 8.5], ['Vinamilk', 7.4], ['Hoa Phat Group', 6.8], ['Vietcombank', 5.9]]
-  }
-  if (f.type === 'thai' || text.includes('set') || text.includes('ไทย')) {
-    return [['DELTA (เดลต้า)', 9.4], ['AOT (ท่าอากาศยานไทย)', 8.2], ['PTT (ปตท.)', 7.1], ['ADVANC (แอดวานซ์)', 5.8], ['CPALL (ซีพี ออลล์)', 5.2]]
-  }
-  if (f.type === 'mixed' || text.includes('ผสม')) {
-    return [['พันธบัตรรัฐบาลไทย 2030', 16.5], ['หุ้นกู้ PTT 2028', 8.4], ['DELTA', 6.2], ['PTT', 5.5], ['SPDR Gold Trust', 5.0]]
-  }
-  return [['NVIDIA Corp', 9.1], ['Apple Inc', 8.5], ['Microsoft Corp', 8.0], ['Amazon.com', 5.4], ['Alphabet Inc', 4.8]]
-}
-
 async function toggleFundExpand(id) {
   if (expandedFundIds.value.has(id)) {
     expandedFundIds.value.delete(id)
@@ -150,7 +105,7 @@ async function toggleFundExpand(id) {
               Number(item.holding_percent ?? item.percent ?? item.p ?? 0)
             ])
           } else {
-            fundHoldingsCache[id] = generateHoldingsForFund(fund || { id })
+            fundHoldingsCache[id] = []
           }
           await nextTick()
           if (fund) setTimeout(() => drawExpandPie(fund), 40)
@@ -158,7 +113,7 @@ async function toggleFundExpand(id) {
       } catch (e) {
         console.warn('getFundDetail failed for expand:', id, e)
         if (!fundHoldingsCache[id]) {
-          fundHoldingsCache[id] = generateHoldingsForFund(fund || { id })
+          fundHoldingsCache[id] = []
         }
       }
     }
@@ -852,9 +807,7 @@ const allUnifiedFunds = computed(() => {
       holdings: (f.top || []).map(h => [h.symbol || h.s || '', Number(h.percent || h.p || 0)])
     }
   })
-  const combined = [...apiF, ...apiTH]
-  if (combined.length > 0) return combined
-  return (FUNDS || []).map(f => ({ ...f, starred: isFavorite(f.id) }))
+  return [...apiF, ...apiTH]
 })
 
 const filteredUnifiedFunds = computed(() => {
@@ -944,12 +897,7 @@ function getFundHoldings(f) {
     return f.top.slice(0, 5).map(h => [h.symbol || h.name || h.s || '-', Number(h.percent || h.p || 0)])
   }
 
-  const mock = (FUNDS || []).find(m => m.id === id)
-  if (isValidTopHoldings(mock?.holdings)) {
-    return mock.holdings.slice(0, 5)
-  }
-
-  return generateHoldingsForFund(f)
+  return []
 }
 
 const inlineCompareOpen = ref(false)
