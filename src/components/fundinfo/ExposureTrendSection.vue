@@ -3,7 +3,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import Chart from 'chart.js/auto'
 import { useFundinfoExposureTrend, holdingIcon, trendSeries } from '../../composables/useFundinfoExposureTrend'
-import { performanceSeries, CMP_LABELS, COMPARE_COLORS, COMPARE_DASH } from '../../composables/useFundinfoThemeTrend'
+import { CMP_LABELS, COMPARE_COLORS, COMPARE_DASH } from '../../composables/useFundinfoThemeTrend'
 import InfoTooltip from '../common/InfoTooltip.vue'
 import ApiErrorBanner from '../common/ApiErrorBanner.vue'
 import LoadingIndicator from '../common/LoadingIndicator.vue'
@@ -66,6 +66,11 @@ function performanceClass(value) {
   return value >= 0 ? 'is-positive' : 'is-negative'
 }
 
+// bench.ret is null (no live index-return field) — see [[project-fundinfo-known-gaps]].
+function vsGlobal(perf) {
+  return bench.ret === null ? null : perf - bench.ret
+}
+
 function buildDetailChart() {
   if (detailChart) {
     detailChart.destroy()
@@ -85,18 +90,6 @@ function buildDetailChart() {
     tension: 0.35,
     fill: false,
   }))
-
-  datasets.push({
-    label: `${bench.name} · จุดอ้างอิง`,
-    data: performanceSeries(731, bench.ret, CMP_LABELS.length),
-    borderColor: '#9aa9bd',
-    backgroundColor: '#9aa9bd',
-    borderWidth: 1.6,
-    borderDash: [4, 3],
-    pointRadius: 0,
-    tension: 0.35,
-    fill: false,
-  })
 
   detailChart = new Chart(detailCanvas.value, {
     type: 'line',
@@ -184,7 +177,7 @@ onUnmounted(() => detailChart?.destroy())
           <strong class="kpi-blue">{{ leaderPerf?.title || '-' }}</strong>
           <small>{{ leaderPerf ? `${signed(leaderPerf.perf)} · คลิกเพื่อเพิ่มลงกราฟ` : `ยังไม่มีข้อมูลใน${label}` }}</small>
         </button>
-        <div>
+        <div v-if="outperformCount !== null">
           <span>สูงกว่า Global</span>
           <strong class="kpi-green">{{ outperformCount }}/{{ scopes.length }} กลุ่ม</strong>
           <small>ผลตอบแทน 1 ปีมากกว่า {{ bench.name }}</small>
@@ -222,7 +215,7 @@ onUnmounted(() => detailChart?.destroy())
           </div>
           <div class="industry-card-metrics">
             <div><small>ผลตอบแทน 1Y</small><b :class="performanceClass(scope.perf)">{{ signed(scope.perf) }}</b></div>
-            <div><small>เทียบ Global</small><b :class="performanceClass(scope.perf - bench.ret)">{{ signed(scope.perf - bench.ret) }}</b></div>
+            <div v-if="vsGlobal(scope.perf) !== null"><small>เทียบ Global</small><b :class="performanceClass(vsGlobal(scope.perf))">{{ signed(vsGlobal(scope.perf)) }}</b></div>
           </div>
           <div class="industry-weight"><span>น้ำหนักรวม</span><strong>{{ scope.exposure.toFixed(1) }}%</strong><em>เลือกแล้ว · กดเพื่อยกเลิก</em></div>
           <div class="industry-progress"><i :style="{ width: `${Math.min(100, Math.max(8, (scope.exposure / maxExposure) * 100))}%` }"></i></div>
@@ -240,7 +233,7 @@ onUnmounted(() => detailChart?.destroy())
           <div class="industry-chart-title" style="width: 100%; text-align: left; margin-bottom: 12px;">
             <div style="display: inline-flex; align-items: center; gap: 6px;">
               <b style="font-size: 14px; font-weight: 800; color: #64748b;">เปรียบเทียบ Performance บนกราฟเดียวกัน</b>
-              <InfoTooltip :text="`ผลตอบแทนแบบฐาน 100 ย้อนหลัง 12 เดือน · เส้นประคือ ${bench.name}`" />
+              <InfoTooltip text="ผลตอบแทนแบบฐาน 100 ย้อนหลัง 12 เดือน" />
             </div>
           </div>
 
@@ -278,13 +271,6 @@ onUnmounted(() => detailChart?.destroy())
             </div>
           </div>
 
-          <!-- 3. แถบจุดอ้างอิง Benchmark (ชิดซ้ายสุด) -->
-          <div class="industry-benchmark" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 10px; font-size: 12px; text-align: center;">
-            <span class="dashed-line" style="color: #9aa9bd; font-weight: bold;">------</span>
-            <b>จุดอ้างอิง: {{ bench.name }}</b>
-            <span style="color: var(--sub);">Performance คำนวณจากตะกร้าหุ้นที่พบใน Top Holdings ไม่ใช่ดัชนีหมวดอย่างเป็นทางการ</span>
-          </div>
-
           <!-- 4. ส่วนกราฟ + รายชื่อกลุ่ม (วางขนานกันในบรรทัดนี้เพื่อให้อยู่ชิดกัน) -->
           <div class="industry-chart-with-list-wrapper">
             <!-- พื้นที่วาดกราฟ -->
@@ -307,7 +293,7 @@ onUnmounted(() => detailChart?.destroy())
                   <small>{{ scope.subtitle }}</small>
                   <div>
                     <span>1Y <strong :class="performanceClass(scope.perf)">{{ signed(scope.perf) }}</strong></span>
-                    <span>vs Global <strong :class="performanceClass(scope.perf - bench.ret)">{{ signed(scope.perf - bench.ret) }}</strong></span>
+                    <span v-if="vsGlobal(scope.perf) !== null">vs Global <strong :class="performanceClass(vsGlobal(scope.perf))">{{ signed(vsGlobal(scope.perf)) }}</strong></span>
                     <span>น้ำหนัก <strong>{{ scope.exposure.toFixed(1) }}%</strong></span>
                   </div>
                 </article>

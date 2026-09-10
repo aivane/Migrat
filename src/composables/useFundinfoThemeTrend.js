@@ -6,7 +6,6 @@ import { useFundinfoStore } from '../stores/fundinfoStore'
 // prototype. Groups feeder funds by INSIGHT[master].theme (or first tag), then
 // computes momentum/acceleration per theme so up to 7 can be compared on one chart.
 
-const GLOBAL_RETURN = 12.8
 const CMP_LABEL_COUNT = 13
 
 // Build the 13-point month timeline relative to today instead of a hardcoded
@@ -34,21 +33,13 @@ export const COMPARE_COLORS = ['#2456d8', '#0e9f6e', '#e0a411', '#7a5af5', '#e25
 export const COMPARE_DASH = [[], [8, 3], [3, 2], [10, 3, 2, 3], [6, 2], [2, 2], [12, 3]]
 const MAX_SELECTED = 7
 
-// Deterministic pseudo-random walk, seeded so charts are stable across
-// renders/reloads (same approach as the prototype). Still used for the fixed
-// benchmark reference line (SET TRI / MSCI ACWI / พอร์ตผสม 60/40) — those
-// returns have no live API field yet; still an open item, unlike the real
-// per-scope lines below.
-export function performanceSeries(seed, fin, n = CMP_LABELS.length) {
-  let s = seed
-  const noise = [0]
-  for (let i = 1; i < n; i++) {
-    s = (s * 9301 + 49297) % 233280
-    noise.push((s / 233280 - 0.5) * 10 + Math.sin(i * 0.9 + (seed % 5)) * 2.8)
-  }
-  const end = noise[n - 1]
-  return noise.map((v, i) => +(100 + (fin * i) / (n - 1) + v - (end * i) / (n - 1)).toFixed(1))
-}
+// performanceSeries() used to draw a fabricated pseudo-random benchmark
+// reference line (SET TRI / MSCI ACWI / พอร์ตผสม 60/40) — removed 2026-09-10.
+// Confirmed via the backend's full OpenAPI route list (66 routes) that no
+// endpoint publishes a market/index return; the benchmark line and every
+// vs-benchmark comparison (gap/vsGlobal/outperformCount) now render as "no
+// data" instead, per the no-fabricated-data policy — see
+// [[project-fundinfo-known-gaps]].
 
 // Turns real cumulative-return checkpoints (fund.retPRaw — m1/q1/y1/y3/y5/y10,
 // null when genuinely unavailable) into an index series (base 100 = today),
@@ -152,7 +143,8 @@ function themePulseStats(scope) {
     momentum,
     accel: +(momentum - prior).toFixed(1),
     flow,
-    vsGlobal: +(scope.perf - GLOBAL_RETURN).toFixed(1),
+    // No live benchmark-index field exists — see [[project-fundinfo-known-gaps]].
+    vsGlobal: null,
     fundCount: members.length,
     sparkColor: scope.perf >= 0 ? '#0e9f6e' : '#dc2626',
   }
@@ -212,7 +204,8 @@ export function useFundinfoThemeTrend(type = 'feeder') {
   // the summary badges should read "of what you're looking at", not "of everything".
   const positiveCount = computed(() => selectedStats.value.filter((s) => s.scope.perf > 0).length)
   const acceleratingCount = computed(() => selectedStats.value.filter((s) => s.accel > 1).length)
-  const outperformCount = computed(() => selectedStats.value.filter((s) => s.vsGlobal > 0).length)
+  // null (not 0) — no live benchmark to compare against, see [[project-fundinfo-known-gaps]].
+  const outperformCount = computed(() => null)
 
   const interesting = computed(() => [...stats.value].sort((a, b) => b.q1 - a.q1 || b.flow - a.flow).slice(0, 3))
 

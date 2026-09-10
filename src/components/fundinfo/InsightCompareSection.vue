@@ -4,7 +4,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import Chart from 'chart.js/auto'
 import { COMPARE_COLORS, COMPARE_DASH, useFundinfoInsight } from '../../composables/useFundinfoInsight'
 import { useFundinfoRanking } from '../../composables/useFundinfoRanking'
-import { CMP_LABELS, performanceSeries } from '../../composables/useFundinfoThemeTrend'
+import { CMP_LABELS } from '../../composables/useFundinfoThemeTrend'
 import { formatPercent } from '../../utils/fundinfoFormat'
 import InfoTooltip from '../common/InfoTooltip.vue'
 
@@ -12,7 +12,7 @@ const props = defineProps({
   type: { type: String, default: 'offshore' },
 })
 
-const { bench, cardsData, itemLabel, maxSelected, stock } = useFundinfoInsight(props.type)
+const { cardsData, itemLabel, maxSelected, stock } = useFundinfoInsight(props.type)
 const { clearSelection } = useFundinfoRanking(props.type)
 
 const combinedCanvas = ref(null)
@@ -135,19 +135,6 @@ function createChart(canvas, entries) {
     fill: false,
   }))
 
-  datasets.push({
-    label: `${bench.name} · จุดอ้างอิง`,
-    data: performanceSeries(731, bench.ret, CMP_LABELS.length),
-    borderColor: '#94a3b8',
-    backgroundColor: '#94a3b8',
-    borderDash: [5, 4],
-    borderWidth: 1.8,
-    tension: 0.3,
-    pointRadius: 0,
-    pointHoverRadius: 4,
-    fill: false,
-  })
-
   combinedChart = new Chart(canvas, {
     type: 'line',
     data: { labels: CMP_LABELS, datasets },
@@ -200,12 +187,6 @@ onUnmounted(destroyChart)
     <article class="comparison-panel">
       <div class="comparison-panel-body">
         <template v-if="cardsData.length && hasHistoricalSeries">
-          <!-- จุดอ้างอิง -->
-          <div class="industry-benchmark">
-            <span class="dashed-line">------</span>
-            <b>จุดอ้างอิง: {{ bench.name }}</b>
-            <span>ใช้เป็นเส้นกลางเพื่ออ่านทิศทาง ไม่ใช่ benchmark ทางการของ{{ itemLabel }}ทุกตัว</span>
-          </div>
           <p class="text-[10px] sub text-right">
             * หมายเหตุ: เส้นกราฟลากเชื่อมผลตอบแทนสะสมจริงตามช่วงเวลาที่ API เปิดเผย (1M/3M/1Y/3Y/5Y/10Y) ด้วยเส้นตรง ไม่ใช่ราคาปิดรายวันจริง
           </p>

@@ -3,7 +3,7 @@
 import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import Chart from 'chart.js/auto'
 import { useFundinfoMarketLens } from '../../composables/useFundinfoMarketLens'
-import { performanceSeries, CMP_LABELS, COMPARE_COLORS } from '../../composables/useFundinfoThemeTrend'
+import { CMP_LABELS, COMPARE_COLORS } from '../../composables/useFundinfoThemeTrend'
 import InfoTooltip from '../common/InfoTooltip.vue'
 
 const props = defineProps({ type: { type: String, default: 'mixed' } })
@@ -16,7 +16,6 @@ const {
   positiveCount,
   chartLines,
   chartTitle,
-  bench,
   setScope,
   clearScope,
 } = useFundinfoMarketLens(props.type)
@@ -44,19 +43,6 @@ function buildChart() {
     tension: .28,
     fill: false,
   }))
-
-  sets.push({
-    label: `${bench.name} · จุดอ้างอิง`,
-    scopeId: null,
-    data: performanceSeries(731, bench.ret, CMP_LABELS.length),
-    borderColor: '#9aa9bd',
-    backgroundColor: '#9aa9bd',
-    borderWidth: 1.5,
-    borderDash: [5, 3],
-    pointRadius: 0,
-    tension: .28,
-    fill: false,
-  })
 
   chartInstance = new Chart(chartCanvas.value, {
     type: 'line',
@@ -135,18 +121,12 @@ onUnmounted(() => chartInstance?.destroy())
       <div class="industry-chart-title" style="display: flex; flex-direction: column; gap: 6px; align-items: flex-start; margin-top: 20px;">
         <div style="display: flex; align-items: center; gap: 6px;">
           <b style="font-size: 14px; font-weight: 800; color: #64748b;">เปรียบเทียบ Performance บนกราฟเดียวกัน</b>
-          <InfoTooltip :text="`ผลตอบแทนแบบฐาน 100 ย้อนหลัง 12 เดือน · เส้นประคือ ${bench.name}`" />
+          <InfoTooltip text="ผลตอบแทนแบบฐาน 100 ย้อนหลัง 12 เดือน" />
         </div>
       </div>
 
-      <div class="industry-benchmark" style="width: 100%; max-width: 800px; display: flex; justify-content: center; margin: 12px auto 0 auto; margin-bottom: 12px;">
-        <span class="dashed-line">------</span>
-        <b>จุดอ้างอิง: {{ bench.name }}</b>
-        <span>Performance คำนวณจากตะกร้าหุ้นที่พบใน Top Holdings ไม่ได้อ้างอิงดัชนีอย่างเป็นทางการ</span>
-      </div>
-
       <div class="industry-chart">
-        <canvas ref="chartCanvas" :aria-label="`กราฟ ${chartTitle} เทียบ ${bench.name}`"></canvas>
+        <canvas ref="chartCanvas" :aria-label="`กราฟ ${chartTitle}`"></canvas>
       </div>
 
       <span style="font-size: 13px; color: var(--sub);">เลือกสินทรัพย์เพื่อดูเฉพาะกลุ่ม</span>

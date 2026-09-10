@@ -182,11 +182,13 @@ export const OFFSHORE_THEME_GROUPS = [
 ]
 
 // theme: groups a feeder fund's master name into a category for the Theme
-// Pulse chart (useFundinfoThemeTrend.js). bench: the benchmark index name
-// shown next to a fund's own performance (FundPerformancePanel.vue) — its
-// return series is still a placeholder line (see performanceSeries() in
-// useFundinfoThemeTrend.js), since no live field publishes benchmark returns.
-// Both fields have no API source and are curated by hand.
+// Pulse chart (useFundinfoThemeTrend.js). bench: just the benchmark index
+// NAME shown as reference text next to a fund's own performance
+// (FundPerformancePanel.vue, "เกณฑ์อ้างอิง: ...") — no numeric return is
+// attached to it or fabricated from it. The fabricated benchmark RETURN
+// line/comparisons (performanceSeries(), BENCHMARKS.ret) were removed
+// 2026-09-10 — see [[project-fundinfo-known-gaps]]. Both fields have no API
+// source and are curated by hand.
 // narr/pe/pb/flow/master{}/top[] used to live here as fabricated per-theme
 // financials (analyst narrative, valuation, fund flow, master-fund detail,
 // fake top-10 holdings) — removed 2026-09-10: /api/v1/insights/themes only

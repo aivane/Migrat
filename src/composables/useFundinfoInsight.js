@@ -6,14 +6,18 @@ import { CMP_LABELS, checkpointSeries } from './useFundinfoThemeTrend'
 // 'mixed' (ported from a prototype that skipped it too). Reuses useFundinfoRanking(type)'s
 // selection so this always matches what's picked in Section 2's Ranking Cards.
 
-const GLOBAL_RETURN = 12.8
 export const COMPARE_COLORS = ['#2456d8', '#0e9f6e', '#e0a411', '#7a5af5', '#e2557a', '#0891b2', '#f04438']
 export const COMPARE_DASH = [[], [8, 3], [3, 2], [10, 3, 2, 3], [6, 2], [2, 2], [12, 3]]
 
+// ret: null — no live market-index return field exists (confirmed 2026-09-10
+// against the backend's full OpenAPI route list, see
+// [[project-fundinfo-known-gaps]]). name/short stay as the intended
+// comparison index for when it does; every consumer must treat a null ret
+// as "no benchmark data" and hide the comparison, not compute against it.
 const BENCHMARKS = {
-  thai: { name: 'SET TRI', ret: 3.2, short: 'SET' },
-  offshore: { name: 'MSCI ACWI', ret: GLOBAL_RETURN, short: 'Global' },
-  feeder: { name: 'MSCI ACWI', ret: GLOBAL_RETURN, short: 'Global' },
+  thai: { name: 'SET TRI', ret: null, short: 'SET' },
+  offshore: { name: 'MSCI ACWI', ret: null, short: 'Global' },
+  feeder: { name: 'MSCI ACWI', ret: null, short: 'Global' },
 }
 
 function finiteNumber(value) {
@@ -60,7 +64,7 @@ export function useFundinfoInsight(type = 'feeder') {
           title: `${ent.ticker} · ${ent.name}`,
           subtitle: `${ent.sector} · ${ent.country}`,
           perf,
-          gap: perf === null ? null : +(perf - bench.ret).toFixed(1),
+          gap: perf === null || bench.ret === null ? null : +(perf - bench.ret).toFixed(1),
           maxDrawdown: finiteNumber(ent.meta?.dd),
           pe: finiteNumber(ent.meta?.pe),
           pb: finiteNumber(ent.meta?.pb),
@@ -136,7 +140,6 @@ export function useFundinfoInsight(type = 'feeder') {
 
   return {
     stock,
-    bench,
     itemLabel,
     selectedEntities,
     maxSelected,
