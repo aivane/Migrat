@@ -92,7 +92,7 @@ onUnmounted(() => detailChart?.destroy())
       <div class="theme-summary" aria-label="สรุปแนวโน้มธีม">
         <span>บวก 1Y <b>{{ positiveCount }}/{{ selectedStats.length }}</b></span>
         <span>เร่งขึ้น <b>{{ acceleratingCount }}/{{ selectedStats.length }}</b></span>
-        <span v-if="outperformCount !== null">เหนือ Global <b>{{ outperformCount }}/{{ selectedStats.length }}</b></span>
+        <span>เหนือ Global <b>{{ outperformCount !== null ? `${outperformCount}/${selectedStats.length}` : '-' }}</b></span>
       </div>
     </header>
 
@@ -165,7 +165,7 @@ onUnmounted(() => detailChart?.destroy())
             <small>{{ s.fundCount }} กองทุน</small>
             <div>
               <span>1Y <strong :class="s.scope.perf >= 0 ? 'text-pos' : 'text-neg'">{{ s.scope.perf > 0 ? '+' : '' }}{{ s.scope.perf }}%</strong></span>
-              <span v-if="s.vsGlobal !== null">vs Global <strong :class="s.vsGlobal >= 0 ? 'text-pos' : 'text-neg'">{{ s.vsGlobal > 0 ? '+' : '' }}{{ s.vsGlobal }}%</strong></span>
+              <span>vs Global <strong :class="s.vsGlobal !== null ? (s.vsGlobal >= 0 ? 'text-pos' : 'text-neg') : ''">{{ s.vsGlobal !== null ? `${s.vsGlobal > 0 ? '+' : ''}${s.vsGlobal}%` : '-' }}</strong></span>
               <span>เงินไหลเข้า <strong :class="s.flow >= 0 ? 'text-pos' : 'text-neg'">{{ s.flow > 0 ? '+' : '' }}฿{{ formatFlow(s.flow) }}</strong></span>
             </div>
           </article>

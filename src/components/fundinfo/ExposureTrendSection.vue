@@ -177,9 +177,9 @@ onUnmounted(() => detailChart?.destroy())
           <strong class="kpi-blue">{{ leaderPerf?.title || '-' }}</strong>
           <small>{{ leaderPerf ? `${signed(leaderPerf.perf)} · คลิกเพื่อเพิ่มลงกราฟ` : `ยังไม่มีข้อมูลใน${label}` }}</small>
         </button>
-        <div v-if="outperformCount !== null">
+        <div>
           <span>สูงกว่า Global</span>
-          <strong class="kpi-green">{{ outperformCount }}/{{ scopes.length }} กลุ่ม</strong>
+          <strong class="kpi-green">{{ outperformCount !== null ? `${outperformCount}/${scopes.length} กลุ่ม` : '-' }}</strong>
           <small>ผลตอบแทน 1 ปีมากกว่า {{ bench.name }}</small>
         </div>
         <button type="button" :disabled="!topExposure" @click="topExposure && toggle(topExposure.id)">
@@ -215,7 +215,7 @@ onUnmounted(() => detailChart?.destroy())
           </div>
           <div class="industry-card-metrics">
             <div><small>ผลตอบแทน 1Y</small><b :class="performanceClass(scope.perf)">{{ signed(scope.perf) }}</b></div>
-            <div v-if="vsGlobal(scope.perf) !== null"><small>เทียบ Global</small><b :class="performanceClass(vsGlobal(scope.perf))">{{ signed(vsGlobal(scope.perf)) }}</b></div>
+            <div><small>เทียบ Global</small><b :class="vsGlobal(scope.perf) !== null ? performanceClass(vsGlobal(scope.perf)) : ''">{{ vsGlobal(scope.perf) !== null ? signed(vsGlobal(scope.perf)) : '-' }}</b></div>
           </div>
           <div class="industry-weight"><span>น้ำหนักรวม</span><strong>{{ scope.exposure.toFixed(1) }}%</strong><em>เลือกแล้ว · กดเพื่อยกเลิก</em></div>
           <div class="industry-progress"><i :style="{ width: `${Math.min(100, Math.max(8, (scope.exposure / maxExposure) * 100))}%` }"></i></div>
@@ -293,7 +293,7 @@ onUnmounted(() => detailChart?.destroy())
                   <small>{{ scope.subtitle }}</small>
                   <div>
                     <span>1Y <strong :class="performanceClass(scope.perf)">{{ signed(scope.perf) }}</strong></span>
-                    <span v-if="vsGlobal(scope.perf) !== null">vs Global <strong :class="performanceClass(vsGlobal(scope.perf))">{{ signed(vsGlobal(scope.perf)) }}</strong></span>
+                    <span>vs Global <strong :class="vsGlobal(scope.perf) !== null ? performanceClass(vsGlobal(scope.perf)) : ''">{{ vsGlobal(scope.perf) !== null ? signed(vsGlobal(scope.perf)) : '-' }}</strong></span>
                     <span>น้ำหนัก <strong>{{ scope.exposure.toFixed(1) }}%</strong></span>
                   </div>
                 </article>
