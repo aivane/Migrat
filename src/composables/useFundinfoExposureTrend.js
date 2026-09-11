@@ -7,6 +7,7 @@ import {
   OFFSHORE_REGION_GROUPS,
   OFFSHORE_THEME_GROUPS,
 } from '../data/fundinfoConstants'
+import { useFundinfoBenchmark } from './useFundinfoBenchmark'
 import { useFundinfoStore } from '../stores/fundinfoStore'
 import { membersTrendSeries, CMP_LABELS } from './useFundinfoThemeTrend'
 
@@ -20,14 +21,6 @@ import { membersTrendSeries, CMP_LABELS } from './useFundinfoThemeTrend'
 // Matches Feeder/Ranking Card compare caps (useFundinfoThemeTrend.js /
 // useFundinfoRanking.js) — no reason to cap Offshore/Thai 2 lower.
 const MAX_SELECTED = 7
-
-// ret: null — no live market-index return field exists, see
-// [[project-fundinfo-known-gaps]]. name/short document the intended
-// comparison index; outperformCount below returns null, not a fabricated count.
-const BENCHMARKS = {
-  thai: { name: 'SET TRI', ret: null, short: 'SET' },
-  offshore: { name: 'MSCI ACWI', ret: null, short: 'Global' },
-}
 
 // ไอคอนต่อหมวด (ครอบคลุมเฉพาะหมวดที่ใช้จริงใน THAI_INDUSTRY_GROUPS / OFFSHORE_REGION_GROUPS / OFFSHORE_THEME_GROUPS)
 const HOLDING_ICON = {
@@ -146,7 +139,7 @@ export function useFundinfoExposureTrend(type = 'offshore') {
     fundinfoStore.loadPortfolioAllocation({ marketType: stockMarket }, { force: true })
   }
 
-  const bench = BENCHMARKS[type] || BENCHMARKS.offshore
+  const { bench, series: benchmarkChartSeries } = useFundinfoBenchmark(type)
   const accent = FUND_TYPES[type]?.accent || '#2456d8'
   const foreign = type === 'offshore'
 
@@ -168,7 +161,7 @@ export function useFundinfoExposureTrend(type = 'offshore') {
   )
   const topExposure = computed(() => [...scopes.value].sort((a, b) => b.exposure - a.exposure)[0])
   const leaderPerf = computed(() => [...scopes.value].sort((a, b) => b.perf - a.perf)[0])
-  const outperformCount = computed(() => (bench.ret === null ? null : scopes.value.filter((s) => s.perf > bench.ret).length))
+  const outperformCount = computed(() => (bench.value.ret === null ? null : scopes.value.filter((s) => s.perf > bench.value.ret).length))
 
   const selectedStats = computed(() =>
     state.selected.map((id) => scopes.value.find((s) => s.id === id)).filter(Boolean),
@@ -268,6 +261,7 @@ export function useFundinfoExposureTrend(type = 'offshore') {
     foreign,
     accent,
     bench,
+    benchmarkChartSeries,
     label,
     method,
     example,

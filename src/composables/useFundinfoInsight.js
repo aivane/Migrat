@@ -1,4 +1,5 @@
 import { computed } from 'vue'
+import { useFundinfoBenchmark } from './useFundinfoBenchmark'
 import { useFundinfoRanking } from './useFundinfoRanking'
 import { CMP_LABELS, checkpointSeries } from './useFundinfoThemeTrend'
 
@@ -8,17 +9,6 @@ import { CMP_LABELS, checkpointSeries } from './useFundinfoThemeTrend'
 
 export const COMPARE_COLORS = ['#2456d8', '#0e9f6e', '#e0a411', '#7a5af5', '#e2557a', '#0891b2', '#f04438']
 export const COMPARE_DASH = [[], [8, 3], [3, 2], [10, 3, 2, 3], [6, 2], [2, 2], [12, 3]]
-
-// ret: null — no live market-index return field exists (confirmed 2026-09-10
-// against the backend's full OpenAPI route list, see
-// [[project-fundinfo-known-gaps]]). name/short stay as the intended
-// comparison index for when it does; every consumer must treat a null ret
-// as "no benchmark data" and hide the comparison, not compute against it.
-const BENCHMARKS = {
-  thai: { name: 'SET TRI', ret: null, short: 'SET' },
-  offshore: { name: 'MSCI ACWI', ret: null, short: 'Global' },
-  feeder: { name: 'MSCI ACWI', ret: null, short: 'Global' },
-}
 
 function finiteNumber(value) {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
@@ -44,7 +34,7 @@ function sumAum(members) {
 
 export function useFundinfoInsight(type = 'feeder') {
   const stock = type === 'offshore' || type === 'thai'
-  const bench = BENCHMARKS[type] || BENCHMARKS.feeder
+  const { bench, series: benchmarkChartSeries } = useFundinfoBenchmark(type)
   const itemLabel = stock ? (type === 'offshore' ? 'หุ้นต่างประเทศ' : 'หุ้นไทย') : type === 'feeder' ? 'Master Fund' : 'ธีมลงทุน'
 
   // instance เดียวกับที่ RankingCardsSection.vue (Section 2) ใช้ — เลือก/ถอดที่นั่นสะท้อนมาที่นี่ทันที
@@ -64,11 +54,12 @@ export function useFundinfoInsight(type = 'feeder') {
           title: `${ent.ticker} · ${ent.name}`,
           subtitle: `${ent.sector} · ${ent.country}`,
           perf,
-          gap: perf === null || bench.ret === null ? null : +(perf - bench.ret).toFixed(1),
+          gap: perf === null || bench.value.ret === null ? null : +(perf - bench.value.ret).toFixed(1),
           maxDrawdown: finiteNumber(ent.meta?.dd),
           pe: finiteNumber(ent.meta?.pe),
           pb: finiteNumber(ent.meta?.pb),
           div: finiteNumber(ent.meta?.div),
+          beta: finiteNumber(ent.meta?.beta),
           cap: ent.totalHoldingValueMThb,
           fundCount: ent.fundCount,
           totalWeight: ent.totalWeight,
@@ -96,6 +87,7 @@ export function useFundinfoInsight(type = 'feeder') {
           // P/E, P/B: populated for ~20-30% of funds (verified 2026-09-10), null for the rest.
           pe: finiteNumber(ent.fund.peRatio),
           pb: finiteNumber(ent.fund.pbRatio),
+          beta: finiteNumber(ent.fund.beta),
           benchName: ent.fund.benchmarkName || null,
           holdings: (ent.fund.top5 || [])
             .slice(0, 3)
@@ -128,6 +120,7 @@ export function useFundinfoInsight(type = 'feeder') {
         // pe_ratio/pb_ratio are only populated for ~20-30% of funds (verified 2026-09-10).
         pe: averageFinite(ent.members.map((fund) => fund.peRatio)),
         pb: averageFinite(ent.members.map((fund) => fund.pbRatio)),
+        beta: averageFinite(ent.members.map((fund) => fund.beta)),
         exposure: '',
         topTickers: '',
         aum: sumAum(ent.members),
@@ -141,6 +134,7 @@ export function useFundinfoInsight(type = 'feeder') {
   return {
     stock,
     bench,
+    benchmarkChartSeries,
     itemLabel,
     selectedEntities,
     maxSelected,

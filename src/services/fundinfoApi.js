@@ -8,6 +8,8 @@ export const VALID_STOCK_MARKETS = Object.freeze(['TH', 'FOREIGN'])
 export const VALID_ALLOCATION_TYPES = Object.freeze(['ASSET_CLASS', 'SECTOR', 'REGIONAL'])
 // Allows `/` — 3 of 34 real theme ids contain it (e.g. "global_bond_fully_f/x_hedge").
 export const THEME_ID_PATTERN = /^[a-z0-9_/-]{1,64}$/
+// Verified live against /api/v1/benchmarks/list 2026-09-11 (7 real benchmarks).
+export const VALID_BENCHMARK_IDS = Object.freeze(['SET_INDEX', 'SET50', 'MSCI_ACWI', 'SP500_TR', 'PORT_60_40', 'GLOBAL_BOND', 'NASDAQ_100'])
 
 // Screener enum values, verified live against the backend. Store the raw enum
 // string as the id (no translation table) so a future rename fails loud
@@ -68,6 +70,10 @@ export function isValidAllocationType(allocationType) {
 
 export function isValidThemeId(themeId) {
   return typeof themeId === 'string' && THEME_ID_PATTERN.test(themeId)
+}
+
+export function isValidBenchmarkId(benchmarkId) {
+  return typeof benchmarkId === 'string' && VALID_BENCHMARK_IDS.includes(benchmarkId)
 }
 
 // direct calls the API directly; wordpress routes through admin-ajax.php. Both real, no mock mode.
@@ -408,16 +414,11 @@ function mapTopStock(record) {
     pbRatio: optionalRounded(record.pb_ratio),
     dividendYield: optionalRounded(record.dividend_yield),
     maxDrawdown: optionalRounded(record.max_drawdown),
-    // record.beta also exists but deliberately NOT mapped — full-dataset check
-    // 2026-09-10 (all 537 FOREIGN + 158 TH stocks, not just a sample): 81.8%
-    // are exactly 0, 16.4% exactly 1, 95.6% of TH rows are null — only 1.9%
-    // (FOREIGN) / 2.5% (TH) have a real-looking continuous value (0.02-1.12),
-    // and even those cluster suspiciously at the low-rank tail of the FOREIGN
-    // list (looks like an in-progress backend rollout, not finished data) plus
-    // one clear outlier (SCC beta=-2.15, implausible for a cement stock). At
-    // ~98% placeholder-or-null, showing this as "Beta: 1.0" would be
-    // indistinguishable from a real value and actively misleading. Re-check
-    // the full distribution (not a small sample) before ever wiring this up.
+    // record.beta was 98% placeholder junk (0/1) as of 2026-09-10 — re-checked
+    // 2026-09-11, the backend finished its rollout: FOREIGN is now 84.5% null
+    // + 14.9% real continuous values (e.g. NVDA 2.22, AAPL 1.09 — plausible),
+    // TH is 96.2% real. Safe to map now; still null-aware for the remaining gaps.
+    beta: optionalRounded(record.beta),
   }
 }
 
@@ -563,6 +564,79 @@ export async function fetchFundNavHistory(id, { days = 365 } = {}) {
       .sort((a, b) => a.date.localeCompare(b.date))
   } catch {
     return [] // non-critical chart data — callers fall back to checkpoint returns
+  }
+}
+
+function mapBenchmark(record) {
+  if (!isRecord(record)) return null
+
+  const id = safeText(record.benchmark_id, 32)
+  if (!isValidBenchmarkId(id)) return null
+
+  return {
+    id,
+    symbol: safeText(record.symbol, 32),
+    name: safeText(record.name, 120) || id,
+    category: safeText(record.category, 64),
+    return1m: optionalNumber(record.return_1m),
+    return3m: optionalNumber(record.return_3m),
+    return6m: optionalNumber(record.return_6m),
+    return1y: optionalNumber(record.return_1y),
+    return3y: optionalNumber(record.return_3y),
+    return5y: optionalNumber(record.return_5y),
+    returnYtd: optionalNumber(record.return_ytd),
+  }
+}
+
+// /api/v1/benchmarks/list — real market/index benchmarks (SET Index, MSCI
+// ACWI, a 60/40 portfolio, etc), added by the backend 2026-09-11. No
+// WordPress admin-ajax action exists for this yet, so it's direct-mode only
+// for now (falls back to an empty list under 'wordpress', same safe-failure
+// shape as every other fetch* here).
+export async function fetchBenchmarks() {
+  try {
+    if (fundinfoApiMode === 'wordpress') return []
+
+    const payload = await reconGet('/api/v1/benchmarks/list')
+    // unwrapResponse() already unwraps {status, data} -> data, so payload is
+    // normally the array itself; the payload?.data check is defensive only,
+    // matching extractNavHistory()'s pattern above.
+    const records = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload) ? payload : []
+    return records.map(mapBenchmark).filter(Boolean)
+  } catch {
+    return [] // non-critical — callers fall back to a "no data" comparison
+  }
+}
+
+function mapBenchmarkHistoryPoint(record) {
+  if (!isRecord(record)) return null
+
+  const date = safeIsoDate(record.date)
+  const close = optionalNumber(record.close)
+  if (!date || close === null || close <= 0) return null
+
+  return { date, close }
+}
+
+// Daily benchmark price series, sorted oldest-first. `period` matches the
+// API's own enum (1m/3m/6m/1y/3y/5y/ytd/max) — 1y covers the 13-point
+// CMP_LABELS window with room to spare.
+export async function fetchBenchmarkHistory(benchmarkId, { period = '1y' } = {}) {
+  if (!isValidBenchmarkId(benchmarkId)) {
+    throw new Error('Invalid benchmark id requested')
+  }
+
+  try {
+    if (fundinfoApiMode === 'wordpress') return []
+
+    const payload = await reconGet(`/api/v1/benchmarks/${encodeURIComponent(benchmarkId)}/history`, { period })
+    const records = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload) ? payload : []
+    return records
+      .map(mapBenchmarkHistoryPoint)
+      .filter(Boolean)
+      .sort((a, b) => a.date.localeCompare(b.date))
+  } catch {
+    return [] // non-critical chart data — callers render "no data" instead
   }
 }
 

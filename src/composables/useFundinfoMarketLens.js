@@ -1,4 +1,5 @@
 import { computed, reactive, watch } from 'vue'
+import { useFundinfoBenchmark } from './useFundinfoBenchmark'
 import { useFundinfoStore } from '../stores/fundinfoStore'
 import { membersTrendSeries, CMP_LABELS } from './useFundinfoThemeTrend'
 
@@ -10,8 +11,6 @@ import { membersTrendSeries, CMP_LABELS } from './useFundinfoThemeTrend'
 // ==========================================================================
 
 const MAX_LINES = 5
-// Name only — no live index-return field exists (see [[project-fundinfo-known-gaps]]).
-const BENCH = { name: 'พอร์ตผสม 60/40' }
 
 // Real checkpoint returns averaged across member funds (see
 // useFundinfoThemeTrend.js); falls back to a flat 0% line only if none have data.
@@ -51,6 +50,8 @@ function trendStats(scope) {
 }
 
 export function useFundinfoMarketLens(type = 'mixed') {
+  const { bench, series: benchmarkChartSeries } = useFundinfoBenchmark(type)
+
   // Store-backed (fundinfoStore.js -> fundinfoApi.js) — scopes/stats recompute
   // automatically once the store's data arrives.
   const fundinfoStore = useFundinfoStore()
@@ -172,7 +173,8 @@ export function useFundinfoMarketLens(type = 'mixed') {
     positiveCount,
     chartLines,
     chartTitle,
-    bench: BENCH,
+    bench,
+    benchmarkChartSeries,
     setScope,
     clearScope,
   }

@@ -17,6 +17,7 @@ const {
   chartLines,
   chartTitle,
   bench,
+  benchmarkChartSeries,
   setScope,
   clearScope,
 } = useFundinfoMarketLens(props.type)
@@ -44,6 +45,21 @@ function buildChart() {
     tension: .28,
     fill: false,
   }))
+
+  if (benchmarkChartSeries.value) {
+    sets.push({
+      label: `${bench.value.name} · จุดอ้างอิง`,
+      scopeId: null,
+      data: benchmarkChartSeries.value,
+      borderColor: '#9aa9bd',
+      backgroundColor: '#9aa9bd',
+      borderWidth: 1.5,
+      borderDash: [5, 3],
+      pointRadius: 0,
+      tension: .28,
+      fill: false,
+    })
+  }
 
   chartInstance = new Chart(chartCanvas.value, {
     type: 'line',
@@ -79,6 +95,8 @@ watch(
   () => `${chartLines.value.map((item) => item.scope.id).join(',')}|${state.scope}`,
   async () => { await nextTick(); buildChart() },
 )
+
+watch(benchmarkChartSeries, async () => { await nextTick(); buildChart() })
 
 onMounted(async () => { await nextTick(); buildChart() })
 onUnmounted(() => chartInstance?.destroy())

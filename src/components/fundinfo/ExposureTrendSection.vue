@@ -13,6 +13,7 @@ const props = defineProps({ type: { type: String, default: 'offshore' } })
 const {
   foreign,
   bench,
+  benchmarkChartSeries,
   label,
   method,
   example,
@@ -66,9 +67,9 @@ function performanceClass(value) {
   return value >= 0 ? 'is-positive' : 'is-negative'
 }
 
-// bench.ret is null (no live index-return field) — see [[project-fundinfo-known-gaps]].
+// bench.ret is null until the real benchmark's return_1y loads (or the API is briefly down).
 function vsGlobal(perf) {
-  return bench.ret === null ? null : perf - bench.ret
+  return bench.value.ret === null ? null : perf - bench.value.ret
 }
 
 function buildDetailChart() {
@@ -90,6 +91,20 @@ function buildDetailChart() {
     tension: 0.35,
     fill: false,
   }))
+
+  if (benchmarkChartSeries.value) {
+    datasets.push({
+      label: `${bench.value.name} · จุดอ้างอิง`,
+      data: benchmarkChartSeries.value,
+      borderColor: '#9aa9bd',
+      backgroundColor: '#9aa9bd',
+      borderDash: [4, 3],
+      borderWidth: 1.6,
+      pointRadius: 0,
+      tension: 0.35,
+      fill: false,
+    })
+  }
 
   detailChart = new Chart(detailCanvas.value, {
     type: 'line',
@@ -126,6 +141,11 @@ watch(
     buildDetailChart()
   },
 )
+
+watch(benchmarkChartSeries, async () => {
+  await nextTick()
+  buildDetailChart()
+})
 
 watch(
   () => state.scopeMode,

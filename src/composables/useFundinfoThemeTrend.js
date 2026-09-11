@@ -1,5 +1,6 @@
 import { computed, reactive, watch } from 'vue'
 import { INSIGHT } from '../data/fundinfoConstants'
+import { useFundinfoBenchmark } from './useFundinfoBenchmark'
 import { useFundinfoStore } from '../stores/fundinfoStore'
 
 // Theme/Sector Trend ("Theme Pulse", Feeder Fund) — ported from the v3.2.1
@@ -34,12 +35,10 @@ export const COMPARE_DASH = [[], [8, 3], [3, 2], [10, 3, 2, 3], [6, 2], [2, 2], 
 const MAX_SELECTED = 7
 
 // performanceSeries() used to draw a fabricated pseudo-random benchmark
-// reference line (SET TRI / MSCI ACWI / พอร์ตผสม 60/40) — removed 2026-09-10.
-// Confirmed via the backend's full OpenAPI route list (66 routes) that no
-// endpoint publishes a market/index return; the benchmark line and every
-// vs-benchmark comparison (gap/vsGlobal/outperformCount) now render as "no
-// data" instead, per the no-fabricated-data policy — see
-// [[project-fundinfo-known-gaps]].
+// reference line — removed 2026-09-10 when no benchmark endpoint existed yet.
+// The backend added real ones 2026-09-11 (/api/v1/benchmarks/list +
+// .../history); useFundinfoBenchmark.js wires those in now — see
+// [[project-fundinfo-known-gaps]] for the full history of this gap.
 
 // Turns real cumulative-return checkpoints (fund.retPRaw — m1/q1/y1/y3/y5/y10,
 // null when genuinely unavailable) into an index series (base 100 = today),
@@ -124,7 +123,7 @@ function computeThemeScopes(funds) {
   }))
 }
 
-function themePulseStats(scope) {
+function themePulseStats(scope, globalReturn) {
   const series = trendSeries(scope)
   const members = scope.members
   const last = series.length - 1
@@ -143,8 +142,9 @@ function themePulseStats(scope) {
     momentum,
     accel: +(momentum - prior).toFixed(1),
     flow,
-    // No live benchmark-index field exists — see [[project-fundinfo-known-gaps]].
-    vsGlobal: null,
+    // globalReturn is the real MSCI ACWI return_1y (/api/v1/benchmarks/list),
+    // null only until it loads — see useFundinfoBenchmark.js.
+    vsGlobal: globalReturn === null ? null : +(scope.perf - globalReturn).toFixed(1),
     fundCount: members.length,
     sparkColor: scope.perf >= 0 ? '#0e9f6e' : '#dc2626',
   }
@@ -166,13 +166,15 @@ export function formatFlow(value) {
 }
 
 export function useFundinfoThemeTrend(type = 'feeder') {
+  const { bench, series: benchmarkChartSeries } = useFundinfoBenchmark(type)
+
   // Store-backed: fundinfoStore.js -> fundinfoApi.js.
   const fundinfoStore = useFundinfoStore()
   fundinfoStore.loadFundsByType(type)
   const funds = computed(() => fundinfoStore.getFundsByType(type))
 
   const scopes = computed(() => computeThemeScopes(funds.value))
-  const stats = computed(() => scopes.value.map(themePulseStats))
+  const stats = computed(() => scopes.value.map((scope) => themePulseStats(scope, bench.value.ret)))
 
   const state = reactive({
     view: 'interesting', // 'interesting' (top 3 by momentum) | 'all' (searchable)
@@ -204,8 +206,8 @@ export function useFundinfoThemeTrend(type = 'feeder') {
   // the summary badges should read "of what you're looking at", not "of everything".
   const positiveCount = computed(() => selectedStats.value.filter((s) => s.scope.perf > 0).length)
   const acceleratingCount = computed(() => selectedStats.value.filter((s) => s.accel > 1).length)
-  // null (not 0) — no live benchmark to compare against, see [[project-fundinfo-known-gaps]].
-  const outperformCount = computed(() => null)
+  // null (not 0) until bench.ret loads — see useFundinfoBenchmark.js.
+  const outperformCount = computed(() => (bench.value.ret === null ? null : selectedStats.value.filter((s) => s.vsGlobal > 0).length))
 
   const interesting = computed(() => [...stats.value].sort((a, b) => b.q1 - a.q1 || b.flow - a.flow).slice(0, 3))
 
@@ -251,6 +253,8 @@ export function useFundinfoThemeTrend(type = 'feeder') {
     positiveCount,
     acceleratingCount,
     outperformCount,
+    bench,
+    benchmarkChartSeries,
     maxReached,
     maxSelected: MAX_SELECTED,
     orderOf,

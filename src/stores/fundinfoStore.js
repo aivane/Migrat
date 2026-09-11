@@ -1,10 +1,13 @@
 import { defineStore } from 'pinia'
 import {
+  fetchBenchmarkHistory,
+  fetchBenchmarks,
   fetchFundById,
   fetchFundsByType,
   fetchPortfolioAllocation,
   fetchTopStocksByMarket,
   isValidAllocationType,
+  isValidBenchmarkId,
   isValidFundId,
   isValidFundType,
   isValidStockMarket,
@@ -15,6 +18,8 @@ const listRequests = new Map()
 const detailRequests = new Map()
 const topStockRequests = new Map()
 const portfolioAllocationRequests = new Map()
+const benchmarksRequest = { current: null }
+const benchmarkHistoryRequests = new Map()
 
 function normalizePortfolioRequest({ marketType = '', fundCodes = [], allocationType = '' } = {}) {
   const normalizedMarketType = String(marketType || '').toUpperCase()
@@ -43,6 +48,8 @@ export const useFundinfoStore = defineStore('fundinfo', {
     fundById: {}, // single-fund detail cache, keyed by validated id
     topStocksByMarket: {}, // { TH: [...], FOREIGN: [...] }, public ranking data only
     portfolioAllocationByKey: {}, // public aggregate allocation data, keyed by validated request scope
+    benchmarks: null, // real market/index benchmarks (/api/v1/benchmarks/list), loaded once
+    benchmarkHistoryById: {}, // { SET_INDEX: [...], MSCI_ACWI: [...], ... }
     detailLoaded: {}, // distinguishes an API profile from an item returned by the list endpoint
     loading: {}, // per-key ('feeder', 'SCBNDQ', ...) in-flight flags
     error: {}, // per-key sanitized user-facing error message
@@ -56,6 +63,8 @@ export const useFundinfoStore = defineStore('fundinfo', {
       const request = normalizePortfolioRequest(options)
       return request ? state.portfolioAllocationByKey[portfolioAllocationKey(request)] || [] : []
     },
+    getBenchmarkById: (state) => (id) => (state.benchmarks || []).find((b) => b.id === id) || null,
+    getBenchmarkHistory: (state) => (id) => state.benchmarkHistoryById[id] || [],
     hasFundDetail: (state) => (id) => Boolean(state.detailLoaded[id]),
     isLoading: (state) => (key) => Boolean(state.loading[key]),
     getError: (state) => (key) => state.error[key] || null,
@@ -220,6 +229,65 @@ export const useFundinfoStore = defineStore('fundinfo', {
       return request
     },
 
+    async loadBenchmarks({ force = false } = {}) {
+      if (!force && this.benchmarks) return this.benchmarks
+      if (benchmarksRequest.current) return benchmarksRequest.current
+
+      this.loading.benchmarks = true
+      this.error.benchmarks = null
+
+      const request = fetchBenchmarks()
+        .then((benchmarks) => {
+          this.benchmarks = benchmarks
+          return benchmarks
+        })
+        .catch(() => {
+          // fetchBenchmarks() already swallows its own errors into [] — this
+          // catch is just a safety net, never expected to fire.
+          this.error.benchmarks = 'ไม่สามารถโหลดข้อมูลดัชนีอ้างอิงได้ในขณะนี้'
+          return []
+        })
+        .finally(() => {
+          this.loading.benchmarks = false
+          benchmarksRequest.current = null
+        })
+
+      benchmarksRequest.current = request
+      return request
+    },
+
+    async loadBenchmarkHistory(benchmarkId, { force = false } = {}) {
+      const requestKey = `benchmarkHistory:${benchmarkId}`
+
+      if (!isValidBenchmarkId(benchmarkId)) {
+        this.error[requestKey] = 'ดัชนีอ้างอิงที่ร้องขอไม่ถูกต้อง'
+        return []
+      }
+
+      if (!force && this.benchmarkHistoryById[benchmarkId]) return this.benchmarkHistoryById[benchmarkId]
+      if (benchmarkHistoryRequests.has(benchmarkId)) return benchmarkHistoryRequests.get(benchmarkId)
+
+      this.loading[requestKey] = true
+      this.error[requestKey] = null
+
+      const request = fetchBenchmarkHistory(benchmarkId)
+        .then((history) => {
+          this.benchmarkHistoryById[benchmarkId] = history
+          return history
+        })
+        .catch(() => {
+          this.error[requestKey] = 'ไม่สามารถโหลดข้อมูลย้อนหลังของดัชนีอ้างอิงได้ในขณะนี้'
+          return []
+        })
+        .finally(() => {
+          this.loading[requestKey] = false
+          benchmarkHistoryRequests.delete(benchmarkId)
+        })
+
+      benchmarkHistoryRequests.set(benchmarkId, request)
+      return request
+    },
+
     clearErrors() {
       this.error = {}
     },
@@ -230,6 +298,8 @@ export const useFundinfoStore = defineStore('fundinfo', {
       this.fundById = {}
       this.topStocksByMarket = {}
       this.portfolioAllocationByKey = {}
+      this.benchmarks = null
+      this.benchmarkHistoryById = {}
       this.detailLoaded = {}
       this.loading = {}
       this.error = {}

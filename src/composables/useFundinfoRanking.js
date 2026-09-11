@@ -22,8 +22,8 @@ function isStockTab(type) {
 }
 
 // /stocks/top publishes return_1m/return_1y/industry/sector plus pe_ratio/
-// pb_ratio/dividend_yield/max_drawdown (added after this was first written —
-// see mapTopStock in fundinfoApi.js); no market-cap field yet.
+// pb_ratio/dividend_yield/max_drawdown/beta (added after this was first
+// written — see mapTopStock in fundinfoApi.js); no market-cap field yet.
 function buildApiStockRankEntities(stocks) {
   return stocks.map((stock, idx) => ({
     idx,
@@ -36,7 +36,7 @@ function buildApiStockRankEntities(stocks) {
     industry: stock.industry || '',
     country: stock.marketType === 'TH' ? 'ประเทศไทย' : 'ต่างประเทศ',
     // cap: no market-cap field from the API — stays null, not fabricated.
-    meta: { dd: stock.maxDrawdown, pe: stock.peRatio, pb: stock.pbRatio, div: stock.dividendYield, cap: null },
+    meta: { dd: stock.maxDrawdown, pe: stock.peRatio, pb: stock.pbRatio, div: stock.dividendYield, beta: stock.beta, cap: null },
     // retP: same "0-for-missing" convention as fund.retP (retPRaw is null-aware).
     // /stocks/top only has return_1m/return_1y, hence 1M/1Y-only pills below.
     perf: stock.return1y ?? 0,
