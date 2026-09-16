@@ -2,6 +2,7 @@ import { computed } from 'vue'
 import { useFundinfoBenchmark } from './useFundinfoBenchmark'
 import { useFundinfoRanking } from './useFundinfoRanking'
 import { CMP_LABELS, checkpointSeries } from './useFundinfoThemeTrend'
+import { formatAumMThb } from '../utils/fundinfoFormat'
 
 // Section 3: Master Fund / Stock Comparison (deep-dive). Deliberately not built for
 // 'mixed' (ported from a prototype that skipped it too). Reuses useFundinfoRanking(type)'s
@@ -29,7 +30,7 @@ function sumAum(members) {
   const finite = members.map((fund) => finiteNumber(fund.aum)).filter((value) => value !== null)
   if (!finite.length) return null
   const total = finite.reduce((sum, value) => sum + value, 0)
-  return `฿${Math.round(total).toLocaleString('th-TH')} ล้านบ.`
+  return formatAumMThb(total)
 }
 
 export function useFundinfoInsight(type = 'feeder') {
@@ -60,7 +61,9 @@ export function useFundinfoInsight(type = 'feeder') {
           pb: finiteNumber(ent.meta?.pb),
           div: finiteNumber(ent.meta?.div),
           beta: finiteNumber(ent.meta?.beta),
-          cap: ent.totalHoldingValueMThb,
+          // totalHoldingValueMThb is already in ล้านบาท (million-THB) units — same format as
+          // Master Fund's AUM (sumAum) below, so the compare table shows "ล้านบ." consistently.
+          cap: formatAumMThb(ent.totalHoldingValueMThb),
           fundCount: ent.fundCount,
           totalWeight: ent.totalWeight,
           holdings: `น้ำหนักเฉลี่ย ${ent.avgHoldingWeight.toFixed(1)}%`,
@@ -84,6 +87,7 @@ export function useFundinfoInsight(type = 'feeder') {
           maxDrawdown: ent.fund.stats.maxdd,
           fee: ent.fund.fee,
           risk: ent.fund.risk,
+          aum: formatAumMThb(ent.fund.aum),
           // P/E, P/B: populated for ~20-30% of funds (verified 2026-09-10), null for the rest.
           pe: finiteNumber(ent.fund.peRatio),
           pb: finiteNumber(ent.fund.pbRatio),

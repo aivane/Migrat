@@ -9,8 +9,6 @@ const navLinks = [
   { to: '/', label: 'หน้าหลัก' },
   { to: '/dashboard', label: 'FUNDINFO' },
   { to: '/insights', label: 'IDEAFUND' },
-  { to: '/articles', label: 'บทความ/บทวิเคราะห์' },
-  { to: '/Faq', label: 'คำถามที่พบบ่อย' },
 ]
 </script>
 

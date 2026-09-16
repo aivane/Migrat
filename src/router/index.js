@@ -1,10 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { isValidFundId } from '../services/fundinfoApi'
 import { updateSeoMeta } from '../utils/seo'
-import ArticleDetailView from '../views/ArticleDetailView.vue'
-import ArticlesView from '../views/ArticlesView.vue'
 import DashboardView from '../views/DashboardView.vue'
-import FaqView from '../views/FaqView.vue'
 import ForgotPasswordView from '../views/ForgotPasswordView.vue'
 import HomeView from '../views/HomeView.vue'
 import InsightsView from '../views/InsightsView.vue'
@@ -69,28 +66,6 @@ const routes = [
     },
   },
   {
-    path: '/articles',
-    name: 'articles',
-    component: ArticlesView,
-    meta: {
-      title: 'บทความและบทวิเคราะห์การลงทุน | IDEA FUND',
-      description:
-        'รวมบทความวิเคราะห์การลงทุน กองทุนรวม หุ้น เทรนด์ตลาดการเงิน และคำแนะนำจากผู้เชี่ยวชาญ',
-      keywords: 'บทความการลงทุน, บทวิเคราะห์กองทุน, ข่าวหุ้น, เทรนด์การลงทุน, IDEA FUND Articles',
-    },
-  },
-  {
-    path: '/articles/:id',
-    name: 'article-detail',
-    component: ArticleDetailView,
-    props: true,
-    meta: {
-      title: 'บทวิเคราะห์การลงทุน | IDEA FUND',
-      description: 'อ่านบทความวิเคราะห์เจาะลึกข้อมูลกองทุนและการลงทุนบน IDEA FUND',
-      keywords: 'บทความวิเคราะห์, กองทุนรวม, บทความการเงิน',
-    },
-  },
-  {
     path: '/login',
     name: 'login',
     component: LoginView,
@@ -129,16 +104,6 @@ const routes = [
       title: 'โปรไฟล์ผู้ใช้งาน | IDEA FUND',
       description: 'จัดการข้อมูลส่วนตัวและบัญชีผู้ใช้งานบน IDEA FUND',
       keywords: 'โปรไฟล์, Profile, บัญชีผู้ใช้',
-    },
-  },
-  {
-    path: '/Faq',
-    name: 'faq',
-    component: FaqView,
-    meta: {
-      title: 'คำถามที่พบบ่อย (FAQ) | IDEA FUND',
-      description: 'ตอบคำถามข้อสงสัยการใช้งานระบบ IDEA FUND วิธีการค้นหากองทุน ข้อมูลการสมัครสมาชิก และอื่นๆ',
-      keywords: 'FAQ, คำถามที่พบบ่อย, ช่วยเหลือ, การใช้งาน IDEA FUND',
     },
   },
   {

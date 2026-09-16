@@ -1,6 +1,6 @@
 ---
 name: verify-live-backend
-description: Use whenever a user reports something broken, missing, wrong, or hung on any page backed by this app's APIs (fundinfo, dashboard, insights, auth, articles, FAQ) — "ค้าง"/"ไม่โหลด"/"พัง"/hangs/404/wrong data/only one item shows/etc. Also use before claiming an API-related bug is fixed, or before proposing a fix for anything that touches src/services/*.js. Make sure to reach for this skill even if the user just says a page "looks wrong" or "doesn't show data" without mentioning an API at all — in this codebase that is almost always an API-layer issue, not a rendering bug. Do not skip straight to reading service-file source and guessing; this skill exists because that guess is wrong often enough to matter.
+description: Use whenever a user reports something broken, missing, wrong, or hung on any page backed by this app's APIs (fundinfo, dashboard, insights, auth) — "ค้าง"/"ไม่โหลด"/"พัง"/hangs/404/wrong data/only one item shows/etc. Also use before claiming an API-related bug is fixed, or before proposing a fix for anything that touches src/services/*.js. Make sure to reach for this skill even if the user just says a page "looks wrong" or "doesn't show data" without mentioning an API at all — in this codebase that is almost always an API-layer issue, not a rendering bug. Do not skip straight to reading service-file source and guessing; this skill exists because that guess is wrong often enough to matter.
 ---
 
 # Verify Against the Live Backend
