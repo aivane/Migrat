@@ -286,7 +286,6 @@ function createFundinfoRanking(type) {
         valueType: 'flow',
         pillKind: 'flow',
         pillOptions: [
-          ['w1', '1W'],
           ['m1', '1M'],
           ['y1', '1Y'],
         ],
@@ -382,7 +381,7 @@ function createFundinfoRanking(type) {
         list: sortRanked(rows, (a, b) => b.flowP[state.rk.flow] - a.flowP[state.rk.flow]),
         valueType: 'flow',
         pillKind: 'flow',
-        pillOptions: [['w1', '1W'], ['m1', '1M'], ['y1', '1Y']],
+        pillOptions: [['m1', '1M'], ['y1', '1Y']],
       },
       {
         key: 'fund-return',
