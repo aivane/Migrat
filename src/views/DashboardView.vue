@@ -106,14 +106,15 @@ function setScreenerCategory(cat) {
 
 const fundHoldingsCache = reactive({})
 
+// เดิม require >= 3 รายการ (หรือ >= 4 ถ้าชื่อขึ้นต้นด้วย "หน่วยลงทุน"/"กองทุนเปิด"/"master fund")
+// ทำให้ Feeder Fund ซึ่ง top_holdings จริงๆ มีแค่ 1 รายการ (ตัว Master Fund เอง เช่น
+// "หน่วยลงทุน ISHARES MSCI SOUTH KOREA ETF" 99.66%) ไม่โชว์ Top Holdings เลยทั้งที่ backend
+// ส่งข้อมูลจริงมาให้ — ตอนนี้รับรายการที่มีอย่างน้อย 1 ชิ้นและมีชื่อจริง ไม่ fabricate เพิ่ม
 function isValidTopHoldings(list) {
-  if (!list || !Array.isArray(list) || list.length < 3) return false
+  if (!list || !Array.isArray(list) || list.length < 1) return false
   const first = list[0]
-  const name = String(Array.isArray(first) ? first[0] : (first.symbol || first.name || first.clean_holding_name || '')).trim().toLowerCase()
-  if ((name.startsWith('หน่วยลงทุน') || name.startsWith('กองทุนเปิด') || name.startsWith('master fund')) && list.length < 4) {
-    return false
-  }
-  return true
+  const name = String(Array.isArray(first) ? first[0] : (first.symbol || first.name || first.clean_holding_name || '')).trim()
+  return name.length > 0
 }
 
 async function toggleFundExpand(id) {
@@ -2535,15 +2536,14 @@ onMounted(loadInitialDashboard)
                     </td>
                     <td class="py-3.5 px-3 text-center whitespace-nowrap" @click.stop>
                       <div class="flex items-center justify-center">
-                        <button 
-                          type="button"
-                          @click="openInsightModal(f)" 
-                          class="px-3 py-1.5 rounded-xl bg-brand-50 hover:bg-brand-600 text-brand-700 hover:text-white dark:bg-slate-800 dark:hover:bg-brand-600 dark:text-brand-300 dark:hover:text-white text-xs sm:text-sm font-black transition inline-flex items-center gap-1.5 shadow-2xs cursor-pointer" 
-                          title="เปิดหน้าต่างข้อมูลเชิงลึก & พอร์ตการถือหุ้น"
+                        <RouterLink
+                          :to="{ name: 'fundinfo-detail', params: { id: f.id } }"
+                          class="px-3 py-1.5 rounded-xl bg-brand-50 hover:bg-brand-600 text-brand-700 hover:text-white dark:bg-slate-800 dark:hover:bg-brand-600 dark:text-brand-300 dark:hover:text-white text-xs sm:text-sm font-black transition inline-flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                          title="ไปที่หน้ารายละเอียดกองทุน"
                         >
                           <span>ดูข้อมูล</span>
                           <span>🔍</span>
-                        </button>
+                        </RouterLink>
                       </div>
                     </td>
                   </tr>
@@ -2767,7 +2767,7 @@ onMounted(loadInitialDashboard)
                       <!-- Color bar ด้านบนบอกสีกองทุน -->
                       <div class="h-1.5 w-full rounded-full mb-3" :style="{ background: COMPARE_COLORS[idx % COMPARE_COLORS.length] }"></div>
                       
-                      <!-- รหัสกองทุน + ป้ายผู้ชนะ + ป้ายประเภทกองทุนพร้อมสัญลักษณ์ -->
+                      <!-- รหัสกองทุน + ป้ายผู้ชนะ + ป้ายประเภทกองทุนพร้อมสัญลักษณ์ (ต่อท้ายรหัสกองทุน) -->
                       <div class="flex items-center gap-2 flex-wrap mb-1.5">
                         <span class="text-lg font-bold num tracking-tight" :style="{ color: COMPARE_COLORS[idx % COMPARE_COLORS.length] }">{{ f.id }}</span>
                         <span v-if="highestPerfFundId === f.id" class="inline-flex items-center gap-1 text-[11px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-300 px-2 py-0.5 rounded-full border border-amber-300/60 shadow-2xs">
@@ -2875,20 +2875,6 @@ onMounted(loadInitialDashboard)
                         <span class="text-base font-bold num text-slate-900 dark:text-white">{{ Number(f.aum || 0).toLocaleString() }}</span>
                         <span class="text-xs text-slate-500 dark:text-slate-400 font-normal">ล้านบาท</span>
                       </div>
-                    </td>
-                  </tr>
-
-                  <!-- ── ประเภทกองทุน ── -->
-                  <tr class="bg-white dark:bg-slate-900">
-                    <td class="py-3.5 px-6 border-r border-slate-200/80 dark:border-slate-800 font-semibold text-sm text-slate-800 dark:text-slate-200 bg-slate-50/70 dark:bg-slate-850/50">
-                      <div>ประเภทกองทุน</div>
-                    </td>
-                    <td v-for="f in inlineCompareFunds" :key="f.id" class="py-3.5 px-6 border-l border-slate-200/80 dark:border-slate-800"
-                      :class="highestPerfFundId === f.id ? 'bg-amber-50/40 dark:bg-amber-950/15' : ''">
-                      <span class="px-3 py-1.5 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 shadow-2xs" :class="getTypeBadgeClass(f.type)">
-                        <span class="text-sm leading-none">{{ getTypeIcon(f.type) }}</span>
-                        <span class="font-bold">{{ getTypeLabel(f.type) }}</span>
-                      </span>
                     </td>
                   </tr>
 
