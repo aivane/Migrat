@@ -12,6 +12,7 @@
   --warning: #b45309;
   --shadow: 0 16px 40px rgba(15, 23, 42, 0.08);
   font-family:
+    "Sarabun",
     "Noto Sans Thai",
     "Segoe UI",
     system-ui,
@@ -429,6 +430,7 @@ button:disabled {
   background: #ffffff;
   color: #111827;
   font-family:
+    "Sarabun",
     "Noto Sans Thai",
     "Segoe UI",
     system-ui,
