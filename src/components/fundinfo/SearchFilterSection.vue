@@ -1,7 +1,7 @@
 <!-- SearchFilterSection.vue -->
 <script setup>
 import { computed } from 'vue'
-import { FUND_TYPES } from '../../data/fundinfoData'
+import { FUND_TYPES } from '../../data/fundinfoConstants'
 import { useFundinfoScreener } from '../../composables/useFundinfoScreener'
 import InfoTooltip from '../common/InfoTooltip.vue'
 
@@ -62,6 +62,8 @@ function scrollToCompare() {
   document.getElementById(`fund-compare-${props.type}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
 }
 
+// Design decision (confirmed with product), not a bug: Mixed Fund deliberately excludes the
+// Investment Style / Size & Characteristic panel that Thai gets from the same screener composable.
 function handleToggleAdvanced() {
   if (isMixed.value) return
   toggleAdvanced()
@@ -112,48 +114,16 @@ function handleToggleAdvanced() {
         <button type="button" class="screener-reset" @click="handleReset">รีเซ็ต</button>
       </div>
 
-      <div class="screener-metric-row flex items-center gap-2 flex-wrap pt-2 border-t border-[var(--line)] mt-3">
-        <span class="text-[11px] font-bold sub">เพิ่มตัวกรองเมื่อจำเป็น:</span>
-        <div v-for="option in extraMetricOptions" :key="option.key" class="flex items-center gap-1.5">
-          <button
-            type="button"
-            class="px-3 py-1 rounded-full text-xs font-bold transition border"
-            :class="screener.activeExtraMetrics.includes(option.key) || (screener.extraMetricMin[option.key] != null && screener.extraMetricMin[option.key] !== '') ? 'bg-[var(--brand)] text-white border-[var(--brand)] shadow-2xs' : 'surf2 sub border-slate-200 dark:border-slate-700 hover:txt'"
-            @click="toggleExtraMetric(option.key)"
-          >
-            ＋ {{ option.label }}
-          </button>
-          <select
-            v-if="screener.activeExtraMetrics.includes(option.key)"
-            v-model="screener.extraMetricMin[option.key]"
-            class="filter-select w-auto text-xs rounded-lg p-1 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 txt outline-none"
-          >
-            <template v-if="option.key === 'perf'">
-              <option value="">ทั้งหมด</option>
-              <option :value="0">อย่างน้อย 0%</option>
-              <option :value="5">อย่างน้อย 5%</option>
-              <option :value="10">อย่างน้อย 10%</option>
-              <option :value="20">อย่างน้อย 20%</option>
-            </template>
-            <template v-else-if="option.key === 'sd'">
-              <option value="">ทั้งหมด</option>
-              <option :value="10">ไม่เกิน 10%</option>
-              <option :value="15">ไม่เกิน 15%</option>
-              <option :value="20">ไม่เกิน 20%</option>
-            </template>
-            <template v-else-if="option.key === 'sharpe'">
-              <option value="">ทั้งหมด</option>
-              <option :value="0.5">อย่างน้อย 0.5</option>
-              <option :value="1">อย่างน้อย 1.0</option>
-            </template>
-            <template v-else-if="option.key === 'maxDrawdown'">
-              <option value="">ทั้งหมด</option>
-              <option :value="10">ไม่เกิน 10%</option>
-              <option :value="20">ไม่เกิน 20%</option>
-              <option :value="30">ไม่เกิน 30%</option>
-            </template>
-          </select>
-        </div>
+      <div class="screener-metric-row">
+        <span>เพิ่มตัวกรองเมื่อจำเป็น:</span>
+        <button v-for="option in extraMetricOptions" :key="option.key" type="button" :class="{ active: screener.activeExtraMetrics.includes(option.key) }" @click="toggleExtraMetric(option.key)">+ {{ option.label }}</button>
+      </div>
+
+      <div v-if="screener.activeExtraMetrics.length" class="screener-metric-inputs">
+        <label v-for="key in screener.activeExtraMetrics" :key="key">{{ metricOption(key).hint }}
+          <input v-model.number="screener.extraMetricMin[key]" type="number" step="0.1" class="filter-select" placeholder="0" />
+          <small>{{ metricOption(key).suffix }}</small>
+        </label>
       </div>
     </div>
 
@@ -168,30 +138,30 @@ function handleToggleAdvanced() {
       <div v-if="usesInvestmentStyleFilters" class="screener-advanced">
         <div>
           <h3>Investment Style</h3>
-          <div class="screener-pills"><button v-for="option in investmentStyleOptions" :key="option" type="button" :class="{ active: screener.investmentStyle.includes(option) }" @click="toggleInvestmentStyle(option)">{{ option }}</button></div>
+          <div class="screener-pills"><button v-for="option in investmentStyleOptions" :key="option.id" type="button" :class="{ active: screener.investmentStyle.includes(option.id) }" @click="toggleInvestmentStyle(option.id)">{{ option.label }}</button></div>
         </div>
         <div>
           <h3>Size & Characteristic</h3>
-          <div class="screener-pills"><button v-for="option in sizeOptions" :key="option" type="button" :class="{ active: screener.sizeCharacteristic.includes(option) }" @click="toggleSize(option)">{{ option }}</button></div>
+          <div class="screener-pills"><button v-for="option in sizeOptions" :key="option.id" type="button" :class="{ active: screener.sizeCharacteristic.includes(option.id) }" @click="toggleSize(option.id)">{{ option.label }}</button></div>
         </div>
       </div>
 
       <div v-else class="screener-advanced">
         <div>
           <h3>FX Hedging <small>(นโยบายป้องกันความเสี่ยงค่าเงิน)</small></h3>
-          <div class="screener-pills"><button v-for="option in fxHedgingOptions" :key="option" type="button" :class="{ active: screener.fxHedging === option }" @click="setFxHedging(option)">{{ option }}</button></div>
+          <div class="screener-pills"><button v-for="option in fxHedgingOptions" :key="option.id" type="button" :class="{ active: screener.fxHedging === option.id }" @click="setFxHedging(option.id)">{{ option.label }}</button></div>
         </div>
         <div>
           <h3>Geography <small>(ภูมิภาค/ประเทศ)</small></h3>
-          <div class="screener-pills"><button v-for="option in geographyOptions" :key="option" type="button" :class="{ active: screener.geography.includes(option) }" @click="toggleGeography(option)">{{ option }}</button></div>
+          <div class="screener-pills"><button v-for="option in geographyOptions" :key="option.id" type="button" :class="{ active: screener.geography.includes(option.id) }" @click="toggleGeography(option.id)">{{ option.label }}</button></div>
         </div>
         <div>
           <h3>Megatrends / Thematic</h3>
-          <div class="screener-pills"><button v-for="option in megatrendOptions" :key="option" type="button" :class="{ active: screener.megatrend.includes(option) }" @click="toggleMegatrend(option)">{{ option }}</button></div>
+          <div class="screener-pills"><button v-for="option in megatrendOptions" :key="option.id" type="button" :class="{ active: screener.megatrend.includes(option.id) }" @click="toggleMegatrend(option.id)">{{ option.label }}</button></div>
         </div>
         <div>
           <h3>Fund Style</h3>
-          <div class="screener-pills"><button v-for="option in styleOptions" :key="option" type="button" :class="{ active: screener.style.includes(option) }" @click="toggleStyle(option)">{{ option }}</button></div>
+          <div class="screener-pills"><button v-for="option in styleOptions" :key="option.id" type="button" :class="{ active: screener.style.includes(option.id) }" @click="toggleStyle(option.id)">{{ option.label }}</button></div>
         </div>
       </div>
     </div>

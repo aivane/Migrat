@@ -6,20 +6,27 @@ import { formatPercent } from '../../utils/fundinfoFormat'
 import { formatFlow } from '../../composables/useFundinfoThemeTrend'
 import { COMPARE_COLORS } from '../../composables/useFundinfoInsight'
 import InfoTooltip from '../common/InfoTooltip.vue'
+import ApiErrorBanner from '../common/ApiErrorBanner.vue'
+import LoadingIndicator from '../common/LoadingIndicator.vue'
 
 const props = defineProps({ type: { type: String, default: 'offshore' } })
-const { accent, heading, itemLabel, stock, state, cards, stockCards, fundCards, selectedEntities, maxSelected, orderOf, select, clearSelection, setRank } = useFundinfoRanking(props.type)
+const { accent, heading, itemLabel, stock, state, cards, stockCards, fundCards, selectedEntities, maxSelected, orderOf, select, clearSelection, setRank, stockRankingLoading, fundsLoading, stockRankingError, retryStockRanking } = useFundinfoRanking(props.type)
 const RANK_COLORS = ['#f0b429', '#94a3b8', '#c2793a']
 
-// มุมมอง "หุ้น" vs "กองทุนไทยที่ถือหุ้น" — เฉพาะแท็บที่เป็นหุ้น (Offshore/Thai)
-// เก็บไว้บน state ตัวเดียวกับที่ useFundinfoRanking(type) cache ไว้ (singleton ต่อ type) เพื่อให้
-// InsightCompareSection.vue ที่เรียก composable เดียวกันอ่านค่านี้ต่อได้ทันที โดยไม่ต้องแก้ composable
+// มุมมอง "หุ้น" vs "กองทุนไทยที่ถือหุ้น" (เฉพาะแท็บหุ้น) — เก็บบน state ของ
+// useFundinfoRanking(type) (singleton ต่อ type) ให้ InsightCompareSection.vue อ่านต่อได้ทันที
 if (stock && state.rankView === undefined) state.rankView = 'stock'
 
 const rankView = computed({
   get: () => state.rankView || 'stock',
   set: (value) => { state.rankView = value },
 })
+
+// Non-stock tabs and the "fund" ranking view read from
+// fundinfoStore.getFundsByType(type), which can take a while on a large market.
+const isRankingLoading = computed(() => (
+  !stock || rankView.value === 'fund' ? fundsLoading.value : stockRankingLoading.value
+))
 
 const stockViewLabel = computed(() => itemLabel.value)
 const fundViewLabel = computed(() => (props.type === 'thai' ? 'กองทุนไทย' : 'กองทุนไทยถือหุ้นต่างประเทศ'))
@@ -76,8 +83,11 @@ function scrollToInsight() { document.getElementById(`insight-${props.type}`)?.s
       </div>
     </div>
 
-    <div class="ranking-section">
-      
+    <ApiErrorBanner v-if="stockRankingError" :message="stockRankingError" @retry="retryStockRanking" />
+    <LoadingIndicator v-else-if="isRankingLoading" label="กำลังโหลดข้อมูลจัดอันดับ..." />
+
+    <div v-else class="ranking-section">
+
       <div class="ranking-card-grid">
         <article v-for="(card, cardIndex) in activeSection.cards" :key="card.key" class="ranking-card">
           <div class="ranking-card-header">
@@ -94,9 +104,10 @@ function scrollToInsight() { document.getElementById(`insight-${props.type}`)?.s
             <button v-for="(entity, index) in card.list.slice(0, 5)" :key="entity.id" type="button" class="ranking-row" :class="{ selected: orderOf(entity.id) > -1 }" @click="select(entity.id)">
               <span class="ranking-number" :class="{ medal: index < 3 }" :style="index < 3 ? { background: RANK_COLORS[index] } : {}">{{ index + 1 }}</span>
               <span class="ranking-row-name" :title="entity.title">{{ entity.title }}</span>
-              <strong v-if="card.valueType === 'count'">{{ countLabel(entity, activeSection) }}</strong>
-              <strong v-else-if="card.valueType === 'weight'">{{ entity.totalWeight.toFixed(1) }}%</strong>
+              <strong v-if="card.valueType === 'count'" class="text-pos">{{ countLabel(entity, activeSection) }}</strong>
+              <strong v-else-if="card.valueType === 'weight'" class="text-pos">{{ entity.totalWeight.toFixed(1) }}%</strong>
               <strong v-else-if="card.valueType === 'percent'" :class="entity.retP[state.rk.ret] >= 0 ? 'text-pos' : 'text-neg'">{{ formatPercent(entity.retP[state.rk.ret], 1) }}</strong>
+              <strong v-else-if="card.valueType === 'flow' && entity.flowP[state.rk.flow] == null" class="sub">-</strong>
               <strong v-else-if="card.valueType === 'flow'" :class="entity.flowP[state.rk.flow] >= 0 ? 'text-pos' : 'text-neg'">{{ entity.flowP[state.rk.flow] > 0 ? '+' : '' }}฿{{ formatFlow(entity.flowP[state.rk.flow]) }}</strong>
               <strong v-else-if="card.valueType === 'dividend'" class="text-pos">{{ entity.div.toFixed(1) }}%</strong>
               <span v-if="orderOf(entity.id) > -1" class="select-order" :style="{ background: COMPARE_COLORS[orderOf(entity.id) % COMPARE_COLORS.length] }">{{ orderOf(entity.id) + 1 }}</span>

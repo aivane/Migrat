@@ -118,7 +118,7 @@ export async function getDashboardStats(type = 'FOREIGN') {
   }
 
   // Swagger: GET /api/v1/dashboard/stats
-  const payload = await reconGet('/dashboard/stats', { type })
+  const payload = await reconGet('/api/v1/dashboard/stats', { type })
 
   // Response: { status, data: [ { market_type, total_funds, ... }, ... ] }
   if (Array.isArray(payload?.data)) return payload.data
@@ -132,7 +132,7 @@ export async function getTopStocks(type = 'FOREIGN', limit = 20) {
   }
 
   // Swagger: GET /api/v1/stocks/top
-  return extractArray(await reconGet('/stocks/top', { type, limit }))
+  return extractArray(await reconGet('/api/v1/stocks/top', { type, limit }))
 }
 
 export async function getFundList(params = {}) {
@@ -143,7 +143,7 @@ export async function getFundList(params = {}) {
   }
 
   // Swagger: GET /api/v1/funds/list
-  return extractFunds(await reconGet('/funds/list', params), type)
+  return extractFunds(await reconGet('/api/v1/funds/list', params), type)
 }
 
 export async function getFundDetail(code) {
@@ -154,7 +154,7 @@ export async function getFundDetail(code) {
   }
 
   // Swagger: GET /api/v1/funds/{code}
-  return reconGet(`/funds/${encodeURIComponent(code)}`)
+  return reconGet(`/api/v1/funds/${encodeURIComponent(code)}`)
 }
 
 export async function searchFunds(symbols = []) {
@@ -169,7 +169,7 @@ export async function searchFunds(symbols = []) {
 
   // Swagger: GET /api/v1/search/stocks (รองรับทั้งหุ้นไทยและต่างประเทศ)
   const symbolStr = symbols.join(',')
-  const payload = await reconGet('/search/stocks', { symbols: symbolStr, market_type: 'ALL', limit: 200 })
+  const payload = await reconGet('/api/v1/search/stocks', { symbols: symbolStr, market_type: 'ALL', limit: 200 })
   return extractArray(payload)
 }
 
@@ -183,7 +183,7 @@ export async function getSearchSuggestions(query, type = null) {
   // Swagger: GET /api/v1/search/suggestions
   const params = { q: query, limit: 20 }
   if (type) params.type = type
-  return extractArray(await reconGet('/search/suggestions', params))
+  return extractArray(await reconGet('/api/v1/search/suggestions', params))
 }
 
 export async function getMasterEtfs() {
@@ -192,7 +192,7 @@ export async function getMasterEtfs() {
   }
 
   // Swagger: GET /api/v1/dashboard/master-etfs
-  return extractArray(await reconGet('/dashboard/master-etfs', { limit: 100 }))
+  return extractArray(await reconGet('/api/v1/dashboard/master-etfs', { limit: 100 }))
 }
 
 export async function getThaiEtfs() {
@@ -201,7 +201,7 @@ export async function getThaiEtfs() {
   }
 
   // Swagger: GET /api/v1/dashboard/thai-etfs
-  return extractArray(await reconGet('/dashboard/thai-etfs', { limit: 200 }))
+  return extractArray(await reconGet('/api/v1/dashboard/thai-etfs', { limit: 200 }))
 }
 
 export async function getPortfolioAllocation(funds = '') {
@@ -210,7 +210,7 @@ export async function getPortfolioAllocation(funds = '') {
   }
 
   // Swagger: GET /api/v1/portfolio-allocation
-  return reconGet('/portfolio-allocation', funds ? { codes: funds } : {})
+  return reconGet('/api/v1/portfolio-allocation', funds ? { codes: funds } : {})
 }
 
 export async function getFeederFundHolders(symbol, limit = 50) {
@@ -219,7 +219,7 @@ export async function getFeederFundHolders(symbol, limit = 50) {
   }
 
   // Swagger: GET /api/v1/feeder-funds/holders
-  return reconGet('/feeder-funds/holders', { symbol, limit })
+  return reconGet('/api/v1/feeder-funds/holders', { symbol, limit })
 }
 
 export async function getSectorHierarchy(limit = 10) {
@@ -228,7 +228,7 @@ export async function getSectorHierarchy(limit = 10) {
   }
 
   // Swagger: GET /api/v1/insights/sectors
-  return reconGet('/insights/sectors', { limit })
+  return reconGet('/api/v1/insights/sectors', { limit })
 }
 
 // Export normalizer for use in other modules

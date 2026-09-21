@@ -1,22 +1,12 @@
 <!-- src/views/fundinfo/FundInfoDetailView.vue -->
 <script setup>
-// Orchestrator for the fund-detail page.
-//
-// IMPORTANT: reverses the earlier "no tab-switch" spec — target design
-// (confirmed by screenshot) IS a tabbed layout, matching the v3.2.1 HTML
-// prototype's visual structure. The difference from the prototype is HOW
-// the tabs work: the prototype toggled `.hidden` via raw DOM classList
-// (`switchTab()` walking `document.getElementById(...)`) and rebuilt panel
-// markup with `innerHTML` template literals — both avoided here. Tab state
-// is a plain Vue `ref`; only the active panel is mounted at all (`v-if`,
-// not `v-show`), so inactive panels don't hold live Chart.js instances or
-// unnecessary DOM in memory, and each panel's own onMounted chart-render
-// logic (already in FundOverviewPanel/FundPerformancePanel/etc.) fires
-// against a fully visible canvas every time — no 0-size-canvas issue from
-// initializing Chart.js on a `display:none` element.
+// Orchestrator for the fund-detail page. Tabbed layout like the v3.2.1 HTML
+// prototype, but tab state is a Vue `ref` and only the active panel is mounted
+// (`v-if`, not `v-show`/innerHTML) — no idle Chart.js instances, no
+// 0-size-canvas issue from initializing on a `display:none` element.
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { FUND_TYPES } from '../../data/fundinfoData'
+import { FUND_TYPES } from '../../data/fundinfoConstants'
 import { isValidFundId } from '../../services/fundinfoApi'
 import { useFundinfoStore } from '../../stores/fundinfoStore'
 import { useFundinfoTheme } from '../../composables/useFundinfoTheme'
@@ -32,26 +22,21 @@ import FundDocumentsPanel from '../../components/fundinfo/detail/FundDocumentsPa
 const route = useRoute()
 const router = useRouter()
 
-// Theme state is UI-preference only (light/dark), never sensitive/PII, and
-// is owned entirely by useFundinfoTheme (out of scope for this file).
+// Theme is UI-preference only (light/dark, never PII) — owned by useFundinfoTheme.
 const { isDark, toggleTheme } = useFundinfoTheme()
 
 // ---------- Route param validation / access control ----------
-// Public, read-only page — no PII, no mutation, no auth token involved.
-// `route.params.id` is untrusted input: never used to build a path/query,
-// never reflected anywhere unescaped, only ever used as a fundinfoStore lookup
-// key. The router's own beforeEnter guard (router/index.js) already rejects
-// malformed ids before this view mounts — this is defense-in-depth in case
-// the component is ever reached another way (e.g. programmatic push).
+// `route.params.id` is untrusted input, used only as a fundinfoStore lookup key
+// (never in a path/query or reflected unescaped). Defense-in-depth — router/index.js's
+// beforeEnter guard already rejects malformed ids before this view mounts.
 const requestedId = computed(() => {
   const raw = route.params.id
   return isValidFundId(raw) ? raw : null
 })
 
-// ---------- Data (store-backed — ready for the API-mode switch) ----------
-// fundinfoStore delegates to fundinfoApi.js, which today reads the local
-// mock/CSV dataset and later (VITE_FUNDINFO_API_MODE) calls the real backend
-// — this view never needs to change when that switch flips.
+// ---------- Data (store-backed) ----------
+// fundinfoStore delegates to fundinfoApi.js — this view doesn't change when
+// VITE_FUNDINFO_API_MODE switches between direct/wordpress.
 const fundinfoStore = useFundinfoStore()
 
 watch(
@@ -68,8 +53,7 @@ const typeMeta = computed(() => (fund.value ? FUND_TYPES[fund.value.type] : null
 const accent = computed(() => typeMeta.value?.accent || '#2456d8')
 
 function goBack() {
-  // Guard: only navigate using an already-validated, known fund.type key
-  // (one of FUND_TYPES' own keys) — never using unvalidated route input.
+  // Guard: navigate only with a validated fund.type key, never raw route input.
   if (fund.value && FUND_TYPES[fund.value.type]) {
     router.push({ name: `fundinfo-${fund.value.type}` })
   } else {
@@ -86,23 +70,27 @@ const TABS = [
   { key: 'documents', label: 'เอกสารเพิ่มเติม' },
 ]
 const activeTab = ref('overview')
-// Reset to the first tab whenever the user navigates to a different fund
-// (mirrors the prototype's own init() calling switchTab('overview')).
+// Reset to the first tab on fund change (mirrors the prototype's init()).
 watch(() => fund.value?.id, () => { activeTab.value = 'overview' })
 
 // ---------- Analytics wiring ----------
 // Single source of truth for every derived number/string on this page.
 const analytics = useFundAnalytics(fund)
 
-// Daily NAV change (diffBaht / diffPct), ported 1:1 from the prototype's
-// init() (prevNav = second-to-last point of the 1Y series).
+// Daily NAV change, ported from the prototype (prevNav = second-to-last point
+// of the 1Y series). `nav_change_pct_1d` looks broken upstream (e.g. +126% on
+// an equity feeder — likely vs. inception NAV, not previous day), so diff the
+// real nav-history series instead; apiNavHistoryVersion triggers the recompute.
 const dailyChange = computed(() => {
   if (!fund.value) return { diffBaht: 0, diffPct: 0 }
-  const nav = analytics.navHistory('1Y')?.navData || []
+
+  void analytics.apiNavHistoryVersion.value // reactivity trigger — see comment above
+  const history = analytics.navHistory('1M')
+  const nav = history?.isDaily ? history.navData : []
   const last = nav.length - 1
-  if (last < 1) return { diffBaht: 0, diffPct: 0 } // Robustness: not enough points yet
-  const prevNav = nav[last - 1] || fund.value.nav
-  const diffBaht = fund.value.nav - prevNav
+  if (last < 1) return { diffBaht: 0, diffPct: 0 } // Robustness: real series not loaded yet
+  const prevNav = nav[last - 1]
+  const diffBaht = nav[last] - prevNav
   return { diffBaht, diffPct: prevNav ? (diffBaht / prevNav) * 100 : 0 }
 })
 </script>
@@ -143,16 +131,13 @@ const dailyChange = computed(() => {
       </header>
 
       <main class="w-full px-4 md:px-8 py-6">
-        <!-- Loading state: store fetch in flight (relevant once the API-mode
-             switch flips to a real network call; resolves near-instantly in mock mode). -->
+        <!-- Loading state: store fetch in flight (fundinfoStore -> fundinfoApi.js). -->
         <div v-if="isLoading" class="surf brd rounded-xl cs p-10 text-center max-w-lg mx-auto mt-10">
           <p class="text-base sub">กำลังโหลดข้อมูลกองทุน...</p>
         </div>
 
         <!-- Not-found state: unknown/invalid id, no data leaked, no route param reflected.
-             Kept as a bordered card intentionally — this is a one-off alert/empty-state,
-             not page content, so it stays visually distinct from --bg. Say the word if
-             you want this flattened too. -->
+             Kept as a bordered card — a one-off alert/empty-state, distinct from --bg page content. -->
         <div v-else-if="!fund" class="surf brd rounded-xl cs p-10 text-center max-w-lg mx-auto mt-10">
           <div class="text-5xl mb-4" aria-hidden="true">⚠️</div>
           <h2 class="text-xl font-bold txt mb-2">ไม่พบข้อมูลกองทุน</h2>
@@ -169,11 +154,8 @@ const dailyChange = computed(() => {
 
         <div v-else class="flex flex-col gap-6">
           <!-- Fund summary header (always visible above the tabs) -->
-          <!-- Layout Fix: dropped surf (white card bg) + brd (border) + rounded-xl —
-               header now sits directly on --bg, blending into the page instead of
-               popping as a separate white card. Internal section dividers inside
-               FundDetailHeader.vue (border-b/border-l) already provide the visual
-               structure, so nothing else needs to change. -->
+          <!-- Layout Fix: dropped surf/brd/rounded-xl so it sits directly on --bg instead
+               of a separate white card; FundDetailHeader's own dividers keep the structure. -->
           <div class="p-5 md:p-6">
             <FundDetailHeader
               :fund="fund"
@@ -206,16 +188,18 @@ const dailyChange = computed(() => {
             >{{ tab.label }}</button>
           </div>
 
-          <!-- Tab panel: only the active tab is mounted (v-if), so Chart.js
-               canvases in the other 4 panels never exist until selected.
-               Layout Fix: dropped surf (white/dark card bg) + brd (border) + rounded-xl + cs
-               (box-shadow) — same treatment as the header above. Panel content now sits
-               directly on --bg instead of floating as a separate card under the tab bar.
-               The tab bar's own border-b already separates it from panel content, so no
-               structural cue is lost. -->
+          <!-- Tab panel: only the active tab is mounted (v-if), so Chart.js canvases in
+               the other panels never exist until selected. Layout Fix: dropped
+               surf/brd/rounded-xl/cs (same as header) — tab bar's border-b keeps the divide. -->
           <div class="p-5 md:p-6">
             <div v-if="activeTab === 'overview'" id="panel-overview" role="tabpanel" aria-labelledby="tab-overview">
-              <FundOverviewPanel :fund="fund" :accent="accent" :is-dark="isDark" :nav-history="analytics.navHistory" />
+              <FundOverviewPanel
+                :fund="fund"
+                :accent="accent"
+                :is-dark="isDark"
+                :nav-history="analytics.navHistory"
+                :nav-history-version="analytics.apiNavHistoryVersion.value"
+              />
             </div>
 
             <div v-else-if="activeTab === 'performance'" id="panel-performance" role="tabpanel" aria-labelledby="tab-performance">

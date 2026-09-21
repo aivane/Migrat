@@ -1,7 +1,6 @@
 <!-- src/components/fundinfo/detail/FundDetailHeader.vue -->
 <script setup>
-// Presentation-only: no analytics/computation here, only display of
-// already-derived values passed down from FundInfoDetailView.vue.
+// Presentation-only: displays already-derived values passed down from FundInfoDetailView.vue.
 defineProps({
   fund: { type: Object, required: true },
   typeMeta: { type: Object, required: true },

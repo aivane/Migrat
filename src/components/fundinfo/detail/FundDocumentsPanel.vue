@@ -1,9 +1,7 @@
 <!-- src/components/fundinfo/detail/FundDocumentsPanel.vue -->
 <script setup>
-// Ported from "Panel 5: เอกสารเพิ่มเติม" (panel-documents) in the v3.2.1 HTML
-// prototype. Purely presentational — alpha/beta/recovery are already-derived
-// by useFundAnalytics(fundRef) and injected as props, same "presentation
-// only" contract as FundFeesPanel.vue / FundDetailHeader.vue.
+// Purely presentational — alpha/beta/recovery are already derived by useFundAnalytics(fundRef)
+// and injected as props, same contract as FundFeesPanel.vue / FundDetailHeader.vue.
 import { ref } from 'vue'
 
 const props = defineProps({
@@ -15,19 +13,14 @@ const props = defineProps({
   recoveringPeriodText: { type: String, required: true },
 })
 
-// Auth/UX hardening: the prototype used a blocking window.alert() to fake a
-// download. Replaced with a local, component-owned notice — alert()/confirm()
-// are disruptive UX and a common vector for OS-level phishing-style dialog
-// spoofing; this keeps the "simulate only, no real file" behavior without a
-// native dialog or any external navigation/fetch call.
+// Replaces the prototype's blocking window.alert() (disruptive, phishing-spoofable) with a
+// local component-owned notice — keeps "simulate only, no real file" without a native dialog.
 const downloadNotice = ref('')
 let noticeTimer = null
 
 function downloadDoc(label) {
   if (noticeTimer) clearTimeout(noticeTimer)
-  // Anti-XSS: `label` is a fixed literal from the template below (never
-  // derived from user/URL input), and is only ever bound via {{ }} text
-  // interpolation — never v-html, never innerHTML.
+  // Anti-XSS: `label` is a fixed template literal (never user/URL input), bound via {{ }} only.
   downloadNotice.value = `กำลังจำลองการดาวน์โหลดเอกสาร: ${label} ของกองทุน ${props.fund.id} (ระบบสาธิต — ไม่มีการดาวน์โหลดไฟล์จริง)`
   noticeTimer = setTimeout(() => { downloadNotice.value = '' }, 4000)
 }
@@ -36,8 +29,8 @@ function isFiniteMetric(value) {
   return typeof value === 'number' && Number.isFinite(value)
 }
 
-// API Compatibility — direct mode does not publish alpha/beta/recovery yet.
-// Render a neutral placeholder instead of calling numeric methods on null.
+// direct mode doesn't publish a recovery period; alpha/beta are null until the backend computes
+// them — render a neutral placeholder instead of calling numeric methods on null.
 function alphaText(value) {
   return isFiniteMetric(value) ? `${value > 0 ? '+' : ''}${value}%` : '—'
 }

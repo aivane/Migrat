@@ -1,10 +1,7 @@
 <!-- src/components/fundinfo/detail/FundFeesPanel.vue -->
 <script setup>
-// Ported from "Panel 4: ค่าธรรมเนียม" (tab-fees) in the v3.2.1 HTML
-// prototype. Purely presentational and static (no charts, no local toggle
-// state) — every value is already-derived by useFundAnalytics(fundRef) and
-// injected as the `feeSchedule` prop, same "presentation only" contract as
-// FundDetailHeader.vue.
+// Purely presentational and static (no charts/toggles) — every value is already derived by
+// useFundAnalytics(fundRef) and injected as `feeSchedule`, same contract as FundDetailHeader.vue.
 defineProps({
   fund: { type: Object, required: true },
   accent: { type: String, required: true },
@@ -15,10 +12,8 @@ defineProps({
   feeSchedule: { type: Object, required: true },
 })
 
-// Input validation: fund.minInvest comes from trusted app data, but guard
-// with Number(...) so a stray string/undefined never breaks toLocaleString.
-// API Compatibility — direct mode does not publish a minimum-purchase amount
-// (mock-only field). Show '-' instead of a fabricated "0 บาท".
+// Number(...) guards toLocaleString against a stray string/undefined (fund.minInvest is trusted
+// app data). direct mode doesn't publish a minimum-purchase amount — show '-', not a fabricated "0 บาท".
 function formatBaht(n) {
   return n ? `${Number(n).toLocaleString('en-US')} บาท` : '-'
 }
@@ -26,9 +21,7 @@ function formatBaht(n) {
 
 <template>
   <section class="flex flex-col gap-6">
-    <!-- Layout Fix: max-w-2xl (672px) was the actual cause of the cut-off column —
-         too narrow for a 3-column fee table with long Thai labels. Widened to
-         max-w-4xl (896px), still centered via mx-auto. -->
+    <!-- Layout Fix: max-w-2xl was too narrow for the 3-column fee table with long Thai labels; widened to max-w-4xl. -->
     <div class="max-w-4xl mx-auto w-full">
       <div class="mb-8">
         <h3 class="text-base font-bold txt border-b border-[var(--line)] pb-3 mb-4 text-center">รายละเอียดการซื้อ</h3>
@@ -46,11 +39,8 @@ function formatBaht(n) {
 
       <div class="border-t border-[var(--line)] pt-6">
         <h3 class="text-base font-bold txt mb-4 text-center">ค่าธรรมเนียม</h3>
-        <!-- Layout Fix: overflow-x-auto → table-fixed + explicit <th> widths, same
-             pattern as FundPerformancePanel.vue's comparison tables. Label column
-             text now wraps within its own w-3/5 track instead of forcing the row
-             wider than the max-w-2xl container, so no horizontal scrollbar and the
-             right-hand "เก็บจริง" column is never cut off. -->
+        <!-- Layout Fix: overflow-x-auto -> table-fixed + explicit <th> widths (same pattern as
+             FundPerformancePanel.vue) so the label column wraps instead of forcing horizontal scroll. -->
         <div class="brd rounded-xl overflow-hidden">
           <table class="w-full text-sm text-left table-fixed">
             <thead>
@@ -86,9 +76,7 @@ function formatBaht(n) {
                 <td class="py-3.5 text-right font-medium">{{ feeSchedule.managementProspectus }}</td>
                 <td class="py-3.5 text-right font-medium">{{ feeSchedule.managementActual }}</td>
               </tr>
-              <!-- TER row highlighted with the fund-type accent, consistent
-                   with how the rest of the app (e.g. AUM in FundDetailHeader)
-                   uses `accent` rather than a hardcoded brand blue. -->
+              <!-- TER row uses the fund-type accent, consistent with AUM in FundDetailHeader, not a hardcoded blue. -->
               <tr class="font-bold text-base" :style="{ color: accent }">
                 <td class="py-3.5">Total Expense Ratio (ค่ารวมประมาณการ TER)</td>
                 <td class="py-3.5 text-right">{{ feeSchedule.terProspectus }}</td>

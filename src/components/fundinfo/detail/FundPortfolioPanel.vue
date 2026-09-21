@@ -1,15 +1,8 @@
 <!-- src/components/fundinfo/detail/FundPortfolioPanel.vue -->
 <script setup>
-// Ported from "Panel 3: สัดส่วนการลงทุน" (tab-portfolio) in the v3.2.1 HTML
-// prototype. The prototype built each legend via
-// `makeLegendHTML()` → a template-literal string assigned to `innerHTML`
-// (DOM-based XSS sink) — this version renders the same legend as a plain
-// `v-for` + `{{ }}` list instead, so fund/holding names can never be
-// interpreted as markup.
-//
-// Country/holdings breakdowns are still centrally derived by
-// useFundAnalytics and injected as props; asset/sector mix come straight
-// off the fund record (already-trusted app data, never user input).
+// Renders legends via v-for + {{ }}, not the old makeLegendHTML() -> innerHTML build (a DOM-based
+// XSS sink), so fund/holding names can never be interpreted as markup. Country/holdings come from
+// useFundAnalytics via props; asset/sector mix come straight off the fund record.
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import Chart from 'chart.js/auto'
 
@@ -33,9 +26,7 @@ const sectorData = computed(() => (props.fund.sectorMix?.length ? props.fund.sec
 const countryData = computed(() => props.countryAllocation)
 const holdingData = computed(() => props.topHoldings)
 
-// Pairs each allocation item with its legend swatch color, cycling the
-// palette if there are more items than colors (matches `colors[i % length]`
-// in the original prototype).
+// Pairs each item with a legend swatch color, cycling the palette if items outnumber colors.
 function withColor(list, colors) {
   return list.map((item, idx) => ({ ...item, color: colors[idx % colors.length] }))
 }

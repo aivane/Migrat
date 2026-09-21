@@ -1,42 +1,38 @@
 <!-- src/components/fundinfo/detail/FundPerformancePanel.vue -->
 <script setup>
-// Ported from "Panel 2: ผลการดำเนินงานและปันผล" (tab-performance) in the
-// v3.2.1 HTML prototype, converted from JS tab-switching + a manually
-// rebuilt <tbody> (`tbody.innerHTML = rows.map(...).join('')`, a DOM-based
-// XSS sink if any row value were ever attacker-influenced) into an
-// always-visible section using Vue's auto-escaping template bindings only.
-//
-// The risk-metric toggle (SD / Sharpe / Max Drawdown) is local UI state,
-// same pattern as FundOverviewPanel.vue's mode/range toggle. Return-table
-// and dividend data are still centrally derived by useFundAnalytics and
-// injected as props — this component stays presentation + local-toggle only.
+// Renders via Vue's auto-escaping bindings, not the old tbody.innerHTML build (XSS-prone).
+// Risk-metric toggle is local UI state; return/dividend data come from useFundAnalytics via props.
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
 import Chart from 'chart.js/auto'
-import { INSIGHT } from '../../../data/fundinfoData'
+import { INSIGHT } from '../../../data/fundinfoConstants'
 
 const props = defineProps({
   fund: { type: Object, required: true },
   isDark: { type: Boolean, default: false },
-  // (fundReturnPct) => groupAveragePct — from useFundAnalytics(fundRef)
+  // (periodKey) => groupAveragePct | null — from useFundAnalytics(fundRef)
   groupAverage: { type: Function, required: true },
   // [{ closedDate, paidDate, amount }] — from useFundAnalytics(fundRef).dividendHistory
   dividendHistory: { type: Array, default: () => [] },
 })
 
+// ---------- Dividend history ----------
+// direct mode's dividendHistory is always [] (no payment-history endpoint, only a policy flag).
+// has_dividend is unreliable (~99% =1 regardless of policy) — only dividend_policy text is trustworthy.
+const paysDividends = computed(() => props.fund.dividendPolicy === 'จ่าย')
+
 // ---------- Return comparison table ----------
-// Input validation: retP is produced entirely by fundinfoData.js, never by
-// user input, but we still guard with `?? 0` so a missing field renders
-// "0.0%" instead of crashing the table.
+// `?? 0` guards missing fields (retP is trusted app data, not user input). "6 เดือน"/"10 ปี" used to
+// fabricate y1*0.6/y5*1.5 instead of real retP.m6/retP.y10 — groupAverage now keys off the real fields.
 const returnRows = computed(() => {
   const r = props.fund.retP || {}
   return [
-    { label: '3 เดือน', value: r.q1 ?? 0 },
-    { label: '6 เดือน', value: +((r.y1 ?? 0) * 0.6).toFixed(1) },
-    { label: '1 ปี', value: r.y1 ?? 0 },
-    { label: '3 ปี (annualized)', value: r.y3 ?? 0 },
-    { label: '5 ปี (annualized)', value: r.y5 ?? 0 },
-    { label: '10 ปี (annualized)', value: +((r.y5 ?? 0) * 1.5).toFixed(1) },
-  ]
+    { key: 'q1', label: '3 เดือน', value: r.q1 ?? 0 },
+    { key: 'm6', label: '6 เดือน', value: r.m6 ?? 0 },
+    { key: 'y1', label: '1 ปี', value: r.y1 ?? 0 },
+    { key: 'y3', label: '3 ปี (annualized)', value: r.y3 ?? 0 },
+    { key: 'y5', label: '5 ปี (annualized)', value: r.y5 ?? 0 },
+    { key: 'y10', label: '10 ปี (annualized)', value: r.y10 ?? 0 },
+  ].map((row) => ({ ...row, groupAvg: props.groupAverage(row.key) }))
 })
 
 const benchLabel = computed(() => {
@@ -56,34 +52,32 @@ const RISK_METRICS = [
 ]
 const riskMetric = ref('sd')
 
-// Deterministic multiplier table per period, ported 1:1 from the prototype's
-// renderMetricTable() — mock illustrative figures only, not live risk data.
-const RISK_MULTIPLIERS = {
-  sd: [
-    ['3 เดือน', 0.8, 0.9], ['6 เดือน', 0.9, 0.95], ['1 ปี', 1, 1.05],
-    ['3 ปี (annualized)', 1.05, 1.1], ['5 ปี (annualized)', 1.1, 1.15], ['10 ปี (annualized)', 1.2, 1.25],
-  ],
-  sharpe: [
-    ['3 เดือน', 0.9, 0.85], ['6 เดือน', 0.95, 0.95], ['1 ปี', 1, 0.95],
-    ['3 ปี (annualized)', 1.05, 1.0], ['5 ปี (annualized)', 1.1, 1.05], ['10 ปี (annualized)', 1.15, 1.1],
-  ],
-  maxdd: [
-    ['3 เดือน', 0.4, 0.45], ['6 เดือน', 0.6, 0.65], ['1 ปี', 1, 1.1],
-    ['3 ปี (annualized)', 1.1, 1.2], ['5 ปี (annualized)', 1.2, 1.3], ['10 ปี (annualized)', 1.4, 1.5],
-  ],
-}
-
+// Previously used a hardcoded mock multiplier table even in direct mode. API only publishes
+// 1Y/3Y SD/Sharpe/MaxDrawdown (no 3M/6M/5Y/10Y) — only real periods shown; null values render "-".
+const CATEGORY_AVG_RISK_KEY = { sharpe: 'sharpe1y', maxdd: 'maxdd1y' } // no peer SD field at all
 const riskRows = computed(() => {
-  const base = props.fund.stats?.[riskMetric.value] ?? 0
-  return RISK_MULTIPLIERS[riskMetric.value].map(([label, fMult, gMult]) => ({
-    label,
-    fVal: +(base * fMult).toFixed(2),
-    gVal: +(base * gMult).toFixed(2),
-  }))
+  const avgKey = CATEGORY_AVG_RISK_KEY[riskMetric.value]
+  return [
+    { label: '1 ปี', fVal: props.fund.stats?.[riskMetric.value] ?? null, gVal: avgKey ? (props.fund.categoryAvg?.[avgKey] ?? null) : null },
+    { label: '3 ปี', fVal: props.fund.stats3y?.[riskMetric.value] ?? null, gVal: null },
+  ]
 })
 const activeSuffix = computed(() => RISK_METRICS.find((m) => m.key === riskMetric.value)?.suffix || '')
+function fmtRisk(v, suffix) {
+  return v == null ? '-' : `${v}${suffix}`
+}
 
 // ---------- Calendar-year returns bar chart ----------
+// API has no true calendar-year series, only checkpoints (1M/3M/1Y/3Y/5Y/10Y). Uses retPRaw
+// (null-aware), not retP (defaults missing periods to 0%), so young funds render muted, not fabricated.
+const PERIOD_BARS = [
+  ['m1', '1M'], ['q1', '3M'], ['y1', '1Y'], ['y3', '3Y'], ['y5', '5Y'], ['y10', '10Y'],
+]
+const hasAnyPeriodData = computed(() => {
+  const raw = props.fund.retPRaw || {}
+  return PERIOD_BARS.some(([key]) => raw[key] != null)
+})
+const canShowReturnChart = hasAnyPeriodData
 const cyrChartRef = ref(null)
 let cyrChartInstance = null
 
@@ -91,16 +85,23 @@ function renderCyrChart() {
   cyrChartInstance?.destroy() // Perf: dispose previous instance to avoid canvas/memory leaks
   cyrChartInstance = null
   const canvas = cyrChartRef.value
-  const cyr = props.fund.cyr
-  if (!canvas || !cyr) return
+  if (!canvas) return
 
   const posColor = props.isDark ? '#34d399' : '#12b76a'
   const negColor = props.isDark ? '#fb7185' : '#f04438'
+  const mutedColor = props.isDark ? '#334155' : '#e2e8f0'
   const textColor = props.isDark ? '#93a3c0' : '#607091'
   const gridColor = props.isDark ? 'rgba(148,163,184,.08)' : 'rgba(148,163,184,.14)'
 
-  const labels = Object.keys(cyr)
-  const values = Object.values(cyr)
+  let labels
+  let values
+  let available
+
+  if (!hasAnyPeriodData.value) return
+  const raw = props.fund.retPRaw || {}
+  labels = PERIOD_BARS.map(([, label]) => label)
+  available = PERIOD_BARS.map(([key]) => raw[key] != null)
+  values = PERIOD_BARS.map(([key]) => raw[key] ?? 0)
 
   cyrChartInstance = new Chart(canvas, {
     type: 'bar',
@@ -108,7 +109,8 @@ function renderCyrChart() {
       labels,
       datasets: [{
         data: values,
-        backgroundColor: values.map((v) => (v >= 0 ? posColor : negColor)),
+        // Missing periods (fund too young for 3Y/5Y/10Y) render a flat muted bar, not a fabricated 0%.
+        backgroundColor: values.map((v, i) => (!available[i] ? mutedColor : v >= 0 ? posColor : negColor)),
         borderRadius: 4,
       }],
     },
@@ -120,7 +122,7 @@ function renderCyrChart() {
         tooltip: {
           callbacks: {
             // Anti-XSS: Chart.js draws this to <canvas>, never innerHTML.
-            label: (ctx) => ` ${ctx.parsed.y > 0 ? '+' : ''}${ctx.parsed.y.toFixed(1)}%`,
+            label: (ctx) => (!available[ctx.dataIndex] ? ' ยังไม่มีข้อมูล' : ` ${ctx.parsed.y > 0 ? '+' : ''}${ctx.parsed.y.toFixed(1)}%`),
           },
         },
       },
@@ -139,15 +141,9 @@ watch([() => props.fund?.id, () => props.isDark], renderCyrChart)
 
 <template>
   <section class="space-y-8">
-    <!-- Layout Fix: 4 grid items (header-L, table-L, header-R, table-R) instead of 2
-         "column" divs. On mobile (grid-cols-1) source order alone stacks them correctly
-         (header1, table1, header2, table2). From lg: up, explicit col/row placement puts
-         both headers in grid row 1 and both tables in row 2 — CSS Grid auto-sizes each
-         row to its tallest cell, so the shorter header (left, no toggle pills) stretches
-         to match the taller one (right, with the SD/Sharpe/Max Drawdown toggle) and both
-         tables start flush at the same y ("ลงมาเท่ากัน"). table-fixed + explicit <th>
-         widths replace overflow-x-auto: columns can no longer exceed the container, so
-         no horizontal scrollbar renders. -->
+    <!-- 4 grid items (not 2 column divs) so CSS Grid row-sizing keeps both headers/tables flush
+         at the same height on desktop despite one header having extra toggle pills. table-fixed +
+         explicit <th> widths avoid horizontal scroll. -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-3">
       <!-- Header: return comparison -->
       <div class="min-w-0 flex items-center lg:col-start-1 lg:row-start-1">
@@ -185,7 +181,7 @@ watch([() => props.fund?.id, () => props.isDark], renderCyrChart)
               <tr v-for="row in returnRows" :key="row.label" class="border-b border-[var(--line)]">
                 <td class="p-3 font-medium txt whitespace-nowrap">{{ row.label }}</td>
                 <td class="p-3 text-right num" :class="row.value >= 0 ? 'text-pos' : 'text-neg'">{{ fmtPct(row.value) }}</td>
-                <td class="p-3 text-right num sub">{{ groupAverage(row.value) }}%</td>
+                <td class="p-3 text-right num sub">{{ row.groupAvg != null ? fmtPct(row.groupAvg) : '-' }}</td>
               </tr>
             </tbody>
           </table>
@@ -207,8 +203,8 @@ watch([() => props.fund?.id, () => props.isDark], renderCyrChart)
             <tbody>
               <tr v-for="row in riskRows" :key="row.label" class="border-b border-[var(--line)]">
                 <td class="p-3 font-medium txt whitespace-nowrap">{{ row.label }}</td>
-                <td class="p-3 text-right num txt">{{ row.fVal }}{{ activeSuffix }}</td>
-                <td class="p-3 text-right num sub">{{ row.gVal }}{{ activeSuffix }}</td>
+                <td class="p-3 text-right num txt">{{ fmtRisk(row.fVal, activeSuffix) }}</td>
+                <td class="p-3 text-right num sub">{{ fmtRisk(row.gVal, activeSuffix) }}</td>
               </tr>
             </tbody>
           </table>
@@ -216,11 +212,16 @@ watch([() => props.fund?.id, () => props.isDark], renderCyrChart)
       </div>
     </div>
 
-    <!-- Calendar year returns (full width) -->
+    <!-- Return by period: 1M/3M/1Y/3Y/5Y/10Y checkpoint bars; periods without data render muted/gray. -->
     <div class="border-t border-[var(--line)] pt-6">
-      <h3 class="text-sm font-bold sub uppercase tracking-wide mb-3">ผลตอบแทนรายปีปฏิทิน (Calendar Year Returns)</h3>
-      <div class="h-60 relative">
+      <h3 class="text-sm font-bold sub uppercase tracking-wide mb-3">
+        ผลตอบแทนตามช่วงเวลา (Return by Period)
+      </h3>
+      <div v-if="canShowReturnChart" class="h-60 relative">
         <canvas ref="cyrChartRef"></canvas>
+      </div>
+      <div v-else class="h-24 flex items-center justify-center text-center text-sm sub border border-dashed border-[var(--line)] rounded-xl">
+        ข้อมูล API ยังไม่มีผลตอบแทนของกองทุนนี้เลย — ไม่ใช่หน้าเสีย
       </div>
     </div>
 
@@ -242,7 +243,10 @@ watch([() => props.fund?.id, () => props.isDark], renderCyrChart)
               <td class="p-3 txt">{{ d.paidDate }}</td>
               <td class="p-3 text-right num txt">{{ d.amount }}</td>
             </tr>
-            <tr v-if="!dividendHistory.length">
+            <tr v-if="!dividendHistory.length && paysDividends">
+              <td colspan="3" class="p-4 text-center sub">กองทุนนี้มีนโยบายจ่ายปันผล แต่ยังไม่มีข้อมูลประวัติการจ่ายจริง (วันที่/จำนวนเงิน)</td>
+            </tr>
+            <tr v-else-if="!dividendHistory.length">
               <td colspan="3" class="p-4 text-center sub">ไม่มีนโยบายจ่ายเงินปันผล (เป็นแบบสะสมมูลค่า)</td>
             </tr>
           </tbody>
