@@ -56,12 +56,6 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: false,
         },
-        // Proxy สำหรับรูปภาพ / Media ใน WordPress uploads
-        '/wp-content': {
-          target: wpSiteTarget,
-          changeOrigin: true,
-          secure: false,
-        },
       },
     },
   }
