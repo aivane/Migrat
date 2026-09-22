@@ -33,3 +33,9 @@ dist-ssr
 CLAUDE.md
 AGENTS.md
 context.md
+
+# Docker deploy setup — not used for day-to-day dev (npm run dev on :5173 only)
+Dockerfile
+docker-compose.yml
+.dockerignore
+docker/
