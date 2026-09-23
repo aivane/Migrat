@@ -18,6 +18,66 @@
 - **Uptrend**: เดิม `getInsightTrend` ถูก alias ผิดไปเรียก `getInsightSectorsForeign` (ซึ่งส่งคืนหุ้น ไม่ใช่กองทุน) ทำให้ตาราง Uptrend ว่างเปล่า — ต่อสายกลับไปยัง `GET /api/v1/insights/trend?type=TH&limit=20` ดึงข้อมูลกองทุนขาขึ้นจริง แสดงชื่อกองทุน, AMC, Risk Badge, และ 1Y Return ถูกต้อง
 - **Valuation**: เดิม `getInsightValuation` ถูก alias ไปเรียก `getInsightThemes` — ต่อสายกลับไปยัง `GET /api/v1/insights/valuation` แสดง Symbol/ชื่อกองทุน, PE Zone Badge, Upside, และ AUM ครบถ้วน
 
+## 2026-09-22 — Fundinfo: ลบ Articles/FAQ, แก้ AUM/font/top-holdings, audit เทียบ Finnomena, ตั้ง Docker+auto-deploy (แล้วถอดออก)
+
+### ลบฟีเจอร์ Articles และ FAQ ทั้งหมด — WordPress backend ล่มจริง ไม่ใช่แค่ dev ไม่เสถียร
+- เช็คสดพบ `wp.ideatradefund.com` (WP origin ที่ Articles/FAQ พึ่งอยู่) ตอบ `520`/`504` จาก Cloudflare เอง (origin ต่อไม่ติด) ทุก endpoint รวมถึง root domain — ยืนยันว่าเป็น infra ล่มจริง (hosting account น่าจะถูก suspend) ไม่ใช่โค้ด frontend หรือ route ผิด
+- ลบ `ArticlesView.vue`, `ArticleDetailView.vue`, `articlesApi.js`, `FaqView.vue`, `faqApi.js`, ไฟล์ reference PHP ใน `wordpress/` (Articles/Faq handlers, cpt taxonomy, migrate seed) — ลบ route ออกจาก `router/index.js`, ลบ nav link ออกจาก `AppHeader.vue`
+- เอา `VITE_ARTICLES_*` ออกจาก `.env.example`/`docker-compose.yml`/`Dockerfile`, ลบ `/wp-content` proxy ที่เหลือค้างออกจาก `vite.config.js`/`docker/nginx.conf.template` (ไม่มีใครใช้แล้วหลัง Articles/FAQ หาย)
+- อัปเดต `context.md`/`CLAUDE.md` และ trigger list ของ skill `verify-live-backend` ให้ตรงกับ scope ปัจจุบัน (เอา articles/FAQ ออก)
+- เจอ stale `dist/` build เก่าที่ยังมี FAQ ค้างอยู่ (ไม่เข้า git) — `npm run build` ใหม่ล้างให้เรียบร้อย
+
+### AUM แสดงไม่ตรงกันระหว่าง Feeder/Offshore/Thai ([useFundinfoInsight.js](src/composables/useFundinfoInsight.js), [fundinfoFormat.js](src/utils/fundinfoFormat.js))
+- ตาราง "เปรียบเทียบ...บนกราฟเดียวกัน" ฝั่ง Feeder (Master Fund) format AUM เป็น "฿X ล้านบ." อยู่แล้ว แต่ Offshore/Thai (stock/holder) ไม่ format เลย (โชว์ตัวเลขดิบ) หรือไม่มีค่าเลย (holder ไม่ได้ set field `aum` มาตั้งแต่แรก)
+- เพิ่ม `formatAumMThb()` shared helper ใน `fundinfoFormat.js` ใช้ร่วมกันทั้ง 3 kind (master/stock/holder) — verify สด: offshore/thai ขึ้น "฿10,776 ล้านบ." ฯลฯ ตรงกับ feeder แล้ว
+- เพิ่มแถว "ขนาดกองทุน (AUM)" เข้า [FundCompareTable.vue](src/components/fundinfo/FundCompareTable.vue) (ตาราง "เปรียบเทียบกองทุนที่เลือก" ของหน้า fundinfo — เดิมไม่มีคอลัมน์นี้เลย) ใช้ helper เดียวกัน
+- เพิ่มสีประจำคอลัมน์ให้ตารางเดียวกันนี้ (border-top 3px + tint พื้นหลังไล่สีตาม index, ใช้ `COMPARE_COLORS` ชุดเดียวกับที่อื่นในแอป) แยกแต่ละกองทุนออกจากกันชัดเจนขึ้นตามที่ user ขอ
+
+### Rankcard "เงินไหลเข้าสูงสุด" มีปุ่ม 1W ที่ backend ไม่มีข้อมูลรองรับ ([useFundinfoRanking.js](src/composables/useFundinfoRanking.js))
+- เช็ค schema จริงพบ backend มีแค่ `estimated_flow_1m_m_thb`/`estimated_flow_1y_m_thb` — ไม่มี 1W/3M/3Y/5Y เลย (`flowP.w1` hardcode `null` มาตั้งแต่แรกเพราะไม่มี field รองรับ)
+- ลบปุ่ม 1W ออกจาก pillOptions ทั้ง 2 จุด (legacy card + stock-tab card) เหลือแค่ 1M/1Y ตามข้อมูลจริงที่มี — ไม่เพิ่ม 3Y/5Y ปลอมๆ ตามที่ user ขอตอนแรก เพราะไม่มีข้อมูลจริงรองรับ
+
+### Audit ข้อมูล Fundinfo เทียบกับ Finnomena จริง — สุ่ม 168 กองทุน + สแกนทั้งฐาน 7,344 กอง
+- จับคู่ด้วย `fund_id` เดียวกันที่ `api.ideatradefund.com` และ Finnomena public API (`fn3/api/fund/v2/public/*`) ใช้ร่วมกัน — ดึงข้อมูลสดจากทั้งสองฝั่งมาเทียบทีละฟิลด์ ไม่ใช่เดา
+- **ตรงกัน 100%** ทั้ง 168 กองที่สุ่ม: Risk Level, Sharpe Ratio, SD, Max Drawdown, เงินลงทุนขั้นต่ำ, นโยบายเงินปันผล, ค่าธรรมเนียมบริหารจริง (แยกออกจากเพดานสูงสุดที่ Finnomena โชว์คนละฟิลด์ — เจอ false-positive รอบแรกเพราะเทียบผิดฟิลด์ แก้แล้วตรง 168/168)
+- NAV/AUM/ผลตอบแทนย้อนหลัง ต่างเฉลี่ย <1% เพราะสองระบบอัปเดตคลาดกัน ~1 วัน (ปกติ ไม่ใช่บั๊ก ยิ่งกองผันผวนสูงยิ่งเห็นชัด)
+- **พบบั๊กจริงฝั่ง backend**: 100/7,344 กองทุน (feeder 56, thai 36, mixed 7, offshore 1) ส่ง `nav`/`nav_value` เป็น `0` ตรงๆ ทั้งที่มี AUM จริงหลักสิบ-หมื่นล้านบาท (เช่น K-WPBALANCED AUM ฿45,777M แต่ nav=0) — กระจุกตัวที่ SCBAM + Kasikorn K-WP series — บันทึกลง [context.md §3](context.md) พร้อมรายชื่อกองทุนที่กระทบครบ
+- ส่งรายงานสรุปเป็น .txt ให้ user + ทำ HTML artifact แบบตารางเทียบ/filter ได้
+
+### DashboardView.vue: ตารางเปรียบเทียบกองทุน — หลายจุด (หลัง merge `origin/master` เข้ามา)
+- ลบแถว "ประเภทกองทุน" ออกจาก tbody (ซ้ำกับ badge ที่หัวตารางอยู่แล้ว), badge ประเภทกองทุนที่หัวตาราง (ต่อท้ายรหัสกองทุน) คงไว้เหมือนเดิม (เคยลองเปลี่ยนเป็นชื่อกองทุนตามคำขอตอนแรก แล้วแก้กลับตามคำสั่งแก้ไขภายหลัง)
+- ปุ่ม "ดูข้อมูล 🔍" ในตาราง screener เปลี่ยนจากเปิด modal เป็น `RouterLink` ไปหน้า `/fundinfo/detail/:id` จริง — verify: href เป็น `/fundinfo/detail/SCBKEQTG` ถูกต้อง, หน้า detail โหลดข้อมูลครบ
+- **บั๊ก "Top 5 Holdings ไม่ขึ้น" สำหรับ Feeder Fund**: `isValidTopHoldings()` เดิม require ≥3 รายการ (หรือ ≥4 ถ้าชื่อขึ้นต้นด้วย "หน่วยลงทุน"/"กองทุนเปิด"/"master fund") — Feeder Fund โดยธรรมชาติมี holding จริงแค่ 1 รายการ (ตัว Master Fund เอง เช่น "หน่วยลงทุน ISHARES MSCI SOUTH KOREA ETF" 99.66%) เลยโดนกรองทิ้งเสมอทั้งที่ backend ส่งข้อมูลจริงมาให้แล้ว — ลด threshold เหลือ ≥1 รายการที่มีชื่อจริง (ไม่ fabricate เพิ่ม) verify: Feeder โชว์ 1 แท่งถูกต้อง, Thai fund (5 holdings) ยังทำงานปกติไม่กระทบ
+
+### Merge conflict กับ `origin/master` (aivane/Migrat) — resolve แล้ว
+- เช็คด้วย `git merge-tree` (ไม่แตะ working tree) พบ conflict จริงแค่ 1 จุดใน `DashboardView.vue` (FALLBACK_PCT object-lookup ของเราเทียบกับ `pcts[i]` positional array ของ master — ค่าที่ได้เท่ากันแต่เขียนคนละแบบ) — `index.html`/`style.css` auto-merge ผ่านเอง
+- Resolve โดยเก็บฝั่งเรา (`FALLBACK_PCT[meta.key]`) เพราะฝั่ง master อ้าง `feederPct`/`offShorePct`/ฯลฯ ที่ประกาศแยกไว้คนละจุด ถ้าเลือกจะพัง (undefined vars)
+- Merge `origin/master` เข้า `fundinfoDev` จริง — ผลลัพธ์รวมของใหม่จาก master เข้ามาด้วย (quick preset filters, sector filter, favorites, compare-verdict summary, บาร์ชาร์ตเปรียบเทียบ, badge/risk color scheme ใหม่)
+
+### Font ผิดหลัง build ใหม่ ([index.html](index.html))
+- `fundinfo.css` ใช้ฟอนต์ `'Prompt'` เป็นหลักทั่วทั้งไฟล์ (`--font-main` และ rule ย่อยอีกหลายสิบจุด) แต่ตอน merge `origin/master` เข้ามา Google Fonts `<link>` ถูกเปลี่ยนให้โหลดแค่ Sarabun/Inter/Noto Sans Thai — Prompt หายไปเงียบๆ (มี comment ค้างบอกว่ายังใช้ Prompt อยู่ด้วยซ้ำ) — dev server เก่ามี font cache ไว้เลยไม่เห็นปัญหา จนกว่าจะ build ใหม่ทั้งหมด (Docker) ถึงจะเห็น fallback เป็น serif ของ browser
+- เพิ่ม `Prompt` กลับเข้า Google Fonts import — verify: `document.fonts` โชว์ `Prompt:loaded` แล้ว, เช็คครบ 5 หน้า (หน้าหลัก/Dashboard/Insights/Login/Fundinfo) ฟอนต์ถูกต้องหมด ไม่มีหน้าไหน fallback เป็น serif อีก
+
+### Docker: cache header ทำให้ UI ค้างเป็นเวอร์ชันเก่าหลัง redeploy ([docker/nginx.conf.template](docker/nginx.conf.template))
+- `index.html` อ้างชื่อไฟล์ asset แบบมี content-hash (`index-XXXX.js`) แต่ nginx เดิมไม่ส่ง `Cache-Control` header เลย — บาง browser/tab cache `index.html` เก่าไว้เอง ทำให้ hard refresh ก็ยังเห็น UI เก่าแม้ redeploy ไปแล้วจริง (ยืนยันด้วย curl ตรงว่า server ส่งเวอร์ชันใหม่ถูกต้อง ปัญหาอยู่ฝั่ง client cache ล้วนๆ)
+- แก้: `index.html` = `no-cache` (ต้อง revalidate ทุกครั้ง), `/assets/*` (มี hash) = cache 1 ปีแบบ `immutable` (ปลอดภัยเพราะชื่อไฟล์เปลี่ยนทุกครั้งที่โค้ดเปลี่ยน)
+
+### Docker/Auto-deploy — ตั้งขึ้นแล้วถอดออก (ไม่ได้เชื่อมกับ production จริง)
+- ตั้ง auto-deploy: แยก git worktree เฉพาะ (`Migrat-master-deploy`) track `ideatrade/main`, เขียน PowerShell script polling ทุก 2 นาที (`git fetch` เช็ค commit ใหม่ → `docker compose build` → `up -d --force-recreate`), ลงทะเบียน Windows Scheduled Task `FundInfoAutoDeploy` — เทสผ่านครบทั้ง deploy path และ idle path
+- เช็คพบ `ideatradefund.com` (production domain จริง) รัน **`vite dev` server ดิบๆ** (`/@vite/client`, unbundled `/src/main.js`) อยู่บนเครื่อง/โปรเซสที่ไม่รู้จักและไม่มีสิทธิ์เข้าถึงเลย — ยืนยันจาก nav bar ที่ยังมี "บทความ/บทวิเคราะห์"/"คำถามที่พบบ่อย" ค้างอยู่ (ลบไปนานแล้วในโค้ด) ว่าเป็นคนละ deployment กับที่ทำใน session นี้ทั้งหมด ไม่เชื่อมกันเลย — user ยืนยันไม่มีสิทธิ์เข้า server นั้น ต้องถามคนดูแลก่อน
+- ปิด Scheduled Task (Disabled ไม่ลบ) เพราะไม่มีประโยชน์จนกว่าจะรู้ target จริง
+- ภายหลัง user ตัดสินใจเลิกใช้ Docker ไปเลย (`ปิด docker และ vmmemWSL`, `กลับมาทำแค่ dev 5173 พอ`) — ปิด Docker Desktop + `wsl --shutdown` เต็มรูปแบบ, ย้าย `Dockerfile`/`docker-compose.yml`/`.dockerignore`/`docker/` เข้า `.gitignore` (untrack แต่ไฟล์ยังอยู่บน disk เผื่อกลับมาใช้)
+
+### Git / Deployment
+- เปลี่ยน upstream ของ `fundinfoDev` จาก `origin/fundinfo` (aivane/Migrat) เป็น `ideatrade/fundinfoDev` (IdeatradeOrg/FundInfo) ตามคำขอ user
+- Push งานทั้งหมดของ session นี้ขึ้น `ideatrade/fundinfoDev` แล้ว merge ต่อขึ้น `ideatrade/main` และ `origin/master` (aivane/Migrat) หลายรอบตลอด session — ทุกรอบเป็น fast-forward หรือ merge สะอาด (conflict เดียวที่เจอ แก้ไว้ข้างบน)
+- `.gitignore` ของ `.claude/` แยกพฤติกรรมตาม branch: **ignore บน `main`/`master`** (ไม่ track), **ยัง track ปกติบน `fundinfoDev`** (ตาม user ยืนยันชัดเจน 2 รอบ)
+
+### ยังไม่ได้แก้ / รอข้อมูลเพิ่ม
+- `api.ideatradefund.com` (fundinfo backend) พบ infra outage เต็มรูปแบบระหว่าง session (Cloudflare 504 ทุก endpoint รวม root domain) — ต้องรอทีม backend restart ไม่ใช่อะไรที่แก้จากโค้ดได้
+- Auto-deploy ที่ตั้งไว้ใช้งานไม่ได้จริงเพราะไม่รู้ว่า `ideatradefund.com` รันอยู่ที่ไหน — รอ user ถามทีมที่ดูแล server นั้นก่อนถึงจะเชื่อมได้
+- 100 กองทุนที่ `nav=0` (พบระหว่าง audit เทียบ Finnomena) — ต้องแจ้งทีม backend ยังไม่มีใครแก้
+
 ## 2026-09-08 — Fundinfo: merge เข้า master/main + audit backend รอบ 2 + แก้บั๊ก filter/search 3 จุด
 
 ### Merge `aivane/Migrat:master` เข้า `fundinfo` — สอง architecture ชนกันคนละแบบทั้งไฟล์
