@@ -9,7 +9,7 @@ import {
 } from '../services/insightsApi'
 
 const CACHE_TTL_MS = 10 * 60 * 1000
-const STORAGE_KEY = 'migrat.insights.cache.v1'
+const STORAGE_KEY = 'migrat.insights.cache.v2'
 const SUPPORTED_PERIODS = ['1D', '1W', '1M', '3M', 'YTD']
 
 const emptyErrors = () => ({
@@ -23,6 +23,7 @@ const emptyErrors = () => ({
 
 function readSessionCache() {
   try {
+    sessionStorage.removeItem('migrat.insights.cache.v1')
     const raw = sessionStorage.getItem(STORAGE_KEY)
     return raw ? JSON.parse(raw) : null
   } catch {
@@ -48,6 +49,7 @@ function labelFromTheme(value) {
   if (!value || typeof value !== 'object') return ''
 
   return (
+    value.theme_name ||
     value.name ||
     value.theme ||
     value.label ||
@@ -114,11 +116,11 @@ export const useInsightsStore = defineStore('insights', {
       }
 
       const tasks = {
-        trend: getInsightTrend({ type: 'FOREIGN', limit: 20 }),
-        valuation: getInsightValuation({ type: 'FOREIGN', limit: 20 }),
-        popularity: getInsightPopularity({ type: 'FOREIGN', limit: 20 }),
-        themes: getInsightThemes(12),
-        globalFlow: getGlobalFlow(period),
+        trend: getInsightTrend({ type: 'TH', limit: 20 }),
+        valuation: getInsightValuation({ limit: 20 }),
+        popularity: getInsightPopularity({ limit: 20 }),
+        themes: getInsightThemes(20),
+        globalFlow: getGlobalFlow({ period }),
       }
 
       const keys = Object.keys(tasks)
@@ -214,6 +216,22 @@ export const useInsightsStore = defineStore('insights', {
       const cached = readSessionCache()
 
       if (!cached?.loadedAt) return false
+
+      const hasValidFlows =
+        Array.isArray(cached.globalFlows) &&
+        cached.globalFlows.length > 0 &&
+        cached.globalFlows.some((f) => Number(f.flow_usd || 0) !== 0)
+
+      const hasValidSummary =
+        cached.globalFlowSummary &&
+        Number(cached.globalFlowSummary.total_inflow_usd || 0) !== 0
+
+      if (!hasValidFlows || !hasValidSummary) {
+        try {
+          sessionStorage.removeItem(STORAGE_KEY)
+        } catch {}
+        return false
+      }
 
       this.loadedAt = cached.loadedAt
       this.period = SUPPORTED_PERIODS.includes(cached.period) ? cached.period : '1M'

@@ -2,6 +2,22 @@
 
 บันทึกงานที่ทำในแต่ละวัน เรียงจากล่าสุดไปเก่าสุด
 
+## 2026-09-23 — IDEAFUND (Fund Insights): กู้คืนระบบให้กลับมาทำงานได้ครบทุกแท็บ
+
+### แก้ปัญหาข้อมูล Global Fund Flow แสดง +$0 และชื่อธีมว่างเปล่า ([insightsApi.js](src/services/insightsApi.js), [insightsStore.js](src/stores/insightsStore.js), [InsightsView.vue](src/views/InsightsView.vue))
+- **สาเหตุหลัก**: API `/api/v1/insights/flow-trend` ส่งคืนข้อมูลระดับกองทุน (500 กองทุนพร้อม `estimated_flow_1m_m_thb`, `unit_change_*`, `aimc_category_name_en`) ไม่ได้มีฟิลด์ `summary`, `flows`, หรือ `flow_usd` สำเร็จรูปมาให้ ทำให้โค้ดเดิมที่คาดหวังโครงสร้างเก่าดึงค่าไม่ได้ โชว์ `+$0` และชื่อธีมเป็น `-`
+- **แก้ไข**: รวบรวมและคำนวณ Flow ตามหมวดหมู่ธีม (AIMC Category) ใน `getGlobalFlow()`:
+  - คำนวณ Net Flow, Inflow, Outflow รายธีมตามช่วงเวลาที่เลือก (`1D`, `1W`, `1M`, `3M`, `YTD`)
+  - คำนวณสรุปยอดภาพรวม (NET FLOW, TOTAL INFLOW, TOTAL OUTFLOW, จำนวนธีม Inflow/Outflow)
+  - แมปชื่อธีมและแปลงหน่วยเป็น USD/THB รองรับการแสดงผล `$B`/`$M` ตามดีไซน์
+- **แก้ไข Parameter Bug**: `getGlobalFlow(period)` เดิมส่งสตริง `period` ตรงๆ ทำให้ `cleanParams` ใน `apiClient.js` มองว่าไม่ใช่ object และ throw error ปรับให้รองรับทั้ง object `{ period }` และ string
+- **แก้ไขการจับคู่ธีมใน `theme-funds`**: เมื่อเลือกหลายธีมพร้อมกัน เดิม `normalizeThemeFunds` ใส่กองทุนทั้งหมดลงในธีมแรก ปรับให้แยกจัดกลุ่มตาม `aimc_category_name_en` ตรงกับธีมที่เลือก และแมปฟิลด์ `code`, `name`, `amc`, `return_1y`, `return_1m`, `risk` ให้แสดงผลบน Fund Card ครบถ้วน
+- **เพิ่ม Track สีพื้นหลังให้ Flow Bar**: ปรับ CSS `.gf-flow-bar-wrap` ให้มี background `#f1f5f9` มองเห็นแกนความยาวได้ชัดเจน
+
+### ต่อสาย API จริงสำหรับ Uptrend และ Valuation
+- **Uptrend**: เดิม `getInsightTrend` ถูก alias ผิดไปเรียก `getInsightSectorsForeign` (ซึ่งส่งคืนหุ้น ไม่ใช่กองทุน) ทำให้ตาราง Uptrend ว่างเปล่า — ต่อสายกลับไปยัง `GET /api/v1/insights/trend?type=TH&limit=20` ดึงข้อมูลกองทุนขาขึ้นจริง แสดงชื่อกองทุน, AMC, Risk Badge, และ 1Y Return ถูกต้อง
+- **Valuation**: เดิม `getInsightValuation` ถูก alias ไปเรียก `getInsightThemes` — ต่อสายกลับไปยัง `GET /api/v1/insights/valuation` แสดง Symbol/ชื่อกองทุน, PE Zone Badge, Upside, และ AUM ครบถ้วน
+
 ## 2026-09-08 — Fundinfo: merge เข้า master/main + audit backend รอบ 2 + แก้บั๊ก filter/search 3 จุด
 
 ### Merge `aivane/Migrat:master` เข้า `fundinfo` — สอง architecture ชนกันคนละแบบทั้งไฟล์

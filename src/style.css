@@ -1874,7 +1874,7 @@ td.left span {
 
 .gf-flow-name {
   flex-shrink: 0;
-  width: 130px;
+  width: 145px;
   overflow: hidden;
   color: #1e293b;
   font-size: 13px;
@@ -1887,10 +1887,10 @@ td.left span {
 .gf-flow-bar-wrap {
   display: block;
   flex: 1;
-  height: 12px;
+  height: 8px;
   overflow: hidden;
-  border-radius: 6px;
-  background: transparent;
+  border-radius: 4px;
+  background: #f1f5f9;
 }
 
 .gf-flow-bar-wrap.out {

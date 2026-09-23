@@ -86,6 +86,7 @@ function themeLabel(value) {
   if (!value || typeof value !== 'object') return ''
 
   return (
+    value.theme_name ||
     value.name ||
     value.theme ||
     value.label ||
@@ -598,7 +599,10 @@ onMounted(() => loadInsights(false))
               <td colspan="4">ยังไม่มีข้อมูล valuation</td>
             </tr>
             <tr v-for="fund in state.valuationFunds" v-else :key="fund.code || fund.name">
-              <td class="l"><strong>{{ fund.code || '-' }}</strong></td>
+              <td class="l">
+                <strong>{{ fund.code || '-' }}</strong>
+                <span v-if="fund.name && fund.name !== fund.code" style="display:block;font-size:11px;color:#64748b">{{ fund.name }}</span>
+              </td>
               <td class="c"><span class="fi-zone fi-zone-f">{{ fund.pe_zone || fund.valuation_zone || fund.zone || '-' }}</span></td>
               <td class="c" :class="{ positive: Number(fund.upside_to_avg || returnValue(fund)) >= 0, negative: Number(fund.upside_to_avg || returnValue(fund)) < 0 }">
                 {{ formatPercent(fund.upside_to_avg || returnValue(fund)) }}
