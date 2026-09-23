@@ -3,7 +3,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import Chart from 'chart.js/auto'
 import { useFundinfoExposureTrend, holdingIcon, trendSeries } from '../../composables/useFundinfoExposureTrend'
-import { performanceSeries, CMP_LABELS, COMPARE_COLORS, COMPARE_DASH } from '../../composables/useFundinfoThemeTrend'
+import { CMP_LABELS, COMPARE_COLORS, COMPARE_DASH } from '../../composables/useFundinfoThemeTrend'
 import InfoTooltip from '../common/InfoTooltip.vue'
 import ApiErrorBanner from '../common/ApiErrorBanner.vue'
 import LoadingIndicator from '../common/LoadingIndicator.vue'
@@ -13,6 +13,7 @@ const props = defineProps({ type: { type: String, default: 'offshore' } })
 const {
   foreign,
   bench,
+  benchmarkChartSeries,
   label,
   method,
   example,
@@ -66,6 +67,11 @@ function performanceClass(value) {
   return value >= 0 ? 'is-positive' : 'is-negative'
 }
 
+// bench.ret is null until the real benchmark's return_1y loads (or the API is briefly down).
+function vsGlobal(perf) {
+  return bench.value.ret === null ? null : perf - bench.value.ret
+}
+
 function buildDetailChart() {
   if (detailChart) {
     detailChart.destroy()
@@ -86,17 +92,19 @@ function buildDetailChart() {
     fill: false,
   }))
 
-  datasets.push({
-    label: `${bench.name} · จุดอ้างอิง`,
-    data: performanceSeries(731, bench.ret, CMP_LABELS.length),
-    borderColor: '#9aa9bd',
-    backgroundColor: '#9aa9bd',
-    borderWidth: 1.6,
-    borderDash: [4, 3],
-    pointRadius: 0,
-    tension: 0.35,
-    fill: false,
-  })
+  if (benchmarkChartSeries.value) {
+    datasets.push({
+      label: `${bench.value.name} · จุดอ้างอิง`,
+      data: benchmarkChartSeries.value,
+      borderColor: '#9aa9bd',
+      backgroundColor: '#9aa9bd',
+      borderDash: [4, 3],
+      borderWidth: 1.6,
+      pointRadius: 0,
+      tension: 0.35,
+      fill: false,
+    })
+  }
 
   detailChart = new Chart(detailCanvas.value, {
     type: 'line',
@@ -133,6 +141,11 @@ watch(
     buildDetailChart()
   },
 )
+
+watch(benchmarkChartSeries, async () => {
+  await nextTick()
+  buildDetailChart()
+})
 
 watch(
   () => state.scopeMode,
@@ -186,7 +199,7 @@ onUnmounted(() => detailChart?.destroy())
         </button>
         <div>
           <span>สูงกว่า Global</span>
-          <strong class="kpi-green">{{ outperformCount }}/{{ scopes.length }} กลุ่ม</strong>
+          <strong class="kpi-green">{{ outperformCount !== null ? `${outperformCount}/${scopes.length} กลุ่ม` : '-' }}</strong>
           <small>ผลตอบแทน 1 ปีมากกว่า {{ bench.name }}</small>
         </div>
         <button type="button" :disabled="!topExposure" @click="topExposure && toggle(topExposure.id)">
@@ -222,7 +235,7 @@ onUnmounted(() => detailChart?.destroy())
           </div>
           <div class="industry-card-metrics">
             <div><small>ผลตอบแทน 1Y</small><b :class="performanceClass(scope.perf)">{{ signed(scope.perf) }}</b></div>
-            <div><small>เทียบ Global</small><b :class="performanceClass(scope.perf - bench.ret)">{{ signed(scope.perf - bench.ret) }}</b></div>
+            <div><small>เทียบ Global</small><b :class="vsGlobal(scope.perf) !== null ? performanceClass(vsGlobal(scope.perf)) : ''">{{ vsGlobal(scope.perf) !== null ? signed(vsGlobal(scope.perf)) : '-' }}</b></div>
           </div>
           <div class="industry-weight"><span>น้ำหนักรวม</span><strong>{{ scope.exposure.toFixed(1) }}%</strong><em>เลือกแล้ว · กดเพื่อยกเลิก</em></div>
           <div class="industry-progress"><i :style="{ width: `${Math.min(100, Math.max(8, (scope.exposure / maxExposure) * 100))}%` }"></i></div>
@@ -307,7 +320,7 @@ onUnmounted(() => detailChart?.destroy())
                   <small>{{ scope.subtitle }}</small>
                   <div>
                     <span>1Y <strong :class="performanceClass(scope.perf)">{{ signed(scope.perf) }}</strong></span>
-                    <span>vs Global <strong :class="performanceClass(scope.perf - bench.ret)">{{ signed(scope.perf - bench.ret) }}</strong></span>
+                    <span>vs Global <strong :class="vsGlobal(scope.perf) !== null ? performanceClass(vsGlobal(scope.perf)) : ''">{{ vsGlobal(scope.perf) !== null ? signed(vsGlobal(scope.perf)) : '-' }}</strong></span>
                     <span>น้ำหนัก <strong>{{ scope.exposure.toFixed(1) }}%</strong></span>
                   </div>
                 </article>

@@ -1,20 +1,15 @@
 import { computed } from 'vue'
+import { useFundinfoBenchmark } from './useFundinfoBenchmark'
 import { useFundinfoRanking } from './useFundinfoRanking'
 import { CMP_LABELS, checkpointSeries } from './useFundinfoThemeTrend'
+import { formatAumMThb } from '../utils/fundinfoFormat'
 
 // Section 3: Master Fund / Stock Comparison (deep-dive). Deliberately not built for
 // 'mixed' (ported from a prototype that skipped it too). Reuses useFundinfoRanking(type)'s
 // selection so this always matches what's picked in Section 2's Ranking Cards.
 
-const GLOBAL_RETURN = 12.8
 export const COMPARE_COLORS = ['#2456d8', '#0e9f6e', '#e0a411', '#7a5af5', '#e2557a', '#0891b2', '#f04438']
 export const COMPARE_DASH = [[], [8, 3], [3, 2], [10, 3, 2, 3], [6, 2], [2, 2], [12, 3]]
-
-const BENCHMARKS = {
-  thai: { name: 'SET TRI', ret: 3.2, short: 'SET' },
-  offshore: { name: 'MSCI ACWI', ret: GLOBAL_RETURN, short: 'Global' },
-  feeder: { name: 'MSCI ACWI', ret: GLOBAL_RETURN, short: 'Global' },
-}
 
 function finiteNumber(value) {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
@@ -35,12 +30,12 @@ function sumAum(members) {
   const finite = members.map((fund) => finiteNumber(fund.aum)).filter((value) => value !== null)
   if (!finite.length) return null
   const total = finite.reduce((sum, value) => sum + value, 0)
-  return `฿${Math.round(total).toLocaleString('th-TH')} ล้านบ.`
+  return formatAumMThb(total)
 }
 
 export function useFundinfoInsight(type = 'feeder') {
   const stock = type === 'offshore' || type === 'thai'
-  const bench = BENCHMARKS[type] || BENCHMARKS.feeder
+  const { bench, series: benchmarkChartSeries } = useFundinfoBenchmark(type)
   const itemLabel = stock ? (type === 'offshore' ? 'หุ้นต่างประเทศ' : 'หุ้นไทย') : type === 'feeder' ? 'Master Fund' : 'ธีมลงทุน'
 
   // instance เดียวกับที่ RankingCardsSection.vue (Section 2) ใช้ — เลือก/ถอดที่นั่นสะท้อนมาที่นี่ทันที
@@ -51,19 +46,24 @@ export function useFundinfoInsight(type = 'feeder') {
       // Stock entities come only from the real /stocks/top ranking now (mock STOCK_META path removed).
       if (ent.kind === 'stock') {
         const perf = finiteNumber(ent.return1y)
-        // /stocks/top has no valuation/dividend/drawdown fields — kept null until the API adds them.
+        // /stocks/top publishes pe_ratio/pb_ratio/dividend_yield/max_drawdown now
+        // (see mapTopStock in fundinfoApi.js) — no market-cap field, so `cap`
+        // below still falls back to the aggregate holding value, not a real cap.
         return {
           id: ent.id,
           kind: 'stock',
           title: `${ent.ticker} · ${ent.name}`,
           subtitle: `${ent.sector} · ${ent.country}`,
           perf,
-          gap: perf === null ? null : +(perf - bench.ret).toFixed(1),
-          maxDrawdown: null,
-          pe: null,
-          pb: null,
-          div: null,
-          cap: ent.totalHoldingValueMThb,
+          gap: perf === null || bench.value.ret === null ? null : +(perf - bench.value.ret).toFixed(1),
+          maxDrawdown: finiteNumber(ent.meta?.dd),
+          pe: finiteNumber(ent.meta?.pe),
+          pb: finiteNumber(ent.meta?.pb),
+          div: finiteNumber(ent.meta?.div),
+          beta: finiteNumber(ent.meta?.beta),
+          // totalHoldingValueMThb is already in ล้านบาท (million-THB) units — same format as
+          // Master Fund's AUM (sumAum) below, so the compare table shows "ล้านบ." consistently.
+          cap: formatAumMThb(ent.totalHoldingValueMThb),
           fundCount: ent.fundCount,
           totalWeight: ent.totalWeight,
           holdings: `น้ำหนักเฉลี่ย ${ent.avgHoldingWeight.toFixed(1)}%`,
@@ -87,9 +87,11 @@ export function useFundinfoInsight(type = 'feeder') {
           maxDrawdown: ent.fund.stats.maxdd,
           fee: ent.fund.fee,
           risk: ent.fund.risk,
-          // P/E, P/B exist in the schema but are null for every fund observed — kept nullable, not defaulted.
+          aum: formatAumMThb(ent.fund.aum),
+          // P/E, P/B: populated for ~20-30% of funds (verified 2026-09-10), null for the rest.
           pe: finiteNumber(ent.fund.peRatio),
           pb: finiteNumber(ent.fund.pbRatio),
+          beta: finiteNumber(ent.fund.beta),
           benchName: ent.fund.benchmarkName || null,
           holdings: (ent.fund.top5 || [])
             .slice(0, 3)
@@ -118,9 +120,11 @@ export function useFundinfoInsight(type = 'feeder') {
         gap: perf === null || avgBenchReturn === null ? null : +(perf - avgBenchReturn).toFixed(1),
         maxDrawdown: avgMaxDrawdown(ent),
         characteristics: null,
-        // Averaged across members — null while pe_ratio/pb_ratio are unpopulated API-side.
+        // Averaged across members that have a real value (averageFinite skips null) —
+        // pe_ratio/pb_ratio are only populated for ~20-30% of funds (verified 2026-09-10).
         pe: averageFinite(ent.members.map((fund) => fund.peRatio)),
         pb: averageFinite(ent.members.map((fund) => fund.pbRatio)),
+        beta: averageFinite(ent.members.map((fund) => fund.beta)),
         exposure: '',
         topTickers: '',
         aum: sumAum(ent.members),
@@ -134,6 +138,7 @@ export function useFundinfoInsight(type = 'feeder') {
   return {
     stock,
     bench,
+    benchmarkChartSeries,
     itemLabel,
     selectedEntities,
     maxSelected,

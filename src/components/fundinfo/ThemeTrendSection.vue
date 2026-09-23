@@ -4,7 +4,6 @@ import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import Chart from 'chart.js/auto'
 import {
   useFundinfoThemeTrend,
-  performanceSeries,
   formatFlow,
   CMP_LABELS,
   COMPARE_COLORS,
@@ -22,6 +21,8 @@ const {
   positiveCount,
   acceleratingCount,
   outperformCount,
+  bench,
+  benchmarkChartSeries,
   maxReached,
   maxSelected,
   orderOf,
@@ -30,8 +31,6 @@ const {
   setView,
 } = useFundinfoThemeTrend(props.type)
 
-const BENCH_LABEL = 'MSCI ACWI'
-const GLOBAL_RETURN = 12.8
 const detailCanvas = ref(null)
 const chartGroupsOpen = ref(true)
 let detailChart = null
@@ -52,18 +51,19 @@ function buildDetailChart() {
     tension: 0.3,
     fill: false,
   }))
-  datasets.push({
-    label: `${BENCH_LABEL} · จุดอ้างอิง`,
-    data: performanceSeries(731, GLOBAL_RETURN, CMP_LABELS.length),
-    borderColor: '#9aa9bd',
-    backgroundColor: '#9aa9bd',
-    borderWidth: 1.6,
-    borderDash: [5, 3],
-    pointRadius: 0,
-    tension: 0.3,
-    fill: false,
-  })
-
+  if (benchmarkChartSeries.value) {
+    datasets.push({
+      label: `${bench.value.name} · จุดอ้างอิง`,
+      data: benchmarkChartSeries.value,
+      borderColor: '#9aa9bd',
+      backgroundColor: '#9aa9bd',
+      borderWidth: 1.6,
+      borderDash: [5, 3],
+      pointRadius: 0,
+      tension: 0.3,
+      fill: false,
+    })
+  }
   detailChart = new Chart(detailCanvas.value, {
     type: 'line',
     data: { labels: CMP_LABELS, datasets },
@@ -88,6 +88,11 @@ watch(() => selectedStats.value.map((s) => s.scope.id).join(','), async () => {
   buildDetailChart()
 })
 
+watch(benchmarkChartSeries, async () => {
+  await nextTick()
+  buildDetailChart()
+})
+
 onMounted(async () => {
   await nextTick()
   buildDetailChart()
@@ -107,7 +112,7 @@ onUnmounted(() => detailChart?.destroy())
       <div class="theme-summary" aria-label="สรุปแนวโน้มธีม">
         <span>บวก 1Y <b>{{ positiveCount }}/{{ selectedStats.length }}</b></span>
         <span>เร่งขึ้น <b>{{ acceleratingCount }}/{{ selectedStats.length }}</b></span>
-        <span>เหนือ Global <b>{{ outperformCount }}/{{ selectedStats.length }}</b></span>
+        <span>เหนือ Global <b>{{ outperformCount !== null ? `${outperformCount}/${selectedStats.length}` : '-' }}</b></span>
       </div>
     </header>
 
@@ -128,7 +133,7 @@ onUnmounted(() => detailChart?.destroy())
 
 <div class="theme-toolbar">
       <div>
-        <b>เปรียบเทียบ Performance บนกราฟเดียวกัน <InfoTooltip text="ผลตอบแทนแบบฐาน 100 ย้อนหลัง 12 เดือน · เส้นประคือ MSCI ACWI" /></b>
+        <b>เปรียบเทียบ Performance บนกราฟเดียวกัน <InfoTooltip :text="`ผลตอบแทนแบบฐาน 100 ย้อนหลัง 12 เดือน · เส้นประคือ ${bench.name}`" /></b>
       </div>
       
       <!-- ย้ายช่องค้นหามาไว้ที่นี่ จะแสดงและถูกดันชิดขวาเฉพาะในโหมดเลือกธีมเอง (state.view === 'all') -->
@@ -167,13 +172,13 @@ onUnmounted(() => detailChart?.destroy())
 
         <!-- จุดอ้างอิง Benchmark -->
         <div v-if="selectedStats.length" class="theme-benchmark-text">
-          <span class="dashed-line">------</span> <b>จุดอ้างอิง: {{ BENCH_LABEL }}</b> <span>Performance คำนวณจากตะกร้าหุ้นที่พบใน Top Holdings ไม่ใช่ดัชนีหมวดอย่างเป็นทางการ</span>
+          <span class="dashed-line">------</span> <b>จุดอ้างอิง: {{ bench.name }}</b> <span>Performance คำนวณจากตะกร้าหุ้นที่พบใน Top Holdings ไม่ใช่ดัชนีหมวดอย่างเป็นทางการ</span>
         </div>
       </div>
     </div>
 
     <div v-if="selectedStats.length" class="theme-chart-grid">
-      <div class="theme-chart-panel"><canvas ref="detailCanvas" aria-label="กราฟเปรียบเทียบธีมกับ MSCI ACWI"></canvas></div>
+      <div class="theme-chart-panel"><canvas ref="detailCanvas" aria-label="กราฟเปรียบเทียบผลตอบแทนธีมที่เลือก"></canvas></div>
       <aside class="industry-chart-list" :class="{ collapsed: !chartGroupsOpen }">
         <button type="button" class="industry-chart-list-toggle" :aria-expanded="chartGroupsOpen" @click="chartGroupsOpen = !chartGroupsOpen">
           <span><b>ธีมในกราฟ</b><small>เลือกเฉพาะธีมที่สนใจก่อนเจาะดู Master Fund</small></span>
@@ -185,7 +190,7 @@ onUnmounted(() => detailChart?.destroy())
             <small>{{ s.fundCount }} กองทุน</small>
             <div>
               <span>1Y <strong :class="s.scope.perf >= 0 ? 'text-pos' : 'text-neg'">{{ s.scope.perf > 0 ? '+' : '' }}{{ s.scope.perf }}%</strong></span>
-              <span>vs Global <strong :class="s.vsGlobal >= 0 ? 'text-pos' : 'text-neg'">{{ s.vsGlobal > 0 ? '+' : '' }}{{ s.vsGlobal }}%</strong></span>
+              <span>vs Global <strong :class="s.vsGlobal !== null ? (s.vsGlobal >= 0 ? 'text-pos' : 'text-neg') : ''">{{ s.vsGlobal !== null ? `${s.vsGlobal > 0 ? '+' : ''}${s.vsGlobal}%` : '-' }}</strong></span>
               <span>เงินไหลเข้า <strong :class="s.flow >= 0 ? 'text-pos' : 'text-neg'">{{ s.flow > 0 ? '+' : '' }}฿{{ formatFlow(s.flow) }}</strong></span>
             </div>
           </article>

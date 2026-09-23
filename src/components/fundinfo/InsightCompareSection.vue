@@ -4,7 +4,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import Chart from 'chart.js/auto'
 import { COMPARE_COLORS, COMPARE_DASH, useFundinfoInsight } from '../../composables/useFundinfoInsight'
 import { useFundinfoRanking } from '../../composables/useFundinfoRanking'
-import { CMP_LABELS, performanceSeries } from '../../composables/useFundinfoThemeTrend'
+import { CMP_LABELS } from '../../composables/useFundinfoThemeTrend'
 import { formatPercent } from '../../utils/fundinfoFormat'
 import InfoTooltip from '../common/InfoTooltip.vue'
 
@@ -12,7 +12,7 @@ const props = defineProps({
   type: { type: String, default: 'offshore' },
 })
 
-const { bench, cardsData, itemLabel, maxSelected, stock } = useFundinfoInsight(props.type)
+const { bench, benchmarkChartSeries, cardsData, itemLabel, maxSelected, stock } = useFundinfoInsight(props.type)
 const { clearSelection } = useFundinfoRanking(props.type)
 
 const combinedCanvas = ref(null)
@@ -49,6 +49,8 @@ function sortValue(card, field) {
       return card.pe ?? null
     case 'pb':
       return card.pb ?? null
+    case 'beta':
+      return card.beta ?? null
     case 'gap':
       return card.gap ?? null
     default:
@@ -135,18 +137,20 @@ function createChart(canvas, entries) {
     fill: false,
   }))
 
-  datasets.push({
-    label: `${bench.name} · จุดอ้างอิง`,
-    data: performanceSeries(731, bench.ret, CMP_LABELS.length),
-    borderColor: '#94a3b8',
-    backgroundColor: '#94a3b8',
-    borderDash: [5, 4],
-    borderWidth: 1.8,
-    tension: 0.3,
-    pointRadius: 0,
-    pointHoverRadius: 4,
-    fill: false,
-  })
+  if (benchmarkChartSeries.value) {
+    datasets.push({
+      label: `${bench.value.name} · จุดอ้างอิง`,
+      data: benchmarkChartSeries.value,
+      borderColor: '#94a3b8',
+      backgroundColor: '#94a3b8',
+      borderDash: [5, 4],
+      borderWidth: 1.8,
+      tension: 0.3,
+      pointRadius: 0,
+      pointHoverRadius: 4,
+      fill: false,
+    })
+  }
 
   combinedChart = new Chart(canvas, {
     type: 'line',
@@ -180,7 +184,7 @@ async function rebuildCharts() {
   createChart(combinedCanvas.value, cardsData.value)
 }
 
-watch([selectionSignature, hasHistoricalSeries], rebuildCharts)
+watch([selectionSignature, hasHistoricalSeries, benchmarkChartSeries], rebuildCharts)
 onMounted(rebuildCharts)
 onUnmounted(destroyChart)
 </script>
@@ -247,6 +251,10 @@ onUnmounted(destroyChart)
                     P/B Ratio
                     <span class="sort-arrow" :class="{ active: localSortKey === 'pb' }">{{ sortIcon('pb') }}</span>
                   </th>
+                  <th class="text-right sortable" @click="setSortLocal('beta')">
+                    Beta
+                    <span class="sort-arrow" :class="{ active: localSortKey === 'beta' }">{{ sortIcon('beta') }}</span>
+                  </th>
                   <th class="text-right sortable" @click="setSortLocal('gap')">
                     เทียบจุดอ้างอิง
                     <span class="sort-arrow" :class="{ active: localSortKey === 'gap' }">{{ sortIcon('gap') }}</span>
@@ -267,6 +275,7 @@ onUnmounted(destroyChart)
                   <td class="text-right" :class="valueTone(card.maxDrawdown)">{{ formatOptionalDrawdown(card.maxDrawdown) }}</td>
                   <td class="text-right">{{ card.pe != null ? `${card.pe}x` : '-' }}</td>
                   <td class="text-right">{{ card.pb != null ? `${card.pb}x` : '-' }}</td>
+                  <td class="text-right">{{ card.beta != null ? card.beta : '-' }}</td>
                   <td class="text-right" :class="valueTone(card.gap)">{{ formatOptionalPercent(card.gap) }}</td>
                   <td>{{ card.benchName ? shortBench(card.benchName) : '-' }}</td>
                   <td>{{ card.topTickers || card.holdings || '-' }}</td>

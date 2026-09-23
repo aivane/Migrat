@@ -1,14 +1,32 @@
 <script setup>
 import { ref } from 'vue'
-import { formatPercent } from '../../utils/fundinfoFormat'
+import { COMPARE_COLORS } from '../../composables/useFundinfoInsight'
+import { formatAumMThb, formatPercent } from '../../utils/fundinfoFormat'
 
-defineProps({
+const props = defineProps({
   selectedFunds: { type: Array, default: () => [] },
 })
 
 defineEmits(['clear-all', 'remove-fund'])
 
 const collapsed = ref(false)
+
+// สีประจำแต่ละกองทุนที่เลือก (ตามลำดับที่เลือก) — ให้แยกคอลัมน์ในตารางเปรียบเทียบ
+// ออกจากกันชัดเจนด้วยสี ไม่ใช่แค่เส้นแบ่งบางๆ เหมือนเดิม
+function colorFor(fund) {
+  const index = props.selectedFunds.findIndex((f) => f.id === fund.id)
+  return COMPARE_COLORS[index % COMPARE_COLORS.length]
+}
+function headerStyle(fund) {
+  return {
+    width: `calc((100% - 130px) / ${props.selectedFunds.length})`,
+    borderTop: `3px solid ${colorFor(fund)}`,
+    background: `${colorFor(fund)}14`,
+  }
+}
+function cellStyle(fund) {
+  return { background: `${colorFor(fund)}0d` }
+}
 
 function fundType(fund) {
   return { thai: 'Thai Fund', offshore: 'Offshore Fund', feeder: 'Feeder Fund', mixed: 'Mixed Fund' }[fund.type] || 'Fund'
@@ -45,23 +63,24 @@ function dividendDisplay(fund) {
               v-for="fund in selectedFunds"
               :key="fund.id"
               class="relative"
-              :style="{ width: `calc((100% - 130px) / ${selectedFunds.length})` }"
+              :style="headerStyle(fund)"
             >
               <!-- Anti-XSS: text interpolation only, no v-html — Vue auto-escapes -->
-              <b>{{ fund.id }}</b>
+              <b :style="{ color: colorFor(fund) }">{{ fund.id }}</b>
               <small>{{ fund.amc }}</small>
               <button type="button" :aria-label="`นำ ${fund.id} ออก`" @click="$emit('remove-fund', fund.id)">×</button>
             </th>
           </tr>
         </thead>
         <tbody>
-          <tr><th>ประเภท</th><td v-for="fund in selectedFunds" :key="fund.id">{{ fundType(fund) }}</td></tr>
-          <tr><th>1Y Return</th><td v-for="fund in selectedFunds" :key="fund.id" :class="fund.perf >= 0 ? 'positive' : 'negative'">{{ formatPercent(fund.perf, 1) }}</td></tr>
-          <tr><th>Sharpe Ratio</th><td v-for="fund in selectedFunds" :key="fund.id">{{ fund.sharpe?.toFixed(2) || '-' }}</td></tr>
-          <tr><th>Max Drawdown</th><td v-for="fund in selectedFunds" :key="fund.id" class="negative">{{ fund.drawdown || '-' }}</td></tr>
-          <tr><th>เงินปันผล</th><td v-for="fund in selectedFunds" :key="fund.id" :class="dividendDisplay(fund).cls">{{ dividendDisplay(fund).text }}</td></tr>
-          <tr><th>TER (ค่าธรรมเนียม)</th><td v-for="fund in selectedFunds" :key="fund.id">{{ fund.fee?.toFixed(2) || '-' }}%</td></tr>
-          <tr><th>Master Fund</th><td v-for="fund in selectedFunds" :key="fund.id">{{ fund.master || '-' }}</td></tr>
+          <tr><th>ประเภท</th><td v-for="fund in selectedFunds" :key="fund.id" :style="cellStyle(fund)">{{ fundType(fund) }}</td></tr>
+          <tr><th>ขนาดกองทุน (AUM)</th><td v-for="fund in selectedFunds" :key="fund.id" :style="cellStyle(fund)">{{ formatAumMThb(fund.aum) || '-' }}</td></tr>
+          <tr><th>1Y Return</th><td v-for="fund in selectedFunds" :key="fund.id" :style="cellStyle(fund)" :class="fund.perf >= 0 ? 'positive' : 'negative'">{{ formatPercent(fund.perf, 1) }}</td></tr>
+          <tr><th>Sharpe Ratio</th><td v-for="fund in selectedFunds" :key="fund.id" :style="cellStyle(fund)">{{ fund.sharpe?.toFixed(2) || '-' }}</td></tr>
+          <tr><th>Max Drawdown</th><td v-for="fund in selectedFunds" :key="fund.id" :style="cellStyle(fund)" class="negative">{{ fund.drawdown || '-' }}</td></tr>
+          <tr><th>เงินปันผล</th><td v-for="fund in selectedFunds" :key="fund.id" :style="cellStyle(fund)" :class="dividendDisplay(fund).cls">{{ dividendDisplay(fund).text }}</td></tr>
+          <tr><th>TER (ค่าธรรมเนียม)</th><td v-for="fund in selectedFunds" :key="fund.id" :style="cellStyle(fund)">{{ fund.fee?.toFixed(2) || '-' }}%</td></tr>
+          <tr><th>Master Fund</th><td v-for="fund in selectedFunds" :key="fund.id" :style="cellStyle(fund)">{{ fund.master || '-' }}</td></tr>
         </tbody>
       </table>
     </div>

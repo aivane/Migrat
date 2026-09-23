@@ -3,7 +3,7 @@
 import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import Chart from 'chart.js/auto'
 import { useFundinfoMarketLens } from '../../composables/useFundinfoMarketLens'
-import { performanceSeries, CMP_LABELS, COMPARE_COLORS } from '../../composables/useFundinfoThemeTrend'
+import { CMP_LABELS, COMPARE_COLORS } from '../../composables/useFundinfoThemeTrend'
 import InfoTooltip from '../common/InfoTooltip.vue'
 
 const props = defineProps({ type: { type: String, default: 'mixed' } })
@@ -17,6 +17,7 @@ const {
   chartLines,
   chartTitle,
   bench,
+  benchmarkChartSeries,
   setScope,
   clearScope,
 } = useFundinfoMarketLens(props.type)
@@ -45,18 +46,20 @@ function buildChart() {
     fill: false,
   }))
 
-  sets.push({
-    label: `${bench.name} · จุดอ้างอิง`,
-    scopeId: null,
-    data: performanceSeries(731, bench.ret, CMP_LABELS.length),
-    borderColor: '#9aa9bd',
-    backgroundColor: '#9aa9bd',
-    borderWidth: 1.5,
-    borderDash: [5, 3],
-    pointRadius: 0,
-    tension: .28,
-    fill: false,
-  })
+  if (benchmarkChartSeries.value) {
+    sets.push({
+      label: `${bench.value.name} · จุดอ้างอิง`,
+      scopeId: null,
+      data: benchmarkChartSeries.value,
+      borderColor: '#9aa9bd',
+      backgroundColor: '#9aa9bd',
+      borderWidth: 1.5,
+      borderDash: [5, 3],
+      pointRadius: 0,
+      tension: .28,
+      fill: false,
+    })
+  }
 
   chartInstance = new Chart(chartCanvas.value, {
     type: 'line',
@@ -92,6 +95,8 @@ watch(
   () => `${chartLines.value.map((item) => item.scope.id).join(',')}|${state.scope}`,
   async () => { await nextTick(); buildChart() },
 )
+
+watch(benchmarkChartSeries, async () => { await nextTick(); buildChart() })
 
 onMounted(async () => { await nextTick(); buildChart() })
 onUnmounted(() => chartInstance?.destroy())

@@ -17,6 +17,14 @@ export function formatPercent(value, digits = 2) {
   return `${number >= 0 ? '+' : ''}${number.toFixed(digits)}%`
 }
 
+// aum_m_thb ฟิลด์จาก API เป็นหน่วยล้านบาทอยู่แล้ว — ใช้ format เดียวกันทุกที่ที่โชว์ AUM
+// (Master Fund, หุ้นต่างประเทศ/ไทย, กองทุนไทยที่ถือหุ้น) ให้ขึ้น "ล้านบ." เหมือนกันหมด
+export function formatAumMThb(value) {
+  const number = typeof value === 'number' ? value : Number(value)
+  if (!Number.isFinite(number)) return null
+  return `฿${Math.round(number).toLocaleString('th-TH')} ล้านบ.`
+}
+
 export function riskClass(risk) {
   if (risk <= 3) return 'risk-low'
   if (risk <= 5) return 'risk-medium'
