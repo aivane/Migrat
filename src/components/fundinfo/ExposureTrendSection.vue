@@ -316,8 +316,7 @@ onUnmounted(() => detailChart?.destroy())
               </button>
               <div v-show="chartGroupsOpen" class="industry-chart-list-scroll">
                 <article v-for="(scope, index) in selectedStats" :key="scope.id" :style="{ '--scope-color': scopeColor(index) }">
-                  <b><i></i>{{ index + 1 }}. {{ scope.title }}</b>
-                  <small>{{ scope.subtitle }}</small>
+                  <b>{{ index + 1 }}. {{ scope.title }}</b>
                   <div>
                     <span>1Y <strong :class="performanceClass(scope.perf)">{{ signed(scope.perf) }}</strong></span>
                     <span>vs Global <strong :class="vsGlobal(scope.perf) !== null ? performanceClass(vsGlobal(scope.perf)) : ''">{{ vsGlobal(scope.perf) !== null ? signed(vsGlobal(scope.perf)) : '-' }}</strong></span>

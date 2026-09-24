@@ -10,12 +10,14 @@ import {
   COMPARE_DASH,
 } from '../../composables/useFundinfoThemeTrend'
 import InfoTooltip from '../common/InfoTooltip.vue'
+import LoadingIndicator from '../common/LoadingIndicator.vue'
 
 const props = defineProps({ type: { type: String, default: 'feeder' } })
 
 const {
   stats,
   state,
+  loading,
   visibleStats,
   selectedStats,
   positiveCount,
@@ -116,6 +118,9 @@ onUnmounted(() => detailChart?.destroy())
       </div>
     </header>
 
+    <LoadingIndicator v-if="loading" label="กำลังโหลดข้อมูลแนวโน้มธีม..." />
+
+    <template v-else>
     <div class="theme-analysis-instruction">
       <div class="theme-instruction-text">
         <h2>ติดตามทิศทางและผลตอบแทนของธีมเด่น ก่อนเลือกเปรียบเทียบ Master Fund ในมุมมองเดียว <InfoTooltip text="เลือกได้สูงสุด 5 กลุ่มเพื่อเปรียบเทียบผลตอบแทนบนกราฟเดียวกัน จากนั้น Ranking หุ้นและรายชื่อกองทุนด้านล่างจะปรับตาม" /></h2>
@@ -186,8 +191,7 @@ onUnmounted(() => detailChart?.destroy())
         </button>
         <div v-show="chartGroupsOpen" class="industry-chart-list-scroll">
           <article v-for="(s, index) in selectedStats" :key="s.scope.id" :style="{ '--scope-color': COMPARE_COLORS[index % COMPARE_COLORS.length] }">
-            <b><i></i>{{ index + 1 }}. {{ s.scope.title }}</b>
-            <small>{{ s.fundCount }} กองทุน</small>
+            <b>{{ index + 1 }}. {{ s.scope.title }}</b>
             <div>
               <span>1Y <strong :class="s.scope.perf >= 0 ? 'text-pos' : 'text-neg'">{{ s.scope.perf > 0 ? '+' : '' }}{{ s.scope.perf }}%</strong></span>
               <span>vs Global <strong :class="s.vsGlobal !== null ? (s.vsGlobal >= 0 ? 'text-pos' : 'text-neg') : ''">{{ s.vsGlobal !== null ? `${s.vsGlobal > 0 ? '+' : ''}${s.vsGlobal}%` : '-' }}</strong></span>
@@ -197,5 +201,6 @@ onUnmounted(() => detailChart?.destroy())
         </div>
       </aside>
     </div>
+    </template>
   </section>
 </template>

@@ -15,8 +15,8 @@
   --pos: #12b76a;
   --neg: #f04438;
 
-  /* Dashboard Tokens (Light Mode) */
-  --font-main: 'Prompt', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  /* Dashboard Tokens (Light Mode) — matches the homepage's font (src/style.css) */
+  --font-main: 'Sarabun', 'Noto Sans Thai', 'Segoe UI', system-ui, sans-serif;
   --bg-main: #ffffff;
   --surface: #ffffff;
   --surface-soft: #f5f8fd;
@@ -68,7 +68,7 @@
 }
 
 .fundinfo-scope .num {
-  font-family: 'Inter', 'Prompt', sans-serif;
+  font-family: 'Inter', 'Sarabun', sans-serif;
   font-feature-settings: 'tnum';
 }
 
@@ -506,7 +506,7 @@
 }
 
 .fundinfo-scope .compare-selection-metrics span { color: var(--txt); font: 700 11px/1.2 Inter, sans-serif; }
-.fundinfo-scope .compare-selection-metrics i { display: block; margin-bottom: 2px; color: var(--sub); font: 400 10px/1.2 'Prompt', sans-serif; font-style: normal; }
+.fundinfo-scope .compare-selection-metrics i { display: block; margin-bottom: 2px; color: var(--sub); font: 400 10px/1.2 'Sarabun', sans-serif; font-style: normal; }
 
 .fundinfo-scope .comparison-empty {
   border: 1px dashed var(--line);
@@ -562,7 +562,7 @@
 
 .fundinfo-scope .ranking-card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(360px, 340px));
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   justify-content: center;
   align-items: start;
   gap: 16px;
@@ -601,7 +601,7 @@
 }
 .fundinfo-scope .ranking-card-caption { display: block; margin: 2px 0 0; color: var(--sub); font-size: 13px; font-style: italic; line-height: 1.3; }
 .fundinfo-scope .ranking-periods { display: flex; gap: 3px; margin-top: 5px; }
-.fundinfo-scope .ranking-periods button { border: 0; border-radius: 8px; padding: 2px 7px; background: var(--surf2); color: var(--sub); font: 800 10px/1.25 Inter, sans-serif; }
+.fundinfo-scope .ranking-periods button { border: 0; border-radius: 8px; padding: 4px 10px; background: var(--surf2); color: var(--sub); font: 800 12px/1.25 Inter, sans-serif; }
 .fundinfo-scope .ranking-periods button.active { color: #fff; }
 
 .fundinfo-scope .ranking-card-list { padding: 3px 0; flex: 1; }
@@ -612,7 +612,7 @@
 .fundinfo-scope .ranking-number { display: inline-flex; width: 16px; height: 16px; align-items: center; justify-content: center; border-radius: 50%; color: var(--sub); font: 800 10px/1 Inter, sans-serif; }
 .fundinfo-scope .ranking-number.medal { color: #fff; }
 .fundinfo-scope .ranking-row-name { overflow: hidden; font-size: 13px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
-.fundinfo-scope .ranking-row strong { font: 800 11px/1.2 Inter, sans-serif; white-space: nowrap; }
+.fundinfo-scope .ranking-row strong { font: 800 14px/1.2 Inter, sans-serif; white-space: nowrap; }
 .fundinfo-scope .ranking-add { display: inline-flex; width: 16px; height: 16px; align-items: center; justify-content: center; border: 1px solid var(--line); border-radius: 5px; color: var(--sub); font: 800 12px/1 Inter, sans-serif; }
 
 /* แถบสรุป Ranking ด้านล่าง */
@@ -648,7 +648,7 @@
   padding: 4px 8px; 
   background: var(--surf); 
   color: var(--txt); 
-  font-family: 'Prompt', sans-serif;
+  font-family: 'Sarabun', sans-serif;
   font-size: 12px; 
   font-weight: 700; 
   cursor: pointer;
@@ -685,7 +685,7 @@
 .fundinfo-scope .screener-search-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 7px; align-items: center; margin-top: 10px; }
 .fundinfo-scope .screener-search-input { display: flex; align-items: center; gap: 7px; min-width: 0; border-radius: 6px; padding: 0 9px; background: var(--surf2); color: var(--sub); }
 .fundinfo-scope .screener-search-input span { font: 800 15px/1 Inter, sans-serif; }
-.fundinfo-scope .screener-search-input input { width: 100%; min-height: 32px; border: 0; outline: 0; background: transparent; color: var(--txt); font: 12px 'Prompt', sans-serif; }
+.fundinfo-scope .screener-search-input input { width: 100%; min-height: 32px; border: 0; outline: 0; background: transparent; color: var(--txt); font: 12px 'Sarabun', sans-serif; }
 .fundinfo-scope .screener-count { border-radius: 6px; padding: 8px 10px; background: var(--surf2); color: var(--brand); font: 800 12px/1 Inter, sans-serif; white-space: nowrap; }
 .fundinfo-scope .screener-filter-toggle { border: 0; border-radius: 6px; padding: 8px 10px; background: #0e7ac0; color: #fff; font-size: 12px; font-weight: 800; white-space: nowrap; }
 .fundinfo-scope .screener-filter-toggle:not(.active) { background: var(--surf2); color: var(--sub); }
@@ -719,9 +719,6 @@
 .fundinfo-scope .fund-results-heading h2 { color: var(--txt); font-size: 14px; font-weight: 800; }
 .fundinfo-scope .fund-results-heading p, .fundinfo-scope .fund-results-meta { margin-top: 2px; color: var(--sub); font-size: 10px; }
 .fundinfo-scope .fund-results-meta { white-space: nowrap; }
-.fundinfo-scope .fund-sort-button { border: 0; border-radius: 12px; padding: 4px 9px; background: var(--surf2); color: var(--txt); font: 800 12px/1.2 'Prompt', sans-serif; white-space: nowrap; }
-.fundinfo-scope .fund-sort-button:hover { color: var(--brand); }
-
 /* Fund Results Table & Scrollbars */
 .fundinfo-scope .fund-results-table {
   max-width: none;
@@ -770,13 +767,17 @@
 .fundinfo-scope .fund-results-table th .sort-arrow.active,
 .fundinfo-scope th .sort-arrow.active { color: var(--brand); opacity: 1; }
 
-.fundinfo-scope .fund-results-table td { 
-  padding: 13px 14px; 
-  color: var(--txt); 
-  text-overflow: unset; 
-  vertical-align: middle; 
+.fundinfo-scope .fund-results-table td {
+  padding: 13px 14px;
+  color: var(--txt);
+  text-overflow: unset;
+  vertical-align: middle;
   white-space: nowrap;
 }
+/* outrank the generic td color above so pos/neg/sub actually render their color */
+.fundinfo-scope .fund-results-table td.text-pos { color: var(--pos); }
+.fundinfo-scope .fund-results-table td.text-neg { color: var(--neg); }
+.fundinfo-scope .fund-results-table td.sub { color: var(--sub); }
 
 .fundinfo-scope .fund-results-table tbody tr + tr td { border-top: 1px solid var(--line); }
 .fundinfo-scope .fund-results-table tbody tr:hover { background: var(--surf2); }
@@ -875,7 +876,6 @@
   .fundinfo-scope .screener-reset { min-height: 30px; }
   .fundinfo-scope .fund-results-heading { align-items: start; }
   .fundinfo-scope .fund-results-meta { display: none; }
-  .fundinfo-scope .fund-sort-button { font-size: 9px; }
   .fundinfo-scope .fund-results-table { overflow-x: auto; margin-top: 24px; }
   .fundinfo-scope .fund-results-table table { min-width: 720px; table-layout: auto; }
   .fundinfo-scope .comparison-heading { display: grid; }
@@ -932,7 +932,7 @@
   padding: 8px 18px;
   background: transparent;
   color: var(--txt);
-  font-family: 'Prompt', sans-serif;
+  font-family: 'Sarabun', sans-serif;
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
@@ -949,7 +949,7 @@
   border: 0;
   background: transparent;
   color: var(--txt);
-  font-family: 'Prompt', sans-serif;
+  font-family: 'Sarabun', sans-serif;
   font-size: 12px;
   font-weight: 700;
   padding: 4px 6px;
@@ -1038,7 +1038,7 @@
 }
 .fundinfo-scope .industry-selection-row > span { margin-right: 2px; color: var(--sub); font-size: 12px; font-weight: 800; }
 .fundinfo-scope .industry-scope-options { display: flex; min-width: 0; flex: 1 1 470px; flex-wrap: wrap; gap: 5px; }
-.fundinfo-scope .industry-scope-toggle { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--line); border-radius: 999px; padding: 4px 8px; background: var(--surf2); color: var(--sub); font: 800 12px/1.2 'Prompt', sans-serif; transition: background-color .15s ease, border-color .15s ease, color .15s ease, transform .15s ease; }
+.fundinfo-scope .industry-scope-toggle { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--line); border-radius: 999px; padding: 4px 8px; background: var(--surf2); color: var(--sub); font: 800 12px/1.2 'Sarabun', sans-serif; transition: background-color .15s ease, border-color .15s ease, color .15s ease, transform .15s ease; }
 .fundinfo-scope .industry-scope-toggle i { display: inline-flex; width: 11px; height: 11px; align-items: center; justify-content: center; border: 1px solid #c6d1df; border-radius: 3px; color: transparent; font: 900 10px/1 Inter, sans-serif; }
 .fundinfo-scope .industry-scope-toggle:hover:not(:disabled) { border-color: var(--scope-color); color: var(--scope-color); transform: translateY(-1px); }
 .fundinfo-scope .industry-scope-toggle.selected { border-color: var(--scope-color); background: var(--scope-color); color: #fff; box-shadow: 0 2px 5px color-mix(in srgb, var(--scope-color) 28%, transparent); }
@@ -1122,7 +1122,7 @@
   max-height: 350px;
   overflow: hidden;
   padding: 0;
-  align-self: center;
+  align-self: start;
 }
 .fundinfo-scope .industry-chart-list-toggle { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 8px; border: 0; padding: 0 0 7px; background: transparent; color: var(--txt); text-align: left; }
 .fundinfo-scope .industry-chart-list-toggle span { min-width: 0; }
@@ -1137,8 +1137,6 @@
 .fundinfo-scope .industry-chart-list article { margin: 0; border: 0; border-bottom: 1px solid var(--line); border-left: 3px solid var(--scope-color); border-radius: 0; padding: 8px 0 8px 8px; background: transparent; }
 .fundinfo-scope .industry-chart-list article:last-child { border-bottom-color: transparent; }
 .fundinfo-scope .industry-chart-list article > b { display: block; overflow: hidden; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
-.fundinfo-scope .industry-chart-list article > b i { display: inline-block; width: 8px; margin-right: 4px; border-top: 2px solid var(--scope-color); vertical-align: middle; }
-.fundinfo-scope .industry-chart-list article > small { display: block; margin-top: 1px; color: var(--sub); font-size: 11px; }
 .fundinfo-scope .industry-chart-list article > div {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1147,7 +1145,7 @@
   color: var(--sub);
   font-size: 11px;
 }
-.fundinfo-scope .industry-chart-list article strong { display: block; color: var(--txt); font: 800 9px/1.3 Inter, sans-serif; }
+.fundinfo-scope .industry-chart-list article strong { display: block; color: var(--txt); font: 800 13px/1.3 Inter, sans-serif; }
 
 @media (max-width: 767px) {
   .fundinfo-scope .industry-header { display: grid; }
@@ -1287,7 +1285,7 @@
   padding: 8px 18px;
   background: transparent;
   color: var(--txt);
-  font-family: 'Prompt', sans-serif;
+  font-family: 'Sarabun', sans-serif;
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
@@ -1347,7 +1345,7 @@
   border: 0;
   background: transparent;
   color: var(--txt);
-  font-family: 'Prompt', sans-serif;
+  font-family: 'Sarabun', sans-serif;
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
@@ -1362,7 +1360,7 @@
 .fundinfo-scope .theme-benchmark-text {
   color: var(--sub);
   font-size: 12px;
-  font-family: 'Prompt', sans-serif;
+  font-family: 'Sarabun', sans-serif;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -1393,10 +1391,10 @@
   color: var(--sub);
   margin-left: auto;
 }
-.fundinfo-scope .theme-search input { width: 100%; border: 0; outline: 0; background: transparent; color: var(--txt); font: 11px 'Prompt', sans-serif; }
+.fundinfo-scope .theme-search input { width: 100%; border: 0; outline: 0; background: transparent; color: var(--txt); font: 11px 'Sarabun', sans-serif; }
 .fundinfo-scope .theme-search input::placeholder { color: #a0aec0; }
 .fundinfo-scope .theme-chips { display: flex; min-width: 0; flex-wrap: wrap; gap: 8px; }
-.fundinfo-scope .theme-chip { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px; background: var(--surf); color: var(--sub); font: 800 12px/1 'Prompt', sans-serif; }
+.fundinfo-scope .theme-chip { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px; background: var(--surf); color: var(--sub); font: 800 12px/1 'Sarabun', sans-serif; }
 .fundinfo-scope .theme-chip:hover:not(:disabled) { border-color: var(--brand); color: var(--brand); }
 .fundinfo-scope .theme-chip.selected { border-color: var(--theme-color); background: var(--theme-color); color: #fff; }
 .fundinfo-scope .theme-chip i { display: inline-flex; width: 16px; height: 16px; align-items: center; justify-content: center; border-radius: 50%; background: rgba(255,255,255,.2); font: 800 12px/1 Inter, sans-serif; font-style: normal; }
@@ -1433,14 +1431,14 @@
 
 .fundinfo-scope .theme-chart-list h3 {
   margin: 0 0 3px;
-  font: 800 15px/1.3 'Prompt', sans-serif;
+  font: 800 15px/1.3 'Sarabun', sans-serif;
   color: var(--txt);
 }
 
 .fundinfo-scope .theme-chart-list > p {
   margin: 0 0 12px;
   color: var(--sub);
-  font: 400 12px/1.45 'Prompt', sans-serif;
+  font: 400 12px/1.45 'Sarabun', sans-serif;
 }
 
 .fundinfo-scope .theme-chart-list-scroll {
@@ -1471,7 +1469,7 @@
   align-items: center;
   gap: 7px;
   overflow: visible;
-  font: 700 13.5px/1.3 'Prompt', sans-serif;
+  font: 700 13.5px/1.3 'Sarabun', sans-serif;
   color: var(--txt);
   white-space: normal;
 }
@@ -1488,7 +1486,7 @@
   display: block;
   margin: 3px 0 0 21px;
   color: var(--sub);
-  font: 500 12px/1.35 'Prompt', sans-serif;
+  font: 500 12px/1.35 'Sarabun', sans-serif;
 }
 
 .fundinfo-scope .theme-chart-list-metrics {
@@ -1501,7 +1499,7 @@
   display: block;
   margin-bottom: 3px;
   color: var(--sub);
-  font: 600 11px/1.2 'Prompt', sans-serif;
+  font: 600 11px/1.2 'Sarabun', sans-serif;
   font-style: normal;
   white-space: nowrap;
 }
@@ -1513,7 +1511,7 @@
 
 .fundinfo-scope .theme-chart-list strong { color: var(--pos); font-family: 'Inter', sans-serif; }
 
-.fundinfo-scope .theme-clear { float: right; margin-top: 4px; border: 0; background: transparent; color: var(--sub); font: 800 10px 'Prompt', sans-serif; }
+.fundinfo-scope .theme-clear { float: right; margin-top: 4px; border: 0; background: transparent; color: var(--sub); font: 800 10px 'Sarabun', sans-serif; }
 
 @media (max-width: 767px) {
   .fundinfo-scope > main > div { padding-top: 18px; }
@@ -1557,20 +1555,30 @@
 .fundinfo-scope .fund-detail-row > td { padding: 0 !important; white-space: normal !important; }
 .fundinfo-scope .fund-detail-row { background: var(--surf2); }
 .fundinfo-scope .fund-detail-grid { display: grid; grid-template-columns: minmax(180px, .9fr) minmax(230px, 1fr) minmax(230px, 1fr); gap: 20px; padding: 14px 16px 16px 48px; border-top: 1px solid var(--line); align-items: stretch; }
+.fundinfo-scope .fund-detail-loading { display: flex; align-items: center; justify-content: center; min-height: 173px; padding: 14px 16px 16px 48px; border-top: 1px solid var(--line); }
 .fundinfo-scope .fund-detail-panel { min-width: 0; }
 .fundinfo-scope .fund-detail-panel h3 { margin: 0 0 7px; color: var(--txt); font-size: 13px; font-weight: 800; }
 .fundinfo-scope .fund-detail-panel h3 small { color: var(--sub); font-size: 12px; font-weight: 400; }
 .fundinfo-scope .fund-detail-chart { height: 173px; }
 .fundinfo-scope .fund-detail-empty { display: flex; align-items: center; justify-content: center; height: 173px; margin: 0; padding: 0 10px; text-align: center; color: var(--sub); font-size: 12px; border: 1px dashed var(--line); border-radius: 10px; }
-.fundinfo-scope .fund-detail-bars { display: grid; gap: 6px; padding-top: 3px; }
-.fundinfo-scope .fund-detail-bar { display: grid; grid-template-columns: minmax(58px, .72fr) minmax(70px, 1.25fr) 30px; align-items: center; gap: 7px; color: var(--sub); font-size: 13px; line-height: 1.15; }
-.fundinfo-scope .fund-detail-bar span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.fundinfo-scope .fund-detail-bar i { display: block; height: 6px; overflow: hidden; border-radius: 999px; background: var(--line); }
-.fundinfo-scope .fund-detail-bar i b { display: block; height: 100%; border-radius: inherit; background: var(--brand); }
-.fundinfo-scope .fund-detail-bar strong { color: var(--txt); font: 800 11px/1 Inter, sans-serif; text-align: right; }
+/* display: contents on each row lets its 3 cells join this single grid, so the label
+   column auto-sizes to the longest label actually in THIS panel (short Sector words vs
+   long Holdings names) instead of reserving the same fixed width for both. No ellipsis
+   here — names must stay fully readable, never cut off. */
+.fundinfo-scope .fund-detail-bars { display: grid; grid-template-columns: minmax(60px, max-content) minmax(50px, 1fr) 40px; column-gap: 10px; row-gap: 6px; padding-top: 3px; align-items: center; }
+.fundinfo-scope .fund-detail-bar { display: contents; color: var(--sub); font-size: 13px; line-height: 1.2; }
+.fundinfo-scope .fund-detail-bar span { white-space: nowrap; text-align: left; }
+/* Holdings names (e.g. "PIMCO GIS Income Fund Class-Institution USD Acc") can run much
+   longer than max-content can afford without overflowing the panel — cap that column's
+   width instead and wrap onto a 2nd line so the full name still shows, never truncated. */
+.fundinfo-scope .fund-detail-holdings .fund-detail-bars { grid-template-columns: minmax(60px, 1.4fr) minmax(46px, .8fr) 40px; }
+.fundinfo-scope .fund-detail-holdings .fund-detail-bar span { white-space: normal; overflow-wrap: break-word; }
+.fundinfo-scope .fund-detail-bar i { display: block; height: 7px; overflow: hidden; border-radius: 999px; background: color-mix(in srgb, var(--line) 65%, transparent); }
+.fundinfo-scope .fund-detail-bar i b { display: block; height: 100%; min-width: 3px; border-radius: inherit; background: var(--brand); }
+.fundinfo-scope .fund-detail-bar strong { color: var(--txt); font: 800 14px/1 Inter, sans-serif; font-variant-numeric: tabular-nums; text-align: right; }
 .fundinfo-scope .fund-detail-holdings .fund-detail-bar i b { background: var(--pos); }
-.fundinfo-scope .fund-detail-actions { display: grid; grid-template-columns: 1fr 1.15fr; gap: 6px; margin-top: 24px; }
-.fundinfo-scope .fund-detail-actions button { min-height: 26px; border-radius: 5px; padding: 0 8px; font: 800 13px/1 'Prompt', sans-serif; }
+.fundinfo-scope .fund-detail-actions { display: grid; grid-template-columns: 1fr 1.15fr; gap: 6px; margin-top: 10px; }
+.fundinfo-scope .fund-detail-actions button { min-height: 26px; border-radius: 5px; padding: 0 8px; font: 800 13px/1 'Sarabun', sans-serif; }
 .fundinfo-scope .fund-detail-compare { border: 1px solid color-mix(in srgb, var(--brand) 35%, var(--line)); background: var(--surf); color: var(--brand); }
 .fundinfo-scope .fund-detail-compare.active { background: var(--brand); border-color: var(--brand); color: #fff; }
 .fundinfo-scope .fund-detail-more { border: 1px solid var(--brand); background: var(--brand); color: #fff; }

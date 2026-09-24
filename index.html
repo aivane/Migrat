@@ -26,10 +26,10 @@
     <meta name="twitter:description" content="IDEA FUND แพลตฟอร์มวิเคราะห์ข้อมูลกองทุนรวมและหุ้นไทย-ต่างประเทศ" />
     <meta name="twitter:image" content="/favicon.svg" />
 
-    <!-- Google Fonts — Sarabun is the global body font (see src/style.css / tailwind font-sans below);
-         Prompt is required separately by src/assets/fundinfo.css (--font-main and most fundinfo.* rules
-         still hardcode 'Prompt') — dropping it here silently falls back to a generic sans-serif since the
-         font file never loads, even though the CSS rule still says 'Prompt'. -->
+    <!-- Google Fonts — Sarabun is the global body font (see src/style.css / tailwind font-sans below),
+         and src/assets/fundinfo.css now uses it too (unified with the homepage 2026-09-23). Prompt is
+         still required by DashboardView.vue's Chart.js font options (/dashboard, a separate page from
+         /fundinfo) — dropping it here silently falls back to a generic sans-serif there. -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Prompt:wght@400;500;600;700;800&family=Sarabun:wght@300;400;500;600;700;800&family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap" rel="stylesheet" />

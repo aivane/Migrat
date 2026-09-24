@@ -28,10 +28,6 @@ function cellStyle(fund) {
   return { background: `${colorFor(fund)}0d` }
 }
 
-function fundType(fund) {
-  return { thai: 'Thai Fund', offshore: 'Offshore Fund', feeder: 'Feeder Fund', mixed: 'Mixed Fund' }[fund.type] || 'Fund'
-}
-
 // dividend_yield (fund.div) is always 0 from the API, even for funds that do pay — fall back
 // to the real policy text (fund.dividendPolicy: "จ่าย"/"ไม่จ่าย") when the numeric yield is unusable.
 function dividendDisplay(fund) {
@@ -73,7 +69,6 @@ function dividendDisplay(fund) {
           </tr>
         </thead>
         <tbody>
-          <tr><th>ประเภท</th><td v-for="fund in selectedFunds" :key="fund.id" :style="cellStyle(fund)">{{ fundType(fund) }}</td></tr>
           <tr><th>ขนาดกองทุน (AUM)</th><td v-for="fund in selectedFunds" :key="fund.id" :style="cellStyle(fund)">{{ formatAumMThb(fund.aum) || '-' }}</td></tr>
           <tr><th>1Y Return</th><td v-for="fund in selectedFunds" :key="fund.id" :style="cellStyle(fund)" :class="fund.perf >= 0 ? 'positive' : 'negative'">{{ formatPercent(fund.perf, 1) }}</td></tr>
           <tr><th>Sharpe Ratio</th><td v-for="fund in selectedFunds" :key="fund.id" :style="cellStyle(fund)">{{ fund.sharpe?.toFixed(2) || '-' }}</td></tr>

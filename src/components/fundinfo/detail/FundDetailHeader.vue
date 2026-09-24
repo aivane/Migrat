@@ -45,14 +45,14 @@ defineProps({
         <div class="px-4">
           <div class="text-[10px] sub font-bold uppercase tracking-wider">NAV</div>
           <div class="num text-xl md:text-2xl font-extrabold txt mt-0.5">{{ fund.nav.toFixed(4) }}</div>
-          <div class="mt-0.5 text-xs font-semibold num" :class="dailyChange.diffBaht >= 0 ? 'text-emerald-600' : 'text-rose-500'">
+          <div class="mt-0.5 text-xs font-semibold num" :class="dailyChange.diffBaht >= 0 ? 'text-pos' : 'text-neg'">
             {{ dailyChange.diffBaht >= 0 ? '+' : '' }}{{ dailyChange.diffBaht.toFixed(4) }}
             ({{ dailyChange.diffBaht >= 0 ? '+' : '' }}{{ dailyChange.diffPct.toFixed(2) }}%)
           </div>
         </div>
         <div class="px-4 border-l border-[var(--line)]">
           <div class="text-[10px] sub font-bold uppercase tracking-wider">1Y Return</div>
-          <div class="text-xl md:text-2xl font-extrabold mt-0.5 num" :class="fund.perf >= 0 ? 'text-emerald-600' : 'text-rose-500'">
+          <div class="text-xl md:text-2xl font-extrabold mt-0.5 num" :class="fund.perf >= 0 ? 'text-pos' : 'text-neg'">
             {{ fund.perf >= 0 ? '+' : '' }}{{ fund.perf }}%
           </div>
         </div>

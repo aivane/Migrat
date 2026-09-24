@@ -4,8 +4,9 @@
 // useFundAnalytics, injected as the `navHistory` prop. Renders via Vue's auto-escaping {{ }}
 // interpolation and Chart.js's canvas API — never v-html/innerHTML (the old prototype used
 // `container.innerHTML = \`...${fund.name}...\``, a DOM-based XSS vector).
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import Chart from 'chart.js/auto'
+import LoadingIndicator from '../../common/LoadingIndicator.vue'
 
 const props = defineProps({
   fund: { type: Object, required: true },
@@ -17,6 +18,9 @@ const props = defineProps({
   // useFundAnalytics(fundRef).apiNavHistoryVersion.value — bumps when the async daily NAV series
   // lands, telling us to re-call navHistory() and redraw (navHistory itself isn't reactive).
   navHistoryVersion: { type: Number, default: 0 },
+  // useFundAnalytics(fundRef).navHistoryLoading — (range) => boolean, true while the precise
+  // daily series is still in flight (chart meanwhile shows the coarse checkpoint fallback).
+  navHistoryLoading: { type: Function, default: () => false },
 })
 
 const RANGES = ['1M', '3M', '1Y', '3Y', '5Y', 'MAX']
@@ -32,6 +36,10 @@ const range = ref('1Y')
 const chartRef = ref(null)
 const usingDailySeries = ref(false)
 let chartInstance = null
+
+// Reactive to navHistoryVersion too — the key moves from "pending" to "cached" the moment
+// the daily series lands, and navHistoryLoading() itself reads a reactive Set under the hood.
+const isFetchingDaily = computed(() => { void props.navHistoryVersion; return props.navHistoryLoading(range.value) })
 
 function setMode(key) {
   mode.value = key
@@ -192,6 +200,11 @@ watch([mode, range, () => props.fund?.id, () => props.isDark, () => props.navHis
     <!-- Anti-XSS: canvas is an opaque rendering surface — Chart.js draws via the 2D/GPU API, no HTML sink. -->
     <div class="h-[400px] relative">
       <canvas ref="chartRef"></canvas>
+      <!-- Chart already shows the coarse checkpoint approximation underneath — this overlay just
+           signals the precise daily series is still on its way, without blanking out that content. -->
+      <div v-if="isFetchingDaily" class="fund-overview-loading-badge">
+        <LoadingIndicator label="กำลังโหลดข้อมูล..." />
+      </div>
     </div>
 
     <p class="text-[10px] sub text-right">
@@ -201,3 +214,23 @@ watch([mode, range, () => props.fund?.id, () => props.isDark, () => props.navHis
     </p>
   </section>
 </template>
+
+<style scoped>
+.fund-overview-loading-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  border-radius: 999px;
+  background: var(--surf, #fff);
+  border: 1px solid var(--line, #e6ecf5);
+  box-shadow: 0 2px 8px rgba(15, 30, 55, .08);
+}
+.fund-overview-loading-badge :deep(.loading-indicator) {
+  padding: 5px 12px;
+  font-size: 11px;
+}
+.fund-overview-loading-badge :deep(.loading-spinner) {
+  width: 12px;
+  height: 12px;
+}
+</style>

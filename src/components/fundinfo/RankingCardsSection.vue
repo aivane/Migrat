@@ -94,7 +94,7 @@ function scrollToInsight() { document.getElementById(`insight-${props.type}`)?.s
             <div class="ranking-card-title-button is-static">
               <span class="ranking-card-title"><span>{{ card.emoji }}</span>{{ cardTitle(card) }}</span>
             </div>
-            <p>{{ card.desc }}</p>
+            <p v-if="card.desc">{{ card.desc }}</p>
             <small v-if="card.caption" class="ranking-card-caption">{{ card.caption }}</small>
             <div v-if="card.pillKind" class="ranking-periods">
               <button v-for="[key, label] in card.pillOptions" :key="key" type="button" :class="{ active: state.rk[card.pillKind] === key }" :style="state.rk[card.pillKind] === key ? { background: accent } : {}" @click="setRank(card.pillKind, key)">{{ label }}</button>

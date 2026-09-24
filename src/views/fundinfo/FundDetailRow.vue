@@ -2,11 +2,15 @@
 import { computed, ref, onMounted, watch, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import Chart from 'chart.js/auto'
+import LoadingIndicator from '../../components/common/LoadingIndicator.vue'
 
 const props = defineProps({
   fund: { type: Object, required: true },
   colspan: { type: Number, default: 12 },
   inCompare: { type: Boolean, default: false },
+  // /funds/list omits holdings/allocations — true while the /funds/{code} fetch
+  // for this row is in flight, so an empty result doesn't look identical to "no data".
+  isDetailLoading: { type: Boolean, default: false },
 })
 const emit = defineEmits(['compare'])
 const router = useRouter()
@@ -90,9 +94,12 @@ onUnmounted(() => cyChartInstance?.destroy())
 <template>
   <tr class="fund-detail-row">
     <td :colspan="colspan">
-      <div class="fund-detail-grid">
+      <div v-if="isDetailLoading" class="fund-detail-loading">
+        <LoadingIndicator label="กำลังโหลดรายละเอียดกองทุน..." />
+      </div>
+      <div v-else class="fund-detail-grid">
         <section class="fund-detail-panel">
-          <h3>{{ hasCyr ? 'Calendar Year Returns' : 'Return by Period' }} <small>{{ hasCyr ? '(ผลตอบแทนรายปี)' : '(1M/3M/1Y/3Y/5Y/10Y)' }}</small></h3>
+          <h3>{{ hasCyr ? 'Calendar Year Returns' : 'Return by Period' }} <small>{{ hasCyr ? 'ผลตอบแทนรายปี' : '1M/3M/1Y/3Y/5Y/10Y' }}</small></h3>
           <div v-if="canShowReturnChart" class="fund-detail-chart"><canvas ref="cyChartRef"></canvas></div>
           <p v-else class="fund-detail-empty">API ยังไม่มีข้อมูลผลตอบแทนของกองทุนนี้</p>
         </section>

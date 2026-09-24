@@ -6,8 +6,7 @@ import SearchBar from './SearchBar.vue'
 const theme = useThemeStore() // Global toggle, shared by every route
 
 const navLinks = [
-  { to: '/', label: 'หน้าหลัก' },
-  { to: '/dashboard', label: 'FUNDINFO' },
+  { to: '/', label: 'FUNDINFO' },
   { to: '/insights', label: 'IDEAFUND' },
 ]
 </script>

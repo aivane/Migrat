@@ -210,9 +210,6 @@ onUnmounted(destroyChart)
             <b>จุดอ้างอิง: {{ bench.name }}</b>
             <span>ใช้เป็นเส้นกลางเพื่ออ่านทิศทาง ไม่ใช่ benchmark ทางการของ{{ itemLabel }}ทุกตัว</span>
           </div>
-          <p class="text-[10px] sub text-right">
-            * หมายเหตุ: เส้นกราฟลากเชื่อมผลตอบแทนสะสมจริงตามช่วงเวลาที่ API เปิดเผย (1M/3M/1Y/3Y/5Y/10Y) ด้วยเส้นตรง ไม่ใช่ราคาปิดรายวันจริง
-          </p>
           <div class="comparison-chart-full">
             <canvas ref="combinedCanvas" />
           </div>
@@ -232,7 +229,7 @@ onUnmounted(destroyChart)
                 <tr>
                   <th>{{ stock ? itemLabel : 'กองทุน' }}</th>
                   <th class="text-right sortable" @click="setSortLocal('perf')">
-                    {{ stock ? 'ผลตอบแทน 1 ปี' : 'ผลตอบแทนกองทุน 1 ปี' }}
+                    ผลตอบแทน 1 ปี
                     <span class="sort-arrow" :class="{ active: localSortKey === 'perf' }">{{ sortIcon('perf') }}</span>
                   </th>
                   <th class="text-right sortable" @click="setSortLocal('aum')">
@@ -266,7 +263,6 @@ onUnmounted(destroyChart)
               <tbody>
                 <tr v-for="(card, index) in sortedCardsData" :key="card.id">
                   <td class="compare-fund-name">
-                    <span class="compare-fund-avatar" :style="{ background: COMPARE_COLORS[index % COMPARE_COLORS.length] }">{{ (card.title || '').slice(0, 2).toUpperCase() }}</span>
                     <span class="compare-fund-text min-w-0"><strong class="block" :title="card.title">{{ card.title }}</strong><small>{{ card.subtitle }}</small></span>
                   </td>
                   <!-- Output Defense — API-derived values render as escaped text only. -->

@@ -59,6 +59,7 @@ function normalizeFund(fund, targetType) {
     is_feeder_fund: fund.is_feeder_fund ?? null,
     is_etf: fund.is_etf ?? null,
     dividend_policy: fund.dividend_policy || '',
+    dividend_yield: Number(fund.dividend_yield ?? 0),
     fund_tax_type: fund.fund_tax_type || null,
     return_3y: Number(fund.return_3y ?? 0),
     return_5y: Number(fund.return_5y ?? 0),
@@ -112,7 +113,12 @@ function extractArray(payload) {
 // API Functions
 // -----------------------------------------------------------------
 
-export async function getDashboardStats(type = 'FOREIGN') {
+// type=null (default) omits the `type` query param entirely, which is what makes the
+// backend return the combined [TH, FOREIGN] array — passing an explicit type (e.g.
+// 'FOREIGN') makes it return only that one market's stats as a single-element array,
+// which silently corrupted the other market's card on the dashboard (stats.TH fell
+// back to arr[0], i.e. the FOREIGN entry, whenever this was called with a type).
+export async function getDashboardStats(type = null) {
   if (apiMode === 'wordpress') {
     return wpGet('fund_dashboard_stats', { type })
   }

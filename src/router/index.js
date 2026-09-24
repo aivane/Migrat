@@ -3,7 +3,6 @@ import { isValidFundId } from '../services/fundinfoApi'
 import { updateSeoMeta } from '../utils/seo'
 import DashboardView from '../views/DashboardView.vue'
 import ForgotPasswordView from '../views/ForgotPasswordView.vue'
-import HomeView from '../views/HomeView.vue'
 import InsightsView from '../views/InsightsView.vue'
 import LoginView from '../views/LoginView.vue'
 import ProfileView from '../views/ProfileView.vue'
@@ -33,17 +32,20 @@ function safeInternalRedirect(fullPath) {
 
 const routes = [
   {
+    // FUNDINFO dashboard is the site's front page — the old marketing HomeView is gone.
     path: '/',
     name: 'home',
-    component: HomeView,
+    component: DashboardView,
     meta: {
-      title: 'หน้าหลัก | IDEA FUND',
+      title: 'FUNDINFO ข้อมูลกองทุนและหุ้น | IDEA FUND',
       description:
-        'IDEA FUND แพลตฟอร์มค้นหาและวิเคราะห์ข้อมูลกองทุนรวม และหุ้นไทย-ต่างประเทศ เพื่อการตัดสินใจลงทุนที่มีประสิทธิภาพ',
-      keywords: 'หน้าแรก, IDEA FUND, กองทุนรวม, หุ้นไทย, หุ้นต่างประเทศ, การลงทุน',
+        'วิเคราะห์ข้อมูลเปรียบเทียบกองทุน ผลตอบแทน หุ้นยอดนิยม การจัดพอร์ต และสถิติกองทุนไทยและต่างประเทศ',
+      keywords: 'FUNDINFO, ตารางกองทุน, ผลตอบแทนกองทุน, เปรียบเทียบกองทุน, Thai ETF, Foreign ETF',
     },
   },
   {
+    // Kept as a second route to the same component (not a redirect) so existing
+    // /dashboard?view=...&symbol=... links from SearchBar.vue keep their query intact.
     path: '/dashboard',
     name: 'dashboard',
     component: DashboardView,

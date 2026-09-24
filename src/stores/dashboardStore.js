@@ -9,9 +9,31 @@ import {
   getTopStocks,
   searchFunds,
 } from '../services/fundApi'
+import { fetchFundsByType } from '../services/fundinfoApi'
 
 const CACHE_TTL_MS = 10 * 60 * 1000
 const STORAGE_KEY = 'migrat.dashboard.cache.v2'
+
+// getFundList() pages (Swagger's /api/v1/funds/list is offset/limit-paginated) — loop
+// until every fund of this type is fetched instead of stopping at one 200-row page,
+// which used to hard-cap the dashboard screener at 400 funds (200 FOREIGN + 200 TH).
+//
+// The API's `count`/`total` field echoes the CURRENT PAGE's size, not a grand total
+// (confirmed live: FOREIGN limit=1000&offset=0 -> count:1000, offset=1000 -> count:993,
+// i.e. real total is 1993+, but count never reports that) — so we can't stop once
+// funds.length reaches `total`. Loop until a page comes back short of a full page instead.
+const FUND_LIST_PAGE_SIZE = 1000
+async function getAllFunds(type) {
+  const funds = []
+  let offset = 0
+  for (;;) {
+    const page = await getFundList({ type, limit: FUND_LIST_PAGE_SIZE, offset })
+    funds.push(...page.funds)
+    if (page.funds.length < FUND_LIST_PAGE_SIZE) break // short page = last page
+    offset += FUND_LIST_PAGE_SIZE
+  }
+  return { funds, total: funds.length }
+}
 
 const emptyErrors = () => ({
   allocation: null,
@@ -25,6 +47,10 @@ const emptyErrors = () => ({
   thaiEtfs: null,
   fundsForeign: null,
   fundsTH: null,
+  catFeeder: null,
+  catOffshore: null,
+  catThai: null,
+  catMixed: null,
 })
 
 function readSessionCache() {
@@ -63,6 +89,18 @@ export const useDashboardStore = defineStore('dashboard', {
     funds: {
       FOREIGN: [],
       TH: [],
+    },
+    // Correctly-categorized funds (feeder/offshore/thai/mixed), sourced from
+    // fundinfoApi.js's fetchFundsByType() — the same pipeline /fundinfo/* uses.
+    // Kept separate from funds.FOREIGN/TH above (a plain market-type split used
+    // by the Foreign/Thai Exposure cards) because this drives the unified
+    // 4-category screener table, which needs the real feeder/offshore/thai/mixed
+    // split, not a heuristic reimplementation of it.
+    categorizedFunds: {
+      feeder: [],
+      offshore: [],
+      thai: [],
+      mixed: [],
     },
     totals: {
       FOREIGN: 0,
@@ -118,12 +156,13 @@ export const useDashboardStore = defineStore('dashboard', {
         topTH: getTopStocks('TH', 20),
         masterEtfs: getMasterEtfs(),
         thaiEtfs: getThaiEtfs(),
-        fundsForeign: getFundList({
-          type: 'FOREIGN',
-          limit: 200,
-          offset: 0,
-        }),
-        fundsTH: getFundList({ type: 'TH', limit: 200, offset: 0 }),
+        fundsForeign: getAllFunds('FOREIGN'),
+        fundsTH: getAllFunds('TH'),
+        // Same real categorization /fundinfo/* uses — see categorizedFunds state doc.
+        catFeeder: fetchFundsByType('feeder'),
+        catOffshore: fetchFundsByType('offshore'),
+        catThai: fetchFundsByType('thai'),
+        catMixed: fetchFundsByType('mixed'),
       }
 
       const keys = Object.keys(tasks)
@@ -162,6 +201,10 @@ export const useDashboardStore = defineStore('dashboard', {
           this.funds.TH = value.funds
           this.totals.TH = value.total
         }
+        if (key === 'catFeeder') this.categorizedFunds.feeder = value
+        if (key === 'catOffshore') this.categorizedFunds.offshore = value
+        if (key === 'catThai') this.categorizedFunds.thai = value
+        if (key === 'catMixed') this.categorizedFunds.mixed = value
       })
 
       this.partialErrors = errors
@@ -194,6 +237,7 @@ export const useDashboardStore = defineStore('dashboard', {
         thaiEtfs: this.thaiEtfs,
         funds: this.funds,
         totals: this.totals,
+        categorizedFunds: this.categorizedFunds,
         loadedAt: this.loadedAt,
         partialErrors: this.partialErrors,
       }
@@ -215,6 +259,10 @@ export const useDashboardStore = defineStore('dashboard', {
       this.funds.TH = cached.funds?.TH || []
       this.totals.FOREIGN = cached.totals?.FOREIGN || 0
       this.totals.TH = cached.totals?.TH || 0
+      this.categorizedFunds.feeder = cached.categorizedFunds?.feeder || []
+      this.categorizedFunds.offshore = cached.categorizedFunds?.offshore || []
+      this.categorizedFunds.thai = cached.categorizedFunds?.thai || []
+      this.categorizedFunds.mixed = cached.categorizedFunds?.mixed || []
       this.loadedAt = cached.loadedAt
       this.partialErrors = cached.partialErrors || emptyErrors()
       this.restoredFromSession = true

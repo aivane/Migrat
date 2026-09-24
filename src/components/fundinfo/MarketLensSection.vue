@@ -5,11 +5,13 @@ import Chart from 'chart.js/auto'
 import { useFundinfoMarketLens } from '../../composables/useFundinfoMarketLens'
 import { CMP_LABELS, COMPARE_COLORS } from '../../composables/useFundinfoThemeTrend'
 import InfoTooltip from '../common/InfoTooltip.vue'
+import LoadingIndicator from '../common/LoadingIndicator.vue'
 
 const props = defineProps({ type: { type: String, default: 'mixed' } })
 const {
   scopes,
   state,
+  loading,
   leader,
   laggard,
   momentumTop,
@@ -106,7 +108,9 @@ onUnmounted(() => chartInstance?.destroy())
   <section class="market-lens industry-analysis">
     <h2 class="industry-main-title">MARKET LENS · แนวโน้มสินทรัพย์</h2>
 
-    <div class="industry-workspace">
+    <LoadingIndicator v-if="loading" label="กำลังโหลดข้อมูลแนวโน้มสินทรัพย์..." />
+
+    <div v-else class="industry-workspace">
       <header class="industry-header">
         <div>
           <h2>{{ chartTitle }} <InfoTooltip text="แสดงทั้งด้านบวกและด้านลบของตลาดโดยจำกัดไม่เกิน 5 กลุ่ม · คลิกสัญญาณ เส้น หรือปุ่ม เพื่อกรองข้อมูลส่วนถัดลงมา" /></h2>

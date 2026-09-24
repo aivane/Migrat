@@ -22,7 +22,7 @@ export function formatPercent(value, digits = 2) {
 export function formatAumMThb(value) {
   const number = typeof value === 'number' ? value : Number(value)
   if (!Number.isFinite(number)) return null
-  return `฿${Math.round(number).toLocaleString('th-TH')} ล้านบ.`
+  return `${Math.round(number).toLocaleString('th-TH')} ล้านบ.`
 }
 
 export function riskClass(risk) {

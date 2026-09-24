@@ -640,13 +640,6 @@ export async function fetchBenchmarkHistory(benchmarkId, { period = '1y' } = {})
   }
 }
 
-// /api/v1/stocks/top?market_type=FOREIGN mixes in domestic Thai SET stocks (they
-// carry industry/sector taxonomy codes; genuine foreign holdings have both null).
-// Drop those rows; remove this filter once the backend stops tagging them FOREIGN.
-function isMisclassifiedThaiStock(record, marketType) {
-  return marketType === 'FOREIGN' && Boolean(record?.industry || record?.sector)
-}
-
 // server-side row ceiling was raised 2026-09-07 — default limit set well above
 // current usage (TH 158, FOREIGN 555) rather than hand-tuned to today's count.
 export async function fetchTopStocksByMarket(marketType, { limit = 2000 } = {}) {
@@ -659,13 +652,11 @@ export async function fetchTopStocksByMarket(marketType, { limit = 2000 } = {}) 
   try {
     if (fundinfoApiMode === 'wordpress') {
       return extractFundList(await wpGet('fundinfo_top_stocks', { market_type: marketType, limit: safeLimit }))
-        .filter((record) => !isMisclassifiedThaiStock(record, marketType))
         .map(mapTopStock)
         .filter(Boolean)
     }
 
     return extractFundList(await reconGet('/api/v1/stocks/top', { market_type: marketType, limit: safeLimit }))
-      .filter((record) => !isMisclassifiedThaiStock(record, marketType))
       .map(mapTopStock)
       .filter(Boolean)
   } catch {

@@ -199,6 +199,7 @@ const dailyChange = computed(() => {
                 :is-dark="isDark"
                 :nav-history="analytics.navHistory"
                 :nav-history-version="analytics.apiNavHistoryVersion.value"
+                :nav-history-loading="analytics.navHistoryLoading"
               />
             </div>
 

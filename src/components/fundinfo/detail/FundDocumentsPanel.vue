@@ -13,15 +13,18 @@ const props = defineProps({
   recoveringPeriodText: { type: String, required: true },
 })
 
-// Replaces the prototype's blocking window.alert() (disruptive, phishing-spoofable) with a
-// local component-owned notice — keeps "simulate only, no real file" without a native dialog.
+// fund.factSheetUrl (fundinfoApi.js's normalizeFund, from the API's fund_fact_sheet — a real
+// SEC document-storage PDF URL) was computed but never rendered anywhere; this button used to
+// always fake the download instead of linking to it. Now: real URL -> open it; only fall back
+// to the simulated notice when the API genuinely has no fact sheet for this fund.
 const downloadNotice = ref('')
 let noticeTimer = null
 
 function downloadDoc(label) {
+  if (props.fund.factSheetUrl) return
   if (noticeTimer) clearTimeout(noticeTimer)
   // Anti-XSS: `label` is a fixed template literal (never user/URL input), bound via {{ }} only.
-  downloadNotice.value = `กำลังจำลองการดาวน์โหลดเอกสาร: ${label} ของกองทุน ${props.fund.id} (ระบบสาธิต — ไม่มีการดาวน์โหลดไฟล์จริง)`
+  downloadNotice.value = `ไม่มีเอกสาร: ${label} ของกองทุน ${props.fund.id} ในระบบ (API ยังไม่มีลิงก์เอกสารนี้)`
   noticeTimer = setTimeout(() => { downloadNotice.value = '' }, 4000)
 }
 
@@ -45,7 +48,18 @@ function betaText(value) {
     <div class="max-w-2xl mx-auto w-full mt-2">
       <div class="flex items-center justify-between border-b border-[var(--line)] pb-3.5 mb-4">
         <h3 class="text-base font-bold txt">ข้อมูลจากหนังสือชี้ชวน</h3>
+        <a
+          v-if="fund.factSheetUrl"
+          :href="fund.factSheetUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="px-3 py-1.5 rounded surf2 hover:opacity-80 text-xs font-bold txt transition flex items-center gap-1.5"
+        >
+          <span>หนังสือชี้ชวน</span>
+          <span class="text-white text-[9px] font-black px-1.5 py-0.5 rounded-sm" :style="{ background: accent }">PDF</span>
+        </a>
         <button
+          v-else
           type="button"
           class="px-3 py-1.5 rounded surf2 hover:opacity-80 text-xs font-bold txt transition flex items-center gap-1.5"
           @click="downloadDoc('หนังสือชี้ชวนโครงการ (Prospectus)')"

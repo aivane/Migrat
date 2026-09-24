@@ -67,88 +67,78 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
 
 <template>
   <div class="fundinfo-scope min-h-screen" :class="{ dark: isDark }" :style="{ '--brand': activeTab?.accent || '#2456d8' }">
-    <main class="min-h-screen bg-[var(--bg)] text-[var(--txt)] font-['Prompt'] antialiased">
+    <main class="min-h-screen bg-[var(--bg)] text-[var(--txt)] font-['Sarabun'] antialiased">
 
       <!-- py-4 (not fixed h-16) so header height flexes with content -->
       <header class="sticky top-0 z-30 surf brdb px-4 py-4">
 
         <div class="max-w-[1120px] mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4 h-full">
 
-          <!-- Branding: FI mark + Fundinfo / Investment Exposure Workspace -->
-          <div class="flex items-center gap-3">           
-            <div>
-              <div class="text-4xl font-extrabold txt leading-tight">Fundinfo</div>
-              <div class="text-[10px] font-bold uppercase tracking-wider sub leading-tight">Investment Exposure Workspace</div>
-            </div>
-          </div>
+          <!-- Fund type tabs -->
+          <nav class="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0" aria-label="ประเภทกองทุน">
+            <RouterLink
+              v-for="tab in tabs"
+              :key="tab.to"
+              :to="tab.to"
+              class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition-all whitespace-nowrap border border-transparent sub hover:surf2 hover:txt"
+              active-class="!bg-[var(--brand)] !text-white !border-[var(--brand)] shadow-md shadow-blue-500/20"
+            >
+              <span class="text-sm">{{ tab.emoji }}</span>
+              <span>{{ tab.label }}</span>
+            </RouterLink>
+          </nav>
 
-          <div class="flex items-center gap-3 justify-between md:justify-end">
-            <!-- Fund type tabs -->
-            <nav class="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0" aria-label="ประเภทกองทุน">
-              <RouterLink
-                v-for="tab in tabs"
-                :key="tab.to"
-                :to="tab.to"
-                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition-all whitespace-nowrap border border-transparent sub hover:surf2 hover:txt"
-                active-class="!bg-[var(--brand)] !text-white !border-[var(--brand)] shadow-md shadow-blue-500/20"
+          <div class="flex items-center gap-2 shrink-0">
+            <!-- Wishlist -->
+            <div class="relative" ref="wishPanelRef">
+              <button
+                type="button"
+                class="wishlist-trigger surf brd h-10 min-w-10 px-2.5 rounded-lg font-bold flex items-center gap-1"
+                title="รายการติดตาม"
+                @click="wishPanelOpen = !wishPanelOpen"
               >
-                <span class="text-sm">{{ tab.emoji }}</span>
-                <span>{{ tab.label }}</span>
-              </RouterLink>
-            </nav>
+                <span class="wishlist-icon" aria-hidden="true">★</span><span class="num text-[11px]">{{ count }}</span>
+              </button>
 
-            <div class="flex items-center gap-2 shrink-0">
-              <!-- Wishlist -->
-              <div class="relative" ref="wishPanelRef">
-                <button
-                  type="button"
-                  class="wishlist-trigger surf brd h-10 min-w-10 px-2.5 rounded-lg font-bold flex items-center gap-1"
-                  title="รายการติดตาม"
-                  @click="wishPanelOpen = !wishPanelOpen"
-                >
-                  <span class="wishlist-icon" aria-hidden="true">★</span><span class="num text-[11px]">{{ count }}</span>
-                </button>
-
-                <div
-                  v-if="wishPanelOpen"
-                  class="absolute right-0 mt-2 w-72 surf brd rounded-xl z-50 overflow-hidden shadow-lg"
-                >
-                  <div class="px-3 py-2 brdb flex items-center justify-between">
-                    <span class="text-xs font-bold txt">รายการติดตาม</span>
-                    <span class="text-[11px] sub">{{ count }} กอง</span>
-                  </div>
-                  <div v-if="!wishedFunds.length" class="p-4 text-xs sub text-center">
-                    ยังไม่มีกองทุนที่ติดตาม กด ☆ ที่ตารางกองทุนเพื่อเพิ่ม
-                  </div>
-                  <div v-else class="max-h-72 overflow-y-auto divide-y divide-[var(--line)]">
-                    <div v-for="fund in wishedFunds" :key="fund.id" class="p-2.5 flex items-center justify-between hover:bg-[var(--surf2)]">
-                      <button type="button" class="wishlist-item min-w-0 text-left" :title="`ไปยังกองทุน ${fund.name}`" @click="goToWishedFund(fund)">
-                        <strong class="num txt block truncate text-xs">{{ fund.id }}</strong>
-                        <span class="sub text-[11px] truncate block">{{ fund.name }}</span>
-                      </button>
-                      <button
-                        type="button"
-                        class="text-[11px] font-bold sub hover:text-[var(--neg)] shrink-0 ml-2"
-                        title="นำออกจากรายการติดตาม"
-                        @click.stop="removeWish(fund.id)"
-                      >
-                        ✕
-                      </button>
-                    </div>
+              <div
+                v-if="wishPanelOpen"
+                class="absolute right-0 mt-2 w-72 surf brd rounded-xl z-50 overflow-hidden shadow-lg"
+              >
+                <div class="px-3 py-2 brdb flex items-center justify-between">
+                  <span class="text-xs font-bold txt">รายการติดตาม</span>
+                  <span class="text-[11px] sub">{{ count }} กอง</span>
+                </div>
+                <div v-if="!wishedFunds.length" class="p-4 text-xs sub text-center">
+                  ยังไม่มีกองทุนที่ติดตาม กด ☆ ที่ตารางกองทุนเพื่อเพิ่ม
+                </div>
+                <div v-else class="max-h-72 overflow-y-auto divide-y divide-[var(--line)]">
+                  <div v-for="fund in wishedFunds" :key="fund.id" class="p-2.5 flex items-center justify-between hover:bg-[var(--surf2)]">
+                    <button type="button" class="wishlist-item min-w-0 text-left" :title="`ไปยังกองทุน ${fund.name}`" @click="goToWishedFund(fund)">
+                      <strong class="num txt block truncate text-xs">{{ fund.id }}</strong>
+                      <span class="sub text-[11px] truncate block">{{ fund.name }}</span>
+                    </button>
+                    <button
+                      type="button"
+                      class="text-[11px] font-bold sub hover:text-[var(--neg)] shrink-0 ml-2"
+                      title="นำออกจากรายการติดตาม"
+                      @click.stop="removeWish(fund.id)"
+                    >
+                      ✕
+                    </button>
                   </div>
                 </div>
               </div>
-
-              <!-- Dark mode toggle -->
-              <button
-                type="button"
-                class="surf brd w-9 h-9 rounded-lg shrink-0 flex items-center justify-center"
-                title="สลับโหมด"
-                @click="toggleTheme"
-              >
-                {{ isDark ? '☀️' : '🌙' }}
-              </button>
             </div>
+
+            <!-- Dark mode toggle -->
+            <button
+              type="button"
+              class="surf brd w-9 h-9 rounded-lg shrink-0 flex items-center justify-center"
+              title="สลับโหมด"
+              @click="toggleTheme"
+            >
+              {{ isDark ? '☀️' : '🌙' }}
+            </button>
           </div>
 
         </div>

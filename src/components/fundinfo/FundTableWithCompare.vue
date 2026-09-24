@@ -52,14 +52,17 @@ function setSortLocal(key) {
   }
 }
 
-function sortRiskHighToLow() {
-  localSortKey.value = 'risk'
-  localSortDir.value = 'desc'
-}
-
 function sortIcon(key) {
   if (localSortKey.value !== key) return '↕'
   return localSortDir.value === 'asc' ? '▲' : '▼'
+}
+
+// risk 1 → --pos (green), risk 8 → --neg (red), linear blend between
+function riskColor(risk) {
+  const r = Number(risk)
+  if (!r || r < 1 || r > 8) return 'var(--sub)'
+  const pct = ((r - 1) / 7) * 100
+  return `color-mix(in srgb, var(--neg) ${pct}%, var(--pos))`
 }
 
 const displayFunds = computed(() => {
@@ -196,7 +199,6 @@ function handleToggleCompare(fundId) {
       <div>
         <h2>กองทุนที่ตรงเงื่อนไข {{ displayFunds.length }} กอง <InfoTooltip text="แสดงเฉพาะกองทุนไทยที่ถือหุ้นจากขอบเขตหรือรายการที่เลือก คลิกแถวเพื่อเปิดรายละเอียดกองทุน" /></h2>
       </div>
-      <button type="button" class="fund-sort-button" @click="sortRiskHighToLow">ความเสี่ยงสูง → ต่ำ</button>
     </div>
 
     <ApiErrorBanner v-if="loadError" :message="loadError" @retry="retryLoadFunds" />
@@ -235,13 +237,12 @@ function handleToggleCompare(fundId) {
             <tr :id="`fund-row-${fund.id}`" :ref="(el) => setRowRef(fund.id, el)" :data-fund-id="fund.id" class="fund-result-row" :class="{ selected: compareOrderOf(fund.id) > -1, expanded: expandedFundId === fund.id }" role="button" tabindex="0" :aria-expanded="expandedFundId === fund.id" @click="toggleDetails(fund.id)" @keydown.enter.prevent="toggleDetails(fund.id)" @keydown.space.prevent="toggleDetails(fund.id)">
               
               <!-- 1. กองทุน -->
-              <td>
+              <td style="text-align: left;">
                 <div class="flex items-center gap-2 min-w-0">
                   <!-- เปลี่ยนจาก toggleCompare เป็น handleToggleCompare -->
                   <button type="button" class="fund-row-plus" :class="{ active: compareOrderOf(fund.id) > -1 }" :aria-label="compareOrderOf(fund.id) > -1 ? `นำ ${fund.name} ออกจากการเปรียบเทียบ` : `เพิ่ม ${fund.name} เพื่อเปรียบเทียบ`" @click.stop="handleToggleCompare(fund.id)">{{ compareOrderOf(fund.id) > -1 ? '✓' : '+' }}</button>
-                  <span class="fund-amc-mark" :class="badgeCls">{{ badge }}</span>
                   <div class="min-w-0">
-                    <strong class="txt block truncate max-w-[190px]">{{ fund.name }}</strong>
+                    <strong class="txt line-clamp-2 whitespace-normal">{{ fund.name }}</strong>
                     <span class="block sub font-['Inter']" style="text-align: left; font-size:11px;">
                       {{ fund.id }}
                       <template v-if="type === 'feeder' && fund.masterFund"> · {{ fund.masterFund }}</template>
@@ -268,14 +269,14 @@ function handleToggleCompare(fundId) {
               <!-- 6. NAV/หน่วย -->
               <td class="text-center font-['Inter'] sub">{{ fund.nav ? fund.nav.toFixed(4) : '-' }}</td>
 
-              <!-- 7. ความเสี่ยง -->
-              <td class="text-center font-bold whitespace-nowrap" style="color: #475569;">
+              <!-- 7. ความเสี่ยง — 1 (เขียว) ไล่ไปหา 8 (แดง) -->
+              <td class="text-center font-bold whitespace-nowrap" :style="{ color: fund.risk ? riskColor(fund.risk) : 'var(--sub)' }">
                 {{ fund.risk ? ` ${fund.risk}/8` : '-' }}
               </td>
               
-              <!-- 8. ผลตอบแทนกองทุน 1 ปี -->
-              <td class="text-center font-['Inter']" :class="(fund.perf ?? fund.return1y ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'">
-                {{ (fund.perf ?? fund.return1y) !== undefined ? ((fund.perf ?? fund.return1y) > 0 ? '+' : '') + (fund.perf ?? fund.return1y) + '%' : '-' }}
+              <!-- 8. ผลตอบแทนกองทุน 1 ปี — retPRaw.y1 preserves null from the API (perf defaults missing to 0 for other views' math) -->
+              <td class="text-center font-['Inter']" :class="fund.retPRaw?.y1 == null ? 'sub' : (fund.perf ?? fund.return1y) >= 0 ? 'text-pos' : 'text-neg'">
+                {{ fund.retPRaw?.y1 == null ? '-' : ((fund.perf ?? fund.return1y) > 0 ? '+' : '') + (fund.perf ?? fund.return1y) + '%' }}
               </td>
 
               <!-- 9. SD -->
@@ -296,7 +297,7 @@ function handleToggleCompare(fundId) {
 
             </tr>
             <!-- เปลี่ยนจาก toggleCompare เป็น handleToggleCompare -->
-            <FundDetailRow v-if="expandedFundId === fund.id" :fund="fund" :colspan="columnCount" :in-compare="compareOrderOf(fund.id) > -1" @compare="handleToggleCompare(fund.id)" />
+            <FundDetailRow v-if="expandedFundId === fund.id" :fund="fund" :colspan="columnCount" :in-compare="compareOrderOf(fund.id) > -1" :is-detail-loading="fundinfoStore.isLoading(fund.id) && !fundinfoStore.hasFundDetail(fund.id)" @compare="handleToggleCompare(fund.id)" />
           </template>
 
           <tr v-if="isLoading">

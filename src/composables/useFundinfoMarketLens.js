@@ -57,6 +57,7 @@ export function useFundinfoMarketLens(type = 'mixed') {
   const fundinfoStore = useFundinfoStore()
   fundinfoStore.loadFundsByType(type)
   const funds = computed(() => fundinfoStore.getFundsByType(type))
+  const loading = computed(() => fundinfoStore.isLoading(type) && !funds.value.length)
 
   // /funds/list omits each fund's asset mix (only /funds/{code} has it), so this
   // backfills allocations via the per-fund detail endpoint — cached by
@@ -167,6 +168,7 @@ export function useFundinfoMarketLens(type = 'mixed') {
     scopes,
     stats,
     state,
+    loading,
     leader,
     laggard,
     momentumTop,

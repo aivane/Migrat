@@ -2,6 +2,81 @@
 
 บันทึกงานที่ทำในแต่ละวัน เรียงจากล่าสุดไปเก่าสุด
 
+## 2026-09-24 — Fundinfo: sync branch ideafund, ปรับ UI ตามแผนดีไซน์, แก้บั๊ก Dashboard หมวดหมู่กองทุนผิด, audit API ทั้งระบบ
+
+### Git sync — ดึงล่าสุดจาก `aivane/Migrat:ideafund` เข้า `fundinfoDev`
+- Fetch เทียบพบ `ideafund` มีของครบกว่า `master` (merge master เข้าไปแล้ว + fix Insights API เพิ่ม) — merge เข้า `fundinfoDev` เป็น fast-forward
+- **กู้คืนไฟล์ `.claude/*`** ที่เกือบหายไปตอน merge (branch `ideafund` เผลอใส่ `.claude/*` กลับเข้า `.gitignore` อีกรอบ ทั้งที่เพิ่ง revert เรื่องนี้ไปเองเมื่อวาน `c8e30a1`) — คืนไฟล์ `launch.json`/`skills/*` และแก้ `.gitignore` กลับ
+- รวม `CHANGELOG.md` ฉบับร่างเดิมกับ entry ใหม่จาก `ideafund` แล้ว push ขึ้น `ideatrade/fundinfoDev`
+
+### ตารางกองทุนหลัก "กองทุนที่ตรงเงื่อนไข" ([FundTableWithCompare.vue](src/components/fundinfo/FundTableWithCompare.vue))
+- **สี +/- ไม่ขึ้นทั้งที่โค้ดผูกไว้ถูกแล้ว**: เจอว่าโปรเจกต์ใช้ **Tailwind ผ่าน CDN script** ใน `index.html` (ไม่ใช่ npm package — พลาดตรวจตอนแรกจนสรุปผิดว่า class พวกนี้เป็น dead class) ตัวการจริงคือกฎ CSS กลาง `th, td { text-align: center }` และ `.fund-results-table td { color: var(--txt) }` ใน [fundinfo.css](src/assets/fundinfo.css) specificity ชนะ class สีเขียว/แดงเสมอ — แก้โดยเพิ่มกฎเจาะจงกว่า `td.text-pos`/`td.text-neg`/`td.sub`
+- ผลตอบแทน 1 ปี: เพิ่มเงื่อนไขแสดง `-` สีเทาแทน `0%` สีเขียวเมื่อ `retPRaw.y1` เป็น `null` จริง (ไม่ใช่ 0% จริง) เช่นกองทุน TWORLD
+- คอลัมน์ความเสี่ยง: ไล่สีเขียว(1)→แดง(8) ด้วย `color-mix()` แทนสีเทาคงที่เดิม
+- เอา icon วงกลมตัวย่อ บลจ. (`fund-amc-mark`) หน้าชื่อกองทุนออกตามที่ขอ
+- ชื่อกองทุนยาว: เปลี่ยนจาก `truncate` บรรทัดเดียวเป็น `line-clamp-2` (ขึ้น 2 บรรทัดก่อนค่อยตัด `...`) และขยายคอลัมน์จาก `max-w-[190px]` เป็นเต็มความกว้างจริงของคอลัมน์ (40%)
+- ชื่อกองทุนชิดกลาง (ไม่ใช่ชิดซ้าย) เพราะโดนกฎ `th, td { text-align: center }` ตัวเดียวกันทับ — เพิ่ม `text-align: left` ที่ `<td>` โดยตรง
+
+### Header ของ Fundinfo ([FundinfoLayout.vue](src/views/fundinfo/FundinfoLayout.vue))
+- ลบบล็อก branding "Fundinfo / INVESTMENT EXPOSURE WORKSPACE" ที่ซ้ำซ้อนกับ nav บนสุด ให้แถบ tab (Feeder/Offshore/Thai/Mixed) ขึ้นมาแทนที่ ตรงตาม mockup ในแผนดีไซน์
+
+### กราฟ Theme/Exposure/Market Lens จบที่ 0% เสมอ — บั๊กจริงเชิงโครงสร้าง ไม่ใช่แค่ UI ([useFundinfoThemeTrend.js](src/composables/useFundinfoThemeTrend.js), [useFundinfoBenchmark.js](src/composables/useFundinfoBenchmark.js))
+- `checkpointSeries()`/`benchmarkSeries()` ผูกค่า "วันนี้" ไว้ที่ index 100 (=0%) เสมอโดยโครงสร้าง ทำให้ทุกเส้นลู่เข้า 0% ที่จุดล่าสุดไม่ว่าผลตอบแทนจริงจะเป็นอย่างไร (เห็นชัดตอน hover ทุกเส้น/เส้นอ้างอิงพร้อมกันขึ้น "0.0%" เท่ากันหมด)
+- แก้โดย rebase ให้จุดเริ่มต้น (ย้อนหลัง 12 เดือน) = 100 แทน "วันนี้" — ตอนนี้เส้นจบที่ค่าจริง (เช่น +22% ตรงกับสถิติ 1Y ของธีมนั้น) กระทบทุกหน้าที่ใช้ pattern นี้ (Feeder/Offshore/Thai/Mixed)
+
+### การ์ดจัดอันดับ "อันดับ Master Fund จากทุกธีม" + รายการ "ธีมในกราฟ" ([fundinfo.css](src/assets/fundinfo.css), [ThemeTrendSection.vue](src/components/fundinfo/ThemeTrendSection.vue), [ExposureTrendSection.vue](src/components/fundinfo/ExposureTrendSection.vue))
+- `.ranking-card-grid` เดิมใช้ `minmax(360px, 340px)` ซึ่ง min > max (ค่า invalid) ทำให้การ์ดไม่ขยายเต็มจอ — แก้เป็น `minmax(320px, 1fr)`
+- เพิ่มขนาดตัวเลขผลตอบแทนและปุ่มเลือกช่วงเวลาในการ์ด
+- รายการ "ธีมในกราฟ": เอาขีดสีหน้าลำดับกับข้อความย่อยใต้หัวข้อออก เพิ่มขนาดตัวเลขจาก 9px → 13px (ทำทั้ง Feeder และ Offshore/Thai ให้ตรงกัน)
+
+### อื่นๆ ตามแผนดีไซน์ในหน้า Fundinfo
+- เอา icon วงกลมตัวอักษรย่อ (`compare-fund-avatar`) หน้าชื่อกองทุนในตารางเปรียบเทียบออก ([InsightCompareSection.vue](src/components/fundinfo/InsightCompareSection.vue))
+- เอาสัญลักษณ์ `฿` ออกจากตัวเลข AUM แบบย่อ (เหลือแค่ "X,XXX ล้านบ." ไม่มี `฿` นำหน้าซ้ำ) ([fundinfoFormat.js](src/utils/fundinfoFormat.js)) — กระทบทุกจุดที่ใช้ `formatAumMThb()`
+- เปลี่ยนฟอนต์หลักของทั้งหน้า Fundinfo จาก Prompt → Sarabun ให้ตรงกับหน้าหลักของเว็บ (เปลี่ยน `--font-main` + ไล่แก้ทุกจุดที่ hardcode `'Prompt'` ตรงๆ ~20 จุดใน `fundinfo.css`, `ApiErrorBanner.vue`, `FundinfoLayout.vue`)
+- สี +/- หน้ารายละเอียดกองทุน ([FundDetailHeader.vue](src/components/fundinfo/detail/FundDetailHeader.vue)) เปลี่ยนจาก Tailwind class ตรงๆ มาใช้ `text-pos`/`text-neg` ให้สอดคล้องกับส่วนอื่น
+
+### เพิ่ม Loading State ที่ขาดหายไป
+- [ThemeTrendSection.vue](src/components/fundinfo/ThemeTrendSection.vue) (หน้า Feeder) และ [MarketLensSection.vue](src/components/fundinfo/MarketLensSection.vue) (หน้า Mixed) เดิมไม่มี loading indicator เลยตอนโหลดข้อมูลครั้งแรก — เพิ่ม `LoadingIndicator` (Offshore/Thai มีอยู่แล้วก่อนหน้านี้)
+- [FundDetailRow.vue](src/views/fundinfo/FundDetailRow.vue) (การ์ดรายละเอียดที่ขยายในตาราง) ไม่มี loading ระหว่างรอ `/funds/{code}` ทำให้ดูเหมือน "ไม่มีข้อมูล" ทั้งที่กำลังโหลดอยู่ — เพิ่ม indicator โดยเช็ค `fundinfoStore.isLoading(fund.id)`
+- [FundOverviewPanel.vue](src/components/fundinfo/detail/FundOverviewPanel.vue) กราฟภาพรวม: เพิ่ม badge "กำลังโหลดข้อมูล..." มุมขวาบนระหว่างรอ daily NAV series (กราฟยังโชว์ค่าประมาณจาก checkpoint ไปพลางๆ ไม่ใช่ว่างเปล่า) ผ่าน `navHistoryLoading()` ใหม่ใน [useFundAnalytics.js](src/composables/useFundAnalytics.js)
+
+### Dashboard (`/dashboard`) — เจอบั๊กจริงหลายจุดระหว่างทำตามแผน "หน้าหลัก" ([DashboardView.vue](src/views/DashboardView.vue))
+- ลบคำอธิบายใต้ hero heading, ลบ "~3.05 ล้านล้านบาท"/"400 กองทุนรวม" ออกจากแถบสรุป, เปลี่ยนข้อความ "ข้อมูลถูก cache ไว้ล่าสุด..." เป็น "อัปเดตข้อมูลล่าสุด..."
+- **บั๊กจริง**: `dashboardStore.js` ยิง `getFundList` แบบจำกัด `limit:200` ทั้ง FOREIGN/TH (รวม 400 พอดี ไม่ใช่บังเอิญ) — แก้เป็น pagination loop ดึงทุกหน้า ระหว่างแก้เจอบั๊กซ้อน: field `count` ของ API เป็นแค่จำนวนต่อหน้า ไม่ใช่ยอดรวมจริง ถ้าเชื่อจะหยุดดึงเร็วเกินไป (พลาดไปครั้งแรก) แก้ให้หยุดเมื่อหน้าที่ได้มาสั้นกว่า page size แทน ผลคือกองทุนแสดงครบจากเดิม 400 เป็นของจริงทั้งหมด
+- **บั๊กจริง**: `normalizeFund()` ใน [fundApi.js](src/services/fundApi.js) ไม่เคย copy field `dividend_yield` จาก API เลย ทุกกองทุนเลยโชว์ "—" ในคอลัมน์ปันผลทั้งที่ backend มีข้อมูลจริง — เพิ่ม field เข้าไป
+- เพิ่มขนาดตัวอักษรปุ่ม Quick Presets ทั้ง 6 ปุ่ม
+- **บั๊กจริง (ผู้ใช้แจ้ง)**: การ์ดสรุป "กองทุนต่างประเทศ"/"กองทุนไทย" โชว์ "1,825 กองทุน" เท่ากันเป๊ะทั้งที่คนละกลุ่ม — ต้นตอคือ `getDashboardStats()` เรียกด้วย `type=FOREIGN` เป็นค่า default เสมอ ทำให้ backend ตอบกลับ FOREIGN อย่างเดียวแทน array รวม `[TH, FOREIGN]` ทำให้ `stats.TH` ไป fallback ใช้ข้อมูล FOREIGN แทน (`arr.find(...) || arr[0]`) — แก้โดยไม่ส่ง `type` เลย ตอนนี้ Thai=1,779/Foreign=1,825 ถูกต้อง
+- **บั๊กใหญ่กว่า (ผู้ใช้แจ้งเรื่องเดียวกัน)**: ตัวกรอง "ประเภทกองทุน" ในตารางสกรีนเนอร์ของ Dashboard เอง **นับกองทุนผิดไปหลายเท่า** (Thai 5,302 / Mixed 64 เทียบกับของจริงที่ `/fundinfo/thai`=743 / `/fundinfo/mixed`=473) — สาเหตุคือ Dashboard มีระบบจัดหมวดหมู่กองทุนของตัวเองแยกต่างหาก (`detectFundCategory()` heuristic หยาบๆ + ยิง API ด้วย param ชื่อ `type` แทน `market_type`) ไม่ได้ใช้ตัวเดียวกับ `/fundinfo/*` — แก้โดย refactor ให้ Dashboard ดึงข้อมูลผ่าน `fetchFundsByType()` จาก [fundinfoApi.js](src/services/fundinfoApi.js) แทน (logic เดียวกับที่ `/fundinfo/*` ใช้และผ่านการทดสอบมาแล้ว) ลบ `detectFundCategory()` ทิ้ง ตอนนี้ตัวเลขตรงกัน 100% ทั้ง Feeder(1,742)/Offshore(249)/Thai(743)/Mixed(473)
+
+### Audit ข้อมูล API ของ Fundinfo ทั้งระบบ เทียบกับ [context.md](context.md) ที่มีอยู่เดิม
+- **เจอจุดใช้ mock ทั้งที่มี API จริง**: ปุ่ม "หนังสือชี้ชวน" ในหน้ารายละเอียดกองทุน ([FundDocumentsPanel.vue](src/components/fundinfo/detail/FundDocumentsPanel.vue)) ปลอมการดาวน์โหลดเสมอ ทั้งที่ `fund.factSheetUrl` (จาก `fund_fact_sheet` — URL PDF จริงจาก SEC document storage) ถูก map ไว้ในโค้ดอยู่แล้วแต่ไม่เคยเอามาใช้ — แก้ให้ลิงก์ไปที่ไฟล์จริงเมื่อมี URL
+- **เจอว่า context.md ล้าสมัยไปหลายจุด** (อ้างอิงข้อมูลถึงแค่ 8-10 ก.ย.): เส้นอ้างอิง benchmark ในกราฟทั้ง 4 จุดจริงๆ ต่อ API `/benchmarks/*` จริงแล้วตั้งแต่ 11 ก.ย. (เอกสารเดิมบอกว่ายัง hardcode), P/E, P/B, Dividend Yield, Beta ของหุ้นใน `/stocks/top` มีข้อมูลจริงและต่อสายมาโชว์ในตารางเปรียบเทียบแล้ว (เอกสารเดิมบอกว่า API ไม่มี) — อัปเดต context.md ให้ตรงสถานะปัจจุบัน
+- **ยืนยันว่ายังเป็นช่องว่างจริง ไม่ใช่บั๊ก**: `turnover_ratio`/`recovery_period` มี field ใน schema แล้วแต่ยัง null 100% (เช็คสด 2,000 กองทุน) — โค้ดฝั่งเรารองรับไว้พร้อมแล้ว (แสดง "-" ไม่ fabricate) รอ backend เติมข้อมูลจริงเท่านั้น
+
+### ตามเช็คบั๊ก `/stocks/top` return ซ้ำที่รายงานไปวันก่อน — **backend แก้แล้ว** ([fundinfoApi.js](src/services/fundinfoApi.js))
+- เช็คสดตัวอย่างเดิมที่เจอ (กลุ่ม uranium ถือโดย ASP-NCLR/RMF เคยได้ `return_1y=-12.74%` เท่ากันหมด, กลุ่มน้ำมันถือโดย I-10 เคยได้ `+45.09%` เท่ากันหมด) — ตอนนี้ทั้งสองกลุ่มได้ `null` แทน ไม่ใช่ค่า duplicate จากกองทุนแม่แล้ว สแกนทั้ง 537 หุ้นซ้ำ (หุ้นที่ถือโดย 1-4 กองทุน) ไม่เจอกลุ่มค่าซ้ำกัน 3+ ตัวเลยแม้แต่กลุ่มเดียว (เดิมเจอ 30+ กลุ่ม กระทบ 300+ ตัว) — backend เปลี่ยนจาก "เอา return กองทุนมาแทนค่าหุ้น" เป็น "ไม่มีข้อมูลจริงก็ส่ง null" แทน
+- **เจอบั๊กใหม่ที่เกิดจากการเปลี่ยนของ backend รอบเดียวกัน**: backend เริ่มใส่ `industry`/`sector` ให้หุ้นต่างประเทศแท้ๆ ด้วย (เดิม null เสมอ เป็นสมมติฐานที่ `isMisclassifiedThaiStock()` ใช้แยกหุ้นไทยที่หลุดมาปนใน FOREIGN ตั้งแต่บั๊กปี 09-03) — ผลคือ filter กันบั๊กเก่าตัวนี้ดันกรองหุ้นแท้ทิ้งไป 75/537 ตัว (14%) รวม NVDA/AAPL/META/AMZN/INTC/BAC/TSM/ASML ออกจาก Ranking Card ฝั่ง Offshore ทั้งที่เป็นข้อมูลจริง — เช็คแล้วไม่มีหุ้นไทยตัวไหนหลุดมาใน FOREIGN list อีกต่อไป (0/537) จึงลบ `isMisclassifiedThaiStock()` ทิ้งทั้งฟังก์ชัน แทนที่จะพยายามปรับ heuristic ใหม่
+
+### ตัวกรอง "มีเงินปันผล" หน้า Dashboard ให้ผลผิด — **บั๊กจริง ไม่ใช่แค่ backend** ([DashboardView.vue](src/views/DashboardView.vue))
+- Quick Preset "💰 มีเงินปันผล" เดิมไม่ filter อะไรเลย แค่เรียงลำดับตาม `div` (`dividend_yield`) เท่านั้น — กองทุนที่ไม่จ่ายปันผลก็ยังโผล่มาครบ
+- เช็คสด `/funds/list` (1,000 กองทุนตัวอย่าง) พบว่า `dividend_yield` เป็น 0 สำหรับกองทุนส่วนใหญ่แม้จ่ายปันผลจริง — มี 30 กองทุนที่ `has_dividend=true`/`dividend_policy="จ่าย"` จริง แต่มีแค่ 20 กองทุนที่ `dividend_yield` มีค่า จริง (อีก 10 กองทุนอย่าง `K-GOLD-A(D)`, `K-CHINA-A(D)`, `ABFTH` มี yield=0 ทั้งที่จ่ายจริงตามชื่อกองทุนเอง) — ทุกจุดที่เดิมเช็ค `f.div > 0` เพื่อตัดสิน "มีปันผลไหม" จึงพลาดกองทุนกลุ่มนี้ไปทั้งหมด
+- แก้โดยเพิ่ม field `hasDividend` (จาก `has_dividend`/`dividend_policy` จริง) ผ่าน `mapCategorizedFund()`, ทำให้ preset filter ได้จริงผ่าน state `dividendOnly` ใหม่, และเปลี่ยนทุกจุดแสดงผล (badge ในตาราง, การ์ดเปรียบเทียบ "สไตล์เงินปันผล", แถว "นโยบายเงินปันผล", modal รายละเอียด) จาก `f.div > 0` เป็น `f.hasDividend` — ยังโชว์ % ต่อเมื่อมีค่าจริงเท่านั้น ไม่ fabricate เลขแทน — verify สด: filter เหลือ 635 กองทุน, ค้นหา K-GOLD-A(D) เจอพร้อม badge "ปันผล" ถูกต้อง
+
+### ปรับ UI หน้ารายละเอียดกองทุนที่ขยายในตาราง (Sector/Top Holdings bars) ([FundDetailRow.vue](src/views/fundinfo/FundDetailRow.vue), [fundinfo.css](src/assets/fundinfo.css))
+- คอลัมน์ชื่อกับ bar แสดงเปอร์เซ็นต์เดิมใช้ fr คงที่แชร์ความกว้างเท่ากันทุกแถว ทำให้ชื่อสั้นๆ (Sector) เหลือช่องว่างก่อนถึง bar เยอะเกินไป ขณะที่ชื่อยาว (Top Holdings เช่น "PIMCO GIS Income Fund Class-Institution USD Acc") โดนตัดด้วย ellipsis — เปลี่ยนเป็น `display: contents` + คอลัมน์ชื่อ auto-size ตาม `max-content` แยกต่อ panel (Sector แคบตามชื่อสั้นจริง, Holdings ให้ wrap 2 บรรทัดแทนการตัดคำ) ไม่มีชื่อไหนถูกตัดอีก
+- เพิ่ม `min-width: 3px` ให้ bar ที่ค่าใกล้ 0% (เดิมกว้าง 0px มองไม่เห็นเลย), ลดระยะห่างแถวและระยะเหนือปุ่ม action, ปรับตัวเลขเป็น `tabular-nums` ขนาดใหญ่ขึ้น, เอาวงเล็บออกจากข้อความช่วงเวลา "Return by Period"
+- เอาปุ่ม "ความเสี่ยงสูง → ต่ำ" ที่ไม่มีใครขอออกจากหัวตารางกองทุน ([FundTableWithCompare.vue](src/components/fundinfo/FundTableWithCompare.vue))
+
+### ตารางเปรียบเทียบกองทุน ([FundCompareTable.vue](src/components/fundinfo/FundCompareTable.vue), [InsightCompareSection.vue](src/components/fundinfo/InsightCompareSection.vue))
+- เอาแถว "ประเภท" (Feeder/Offshore/Thai/Mixed) ออกจากตารางเปรียบเทียบกองทุนที่เลือก — ไม่มีใครใช้ข้อมูลนี้ตัดสินใจ
+- หัวคอลัมน์ "ผลตอบแทน 1 ปี" เดิมสลับข้อความเป็น "ผลตอบแทนกองทุน 1 ปี" เฉพาะหน้า Feeder/Mixed ต่างจาก Offshore/Thai — รวมเป็นข้อความเดียวกันทุกแท็บ
+
+### FUNDINFO Dashboard กลายเป็นหน้าแรกของเว็บ แทน "หน้าหลัก" เดิม ([router/index.js](src/router/index.js), [AppHeader.vue](src/components/AppHeader.vue))
+- ลบ `HomeView.vue` (หน้า marketing เดิมที่ `/`) และ CSS ที่ผูกกับมันทั้งหมดออกจาก `style.css` (`.idea-hero`/`.idea-feature-*`/`.idea-globe`/`.idea-pin`/`.idea-chart`/`.idea-footer` ทั้ง main rule และใน media query)
+- Route `/` เปลี่ยนไปเรนเดอร์ `DashboardView` (FUNDINFO dashboard) แทน — คง route `/dashboard` แยกไว้ต่างหาก (ไม่ redirect) กัน query params ของ SearchBar (`?view=...&symbol=...`) หลุด
+- เอาเมนู "หน้าหลัก" ออกจาก nav, เปลี่ยนลิงก์ "FUNDINFO" ไปที่ `/`
+- พบ CSS ตายเก่าอีกก้อนแยกต่างหาก (`.home-*` ~330 บรรทัด ไม่เกี่ยวกับ `HomeView.vue` ที่ลบ) ที่ตายอยู่ก่อนหน้านี้แล้ว — ไม่ได้แตะในรอบนี้ แยกเป็นงานถัดไป
+
 ## 2026-09-23 — IDEAFUND (Fund Insights): กู้คืนระบบให้กลับมาทำงานได้ครบทุกแท็บ
 
 ### แก้ปัญหาข้อมูล Global Fund Flow แสดง +$0 และชื่อธีมว่างเปล่า ([insightsApi.js](src/services/insightsApi.js), [insightsStore.js](src/stores/insightsStore.js), [InsightsView.vue](src/views/InsightsView.vue))

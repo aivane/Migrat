@@ -8,7 +8,7 @@
 // localStorage — it only shapes numbers/strings that callers bind via
 // Vue's `{{ }}` interpolation (auto-escaped), never via v-html. There is
 // no injection surface here by construction.
-import { computed, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { fetchFundNavHistory } from '../services/fundinfoApi'
 
 function noSeries() {
@@ -130,7 +130,8 @@ export function useFundAnalytics(fundRef) {
   // bump apiNavHistoryVersion so callers watching that ref re-render once the
   // real series lands, instead of making `navHistory()` itself async.
   const apiNavHistoryCache = new Map()
-  const apiNavHistoryPending = new Set()
+  // reactive (not a plain Set) so FundOverviewPanel's navHistoryLoading() re-evaluates as keys are added/removed.
+  const apiNavHistoryPending = reactive(new Set())
   const apiNavHistoryVersion = ref(0)
   const NAV_HISTORY_DAYS = { '1M': 30, '3M': 90, '1Y': 365, '3Y': 1095, '5Y': 1825, MAX: 3650 }
 
@@ -144,6 +145,16 @@ export function useFundAnalytics(fundRef) {
         apiNavHistoryVersion.value++
       })
       .finally(() => apiNavHistoryPending.delete(key))
+  }
+
+  // True while the precise daily series for this fund+range is still in flight — the chart
+  // meanwhile shows the coarse checkpoint-based approximation (apiCheckpointNavHistory) below,
+  // so callers can surface "refining..." rather than presenting it as the final chart.
+  function navHistoryLoading(range) {
+    const f = fundRef.value
+    if (!f) return false
+    const days = NAV_HISTORY_DAYS[range] || NAV_HISTORY_DAYS['1Y']
+    return apiNavHistoryPending.has(`${f.id}:${days}`)
   }
 
   // Fallback while the real series is loading (or for a fund/range it never
@@ -224,6 +235,7 @@ export function useFundAnalytics(fundRef) {
     recoveringPeriodText,
     groupAverage,
     navHistory,
+    navHistoryLoading,
     apiNavHistoryVersion,
   }
 }

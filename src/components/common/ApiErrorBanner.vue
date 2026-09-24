@@ -40,7 +40,7 @@ const emit = defineEmits(['retry'])
   border-radius: 50%;
   background: #f04438;
   color: #fff;
-  font: 800 12px/20px 'Prompt', sans-serif;
+  font: 800 12px/20px 'Sarabun', sans-serif;
   text-align: center;
 }
 .api-error-banner-body {
@@ -65,7 +65,7 @@ const emit = defineEmits(['retry'])
   border-radius: 8px;
   background: transparent;
   color: #f04438;
-  font: 700 12px/1.2 'Prompt', sans-serif;
+  font: 700 12px/1.2 'Sarabun', sans-serif;
   padding: 6px 12px;
   cursor: pointer;
 }

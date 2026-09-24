@@ -36,11 +36,10 @@ export function benchmarkSeries(history, n = CMP_LABEL_COUNT) {
   if (!Array.isArray(history) || history.length < 2) return null
 
   const sorted = [...history].sort((a, b) => a.date.localeCompare(b.date))
-  const latestClose = sorted[sorted.length - 1].close
   const todayMs = Date.now()
   const dayMs = 24 * 60 * 60 * 1000
 
-  const series = []
+  const closes = []
   for (let i = 0; i < n; i++) {
     const targetMs = todayMs - (n - 1 - i) * CMP_STEP_DAYS * dayMs
     // nearest point at/before the target date; falls back to the earliest point available
@@ -49,9 +48,16 @@ export function benchmarkSeries(history, n = CMP_LABEL_COUNT) {
       if (new Date(candidate.date).getTime() > targetMs) break
       point = candidate
     }
-    series.push(+(100 * (point.close / latestClose)).toFixed(1))
+    closes.push(point.close)
   }
-  return series
+
+  // Rebase to the oldest point in the window (index 0), not today — otherwise
+  // every point converges to exactly 100 (0%) at the most recent date
+  // regardless of the benchmark's real move over the period (see the same
+  // fix in useFundinfoThemeTrend.js's checkpointSeries()).
+  const base = closes[0]
+  if (!base) return null
+  return closes.map((c) => +(100 * (c / base)).toFixed(1))
 }
 
 export function useFundinfoBenchmark(type) {

@@ -26,6 +26,7 @@ const state = reactive({
   topStocks: { FOREIGN: [], TH: [] },
   funds: { FOREIGN: [], TH: [] },
   totals: { FOREIGN: 0, TH: 0 },
+  categorizedFunds: { feeder: [], offshore: [], thai: [], mixed: [] },
   masterEtfs: [],
   thaiEtfs: [],
   portfolioAllocation: null,
@@ -47,12 +48,13 @@ function setExposureTopic(topic) {
   activeTopic.value = topic
 }
 
-// ── Unified Screener State (fund2-main 400 Funds Screener) ─────────────────
+// ── Unified Screener State (fund2-main Funds Screener) ─────────────────
 const screenerCategory = ref('all') // 'all' | 'feeder' | 'offshore' | 'thai' | 'mixed'
 const tableSearchQuery = ref('')
 const selectedScreenerAmc = ref('all')
 const selectedScreenerSector = ref('all')
 const selectedScreenerRisk = ref('all')
+const dividendOnly = ref(false)
 const screenerSortBy = ref('perfDesc')
 const screenerPage = ref(1)
 const activeQuickPreset = ref(null)
@@ -64,6 +66,7 @@ function applyQuickPreset(presetKey) {
     selectedScreenerAmc.value = 'all'
     selectedScreenerSector.value = 'all'
     selectedScreenerRisk.value = 'all'
+    dividendOnly.value = false
     screenerSortBy.value = 'perfDesc'
     tableSearchQuery.value = ''
     showOnlyFavorites.value = false
@@ -79,6 +82,7 @@ function applyQuickPreset(presetKey) {
   selectedScreenerAmc.value = 'all'
   selectedScreenerSector.value = 'all'
   selectedScreenerRisk.value = 'all'
+  dividendOnly.value = false
   tableSearchQuery.value = ''
 
   if (presetKey === 'top1y') {
@@ -87,6 +91,9 @@ function applyQuickPreset(presetKey) {
     selectedScreenerRisk.value = 'low'
     screenerSortBy.value = 'perfDesc'
   } else if (presetKey === 'dividend') {
+    // hasDividend (has_dividend/dividend_policy), not div (dividend_yield) — verified
+    // live 2026-09-24 that 10/30 real dividend payers report dividend_yield=0.
+    dividendOnly.value = true
     screenerSortBy.value = 'divDesc'
   } else if (presetKey === 'tech') {
     selectedScreenerSector.value = 'Technology'
@@ -295,8 +302,7 @@ const errorMessage = ref('')
 // ── Cache / Partial-error messages ──────────────────────────────────────────
 const cacheMessage = computed(() => {
   if (!dashboardStore.loadedAtLabel) return ''
-  const source = dashboardStore.restoredFromSession ? 'จาก session cache' : 'ในหน้านี้'
-  return `ข้อมูล${source} ถูก cache ไว้ล่าสุด ${dashboardStore.loadedAtLabel}`
+  return `อัปเดตข้อมูลล่าสุด ${dashboardStore.loadedAtLabel}`
 })
 
 const partialErrorMessage = computed(() => {
@@ -816,68 +822,44 @@ const AMC_FULL_NAMES = {
   TMB: 'ทีเอ็มบีอีสท์สปริง',
 }
 
-function detectFundCategory(f, defaultType) {
-  const text = `${f.fund_type || ''} ${f.method || ''} ${f.name || ''} ${f.sector || ''}`.toLowerCase()
-  if (text.includes('ผสม') || text.includes('mixed') || text.includes('balanced') || text.includes('multi-asset')) {
-    return 'mixed'
+// ── Unified Funds Screener Computeds (fund2-main) ──────────────────────
+// Sourced from dashboardStore.categorizedFunds — fundinfoApi.js's fetchFundsByType(),
+// the same real feeder/offshore/thai/mixed categorization /fundinfo/* uses (market_type +
+// inferFundType() pattern matching). Previously this rebuilt the split from state.funds.FOREIGN/TH
+// via a crude local detectFundCategory() heuristic, which badly disagreed with /fundinfo/*
+// (e.g. counted 5,302 "Thai" funds here vs. 743 on /fundinfo/thai for the same backend data).
+function mapCategorizedFund(f) {
+  const amcKey = String(f.amc || '').trim().toUpperCase()
+  return {
+    id: f.id,
+    name: f.name,
+    type: f.type,
+    amc: f.amc,
+    amcFull: AMC_FULL_NAMES[amcKey] || f.amc,
+    nav: Number(f.nav || 0),
+    chg1d: Number(f.navChangePct1d || 0),
+    ret1m: Number(f.retP?.m1 || 0),
+    perf: Number(f.perf || 0),
+    ret3y: Number(f.retP?.y3 || 0),
+    risk: Number(f.risk || 5),
+    div: Number(f.div || 0),
+    // dividend_yield (div) is 0 for most real dividend payers — the API's own
+    // has_dividend flag/dividend_policy text is the reliable signal (verified live:
+    // 30/1000 funds pay per has_dividend, only 20 of those also report a nonzero yield).
+    hasDividend: Boolean(f.hasDividend) || f.dividendPolicy === 'จ่าย',
+    aum: Number(f.aum || 0),
+    starred: isFavorite(f.id),
+    master: f.masterFund || '',
+    holdings: (f.top5 || []).map(h => [h.name || '', Number(h.percent || 0)])
   }
-  if (f.target_type === 'TH' || defaultType === 'thai') {
-    return 'thai'
-  }
-  if (f.feeder || f.is_feeder_fund || text.includes('feeder') || text.includes('master') || text.includes('fund of funds')) {
-    return 'feeder'
-  }
-  return 'offshore'
 }
 
-// ── Unified 400 Funds Screener Computeds (fund2-main) ──────────────────────
-const allUnifiedFunds = computed(() => {
-  const apiF = state.funds.FOREIGN.map(f => {
-    const cat = detectFundCategory(f, 'feeder')
-    const amcKey = String(f.amc || '').trim().toUpperCase()
-    return {
-      id: f.code,
-      name: f.name,
-      type: cat,
-      amc: f.amc,
-      amcFull: AMC_FULL_NAMES[amcKey] || f.amc,
-      nav: Number(f.nav || 0),
-      chg1d: Number(f.chg1d || f.change_1d || 0),
-      ret1m: Number(f.r1m || 0),
-      perf: Number(f.ret || 0),
-      ret3y: Number(f.return_3y || 0),
-      risk: Number(f.risk || 5),
-      div: Number(f.dividend_yield || f.div || 0),
-      aum: Number(f.aum || 0),
-      starred: isFavorite(f.code),
-      master: f.feeder || '',
-      holdings: (f.top || []).map(h => [h.symbol || h.s || '', Number(h.percent || h.p || 0)])
-    }
-  })
-  const apiTH = state.funds.TH.map(f => {
-    const cat = detectFundCategory(f, 'thai')
-    const amcKey = String(f.amc || '').trim().toUpperCase()
-    return {
-      id: f.code,
-      name: f.name,
-      type: cat,
-      amc: f.amc,
-      amcFull: AMC_FULL_NAMES[amcKey] || f.amc,
-      nav: Number(f.nav || 0),
-      chg1d: Number(f.chg1d || f.change_1d || 0),
-      ret1m: Number(f.r1m || 0),
-      perf: Number(f.ret || 0),
-      ret3y: Number(f.return_3y || 0),
-      risk: Number(f.risk || 5),
-      div: Number(f.dividend_yield || f.div || 0),
-      aum: Number(f.aum || 0),
-      starred: isFavorite(f.code),
-      master: '',
-      holdings: (f.top || []).map(h => [h.symbol || h.s || '', Number(h.percent || h.p || 0)])
-    }
-  })
-  return [...apiF, ...apiTH]
-})
+const allUnifiedFunds = computed(() => [
+  ...state.categorizedFunds.feeder.map(mapCategorizedFund),
+  ...state.categorizedFunds.offshore.map(mapCategorizedFund),
+  ...state.categorizedFunds.thai.map(mapCategorizedFund),
+  ...state.categorizedFunds.mixed.map(mapCategorizedFund),
+])
 
 const filteredUnifiedFunds = computed(() => {
   let list = allUnifiedFunds.value
@@ -899,6 +881,7 @@ const filteredUnifiedFunds = computed(() => {
     else if (selectedScreenerRisk.value === 'med') list = list.filter(f => f.risk === 5)
     else if (selectedScreenerRisk.value === 'high') list = list.filter(f => f.risk >= 6)
   }
+  if (dividendOnly.value) list = list.filter(f => f.hasDividend)
   if (selectedScreenerSector.value && selectedScreenerSector.value !== 'all') {
     const sec = selectedScreenerSector.value.toLowerCase()
     list = list.filter(f =>
@@ -1092,8 +1075,9 @@ const compareVerdict = computed(() => {
   const lowestRisk = sortedRisk[0]
   const isRiskTied = sortedRisk.length > 1 && sortedRisk[0]?.risk === sortedRisk[1]?.risk
 
-  // 4. เงินปันผล
-  const divFunds = funds.filter(f => Number(f.div) > 0)
+  // 4. เงินปันผล — hasDividend (has_dividend/dividend_policy), not div (dividend_yield,
+  // which is 0 for most real payers — see mapCategorizedFund's comment).
+  const divFunds = funds.filter(f => f.hasDividend)
   const topDivFund = divFunds.sort((a, b) => Number(b.div) - Number(a.div))[0]
 
   return {
@@ -1597,6 +1581,7 @@ function applyDashboardSnapshot(snap) {
   state.funds.TH            = snap.funds.TH
   state.totals.FOREIGN      = snap.totals.FOREIGN
   state.totals.TH           = snap.totals.TH
+  state.categorizedFunds    = snap.categorizedFunds || { feeder: [], offshore: [], thai: [], mixed: [] }
   state.loadedAt            = snap.loadedAt
   state.partialErrors       = snap.partialErrors ?? {}
 }
@@ -1756,9 +1741,6 @@ onMounted(loadInitialDashboard)
             <h1 class="text-2xl sm:text-3xl lg:text-[2rem] font-bold text-slate-900 dark:text-white leading-snug">
               วิเคราะห์การถือครองหุ้นผ่านกองทุนรวม
             </h1>
-            <p class="text-sm text-slate-500 dark:text-slate-400 mt-2 max-w-2xl leading-relaxed font-normal">
-              เจาะลึกโครงสร้างกองทุนรวมไทยกว่า 400 กอง สัดส่วนหุ้นรายตัว Master Fund ต่างประเทศ และกระแสเงินทุนแบบ Real-time
-            </p>
           </div>
 
           <!-- Integrated Institutional Hero Stat (No Box Card, Pure Open Typography) -->
@@ -1787,12 +1769,6 @@ onMounted(loadInitialDashboard)
 
             <!-- Meta details inline -->
             <div class="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mt-2">
-              <span class="font-bold text-slate-800 dark:text-slate-200 bg-slate-100 dark:bg-slate-800/90 px-2 py-0.5 rounded text-[11px]">
-                ~{{ allocationTotal ? (allocationTotal / 1e12).toFixed(2) + ' ล้านล้านบาท' : '13.30 ล้านล้านบาท' }}
-              </span>
-              <span class="text-slate-300 dark:text-slate-600">•</span>
-              <span>{{ formatNumber(totalFunds || 400) }} กองทุนรวม</span>
-              <span class="text-slate-300 dark:text-slate-600">•</span>
               <span class="text-xs text-slate-600 dark:text-slate-400 font-bold">{{ cacheMessage || (state.loadedAt ? 'อัปเดต ' + state.loadedAt : 'Real-time Data') }}</span>
               <button @click="refreshDashboard" :disabled="loading.page" class="inline-flex items-center gap-0.5 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 font-semibold p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer" title="รีเฟรชข้อมูล">
                 <span class="inline-block text-xs" :class="{ 'animate-spin': loading.page }">↻</span>
@@ -1832,13 +1808,13 @@ onMounted(loadInitialDashboard)
               :class="seg.hoverBorder || 'hover:border-orange-400'"
             >
               <div class="flex items-center justify-between">
-                <span class="inline-flex items-center gap-2 text-sm font-bold text-slate-800 dark:text-slate-100">
-                  <span class="text-base leading-none">{{ seg.icon }}</span>
+                <span class="inline-flex items-center gap-2 text-base font-bold text-slate-800 dark:text-slate-100">
+                  <span class="text-lg leading-none">{{ seg.icon }}</span>
                   <span>{{ seg.label }}</span>
                 </span>
-                <span class="text-xs font-bold num" :class="seg.textColor || 'text-orange-600 dark:text-orange-400'">{{ seg.pct }}%</span>
+                <span class="text-lg font-bold num" :class="seg.textColor || 'text-orange-600 dark:text-orange-400'">{{ seg.pct }}%</span>
               </div>
-              <div class="mt-1 flex items-baseline justify-between text-[11px] text-slate-500 dark:text-slate-400">
+              <div class="mt-1 flex items-baseline justify-between text-sm text-slate-500 dark:text-slate-400">
                 <span>฿{{ (seg.val / 1e12).toFixed(2) }} ล้านล้าน</span>
                 <span class="group-hover:translate-x-0.5 transition font-semibold text-xs flex items-center gap-0.5" :class="seg.textColor || 'text-orange-600'">
                   <span>ดูรายละเอียด</span>
@@ -1933,7 +1909,7 @@ onMounted(loadInitialDashboard)
                 class="exp-data-row"
                 @click="filterBySector(row.name)"
               >
-                <span class="font-bold text-slate-800 dark:text-slate-100 text-xs sm:text-sm w-44 shrink-0 truncate">{{ row.name }}</span>
+                <span class="font-bold text-slate-800 dark:text-slate-100 text-xs sm:text-sm w-60 shrink-0 truncate">{{ row.name }}</span>
                 <div class="flex-1 h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                   <div class="h-full bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full" :style="{ width: Math.min(Math.max(row.value, 2), 100) + '%' }"></div>
                 </div>
@@ -1952,7 +1928,7 @@ onMounted(loadInitialDashboard)
                 :key="row.name"
                 class="exp-data-row"
               >
-                <span class="font-bold text-slate-800 dark:text-slate-100 text-xs sm:text-sm w-44 shrink-0 truncate">{{ row.name }}</span>
+                <span class="font-bold text-slate-800 dark:text-slate-100 text-xs sm:text-sm w-60 shrink-0 truncate">{{ row.name }}</span>
                 <div class="flex-1 h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                   <div class="h-full bg-gradient-to-r from-blue-500 to-teal-500 rounded-full" :style="{ width: Math.min(Math.max(row.value, 2), 100) + '%' }"></div>
                 </div>
@@ -2039,7 +2015,7 @@ onMounted(loadInitialDashboard)
                 class="exp-data-row"
                 @click="filterBySector(row.name)"
               >
-                <span class="font-bold text-slate-800 dark:text-slate-100 text-xs sm:text-sm w-44 shrink-0 truncate">{{ row.name }}</span>
+                <span class="font-bold text-slate-800 dark:text-slate-100 text-xs sm:text-sm w-60 shrink-0 truncate">{{ row.name }}</span>
                 <div class="flex-1 h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                   <div class="h-full bg-gradient-to-r from-amber-500 to-yellow-400 rounded-full shadow-xs" :style="{ width: Math.min(Math.max(row.value, 2), 100) + '%' }"></div>
                 </div>
@@ -2208,7 +2184,7 @@ onMounted(loadInitialDashboard)
 
 
 
-    <!-- ── 4. 400 Funds Screener (fund2-main Unified Screener) ────────────────────────── -->
+    <!-- ── 4. Funds Screener (fund2-main Unified Screener) ────────────────────────── -->
     <section id="fund-screener" class="py-10 bg-slate-50/60 dark:bg-slate-950/60 flex-1">
       <div class="max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
@@ -2269,7 +2245,7 @@ onMounted(loadInitialDashboard)
             <button 
               type="button" 
               @click="applyQuickPreset('top1y')"
-              class="px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-2xs border"
+              class="px-3.5 py-2 rounded-xl text-sm sm:text-base font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-2xs border"
               :class="activeQuickPreset === 'top1y' 
                 ? 'bg-amber-500 text-white border-amber-600 ring-2 ring-amber-400/40 shadow-sm' 
                 : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200/90 dark:border-slate-700 hover:bg-amber-50 dark:hover:bg-slate-750 hover:border-amber-300'"
@@ -2280,7 +2256,7 @@ onMounted(loadInitialDashboard)
             <button 
               type="button" 
               @click="applyQuickPreset('safe')"
-              class="px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-2xs border"
+              class="px-3.5 py-2 rounded-xl text-sm sm:text-base font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-2xs border"
               :class="activeQuickPreset === 'safe' 
                 ? 'bg-teal-600 text-white border-teal-700 ring-2 ring-teal-400/40 shadow-sm' 
                 : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200/90 dark:border-slate-700 hover:bg-teal-50 dark:hover:bg-slate-750 hover:border-teal-300'"
@@ -2291,7 +2267,7 @@ onMounted(loadInitialDashboard)
             <button 
               type="button" 
               @click="applyQuickPreset('dividend')"
-              class="px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-2xs border"
+              class="px-3.5 py-2 rounded-xl text-sm sm:text-base font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-2xs border"
               :class="activeQuickPreset === 'dividend' 
                 ? 'bg-emerald-600 text-white border-emerald-700 ring-2 ring-emerald-400/40 shadow-sm' 
                 : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200/90 dark:border-slate-700 hover:bg-emerald-50 dark:hover:bg-slate-750 hover:border-emerald-300'"
@@ -2302,7 +2278,7 @@ onMounted(loadInitialDashboard)
             <button 
               type="button" 
               @click="applyQuickPreset('tech')"
-              class="px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-2xs border"
+              class="px-3.5 py-2 rounded-xl text-sm sm:text-base font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-2xs border"
               :class="activeQuickPreset === 'tech' 
                 ? 'bg-blue-600 text-white border-blue-700 ring-2 ring-blue-400/40 shadow-sm' 
                 : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200/90 dark:border-slate-700 hover:bg-blue-50 dark:hover:bg-slate-750 hover:border-blue-300'"
@@ -2313,7 +2289,7 @@ onMounted(loadInitialDashboard)
             <button 
               type="button" 
               @click="applyQuickPreset('thai')"
-              class="px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-2xs border"
+              class="px-3.5 py-2 rounded-xl text-sm sm:text-base font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-2xs border"
               :class="activeQuickPreset === 'thai' 
                 ? 'bg-indigo-600 text-white border-indigo-700 ring-2 ring-indigo-400/40 shadow-sm' 
                 : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200/90 dark:border-slate-700 hover:bg-indigo-50 dark:hover:bg-slate-750 hover:border-indigo-300'"
@@ -2325,7 +2301,7 @@ onMounted(loadInitialDashboard)
               v-if="activeQuickPreset || screenerCategory !== 'all' || selectedScreenerAmc !== 'all' || selectedScreenerSector !== 'all' || selectedScreenerRisk !== 'all' || tableSearchQuery"
               type="button" 
               @click="applyQuickPreset(activeQuickPreset)"
-              class="px-3 py-2 rounded-xl text-xs sm:text-sm font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 hover:bg-rose-100 transition cursor-pointer whitespace-nowrap flex items-center gap-1"
+              class="px-3 py-2 rounded-xl text-sm sm:text-base font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 hover:bg-rose-100 transition cursor-pointer whitespace-nowrap flex items-center gap-1"
               title="ล้างตัวกรองทั้งหมด"
             >
               <span>✕</span>
@@ -2498,7 +2474,7 @@ onMounted(loadInitialDashboard)
                           <!-- รหัส + badge เล็กๆ บรรทัดเดียวกัน -->
                           <div class="flex items-center gap-1.5 flex-wrap">
                             <span class="font-bold text-slate-800 dark:text-slate-100 text-sm num tracking-wide">{{ f.id }}</span>
-                            <span v-if="f.div > 0" class="text-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 px-1.5 py-0.5 rounded font-semibold leading-none">ปันผล</span>
+                            <span v-if="f.hasDividend" class="text-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 px-1.5 py-0.5 rounded font-semibold leading-none">ปันผล</span>
                             <span class="text-slate-400 text-xs transition-transform duration-200 inline-block" :class="{ 'rotate-180': isFundExpanded(f.id) }">⌄</span>
                           </div>
                           <!-- ชื่อกองทุน — อ่านง่าย ขนาดปกติ -->
@@ -2736,7 +2712,7 @@ onMounted(loadInitialDashboard)
                   </div>
                   <div v-if="compareVerdict.hasDividend" class="mt-1 flex items-baseline gap-1.5 flex-wrap">
                     <span class="font-bold text-base num text-slate-900 dark:text-white">{{ compareVerdict.topDivFund?.id }}</span>
-                    <span class="text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/70 px-1.5 py-0.5 rounded num">ปันผล {{ compareVerdict.topDivFund?.div }}%</span>
+                    <span class="text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/70 px-1.5 py-0.5 rounded num">ปันผล{{ compareVerdict.topDivFund?.div > 0 ? ` ${compareVerdict.topDivFund.div}%` : '' }}</span>
                   </div>
                   <div v-else class="mt-1 text-sm font-bold text-slate-700 dark:text-slate-300">
                     เน้นสะสมมูลค่าทั้งคู่
@@ -2904,8 +2880,8 @@ onMounted(loadInitialDashboard)
                     </td>
                     <td v-for="f in inlineCompareFunds" :key="f.id" class="py-3.5 px-6 border-l border-slate-200/80 dark:border-slate-800"
                       :class="highestPerfFundId === f.id ? 'bg-amber-50/40 dark:bg-amber-950/15' : ''">
-                      <span v-if="f.div > 0" class="inline-flex items-center gap-1 text-xs font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/80 border border-emerald-300/60 px-2 py-0.5 rounded-md num shadow-2xs">
-                        💰 มีปันผล ({{ f.div }}%)
+                      <span v-if="f.hasDividend" class="inline-flex items-center gap-1 text-xs font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/80 border border-emerald-300/60 px-2 py-0.5 rounded-md num shadow-2xs">
+                        💰 มีปันผล{{ f.div > 0 ? ` (${f.div}%)` : '' }}
                       </span>
                       <span v-else class="text-sm text-slate-400 font-normal">
                         ไม่จ่ายเงินปันผล (เน้นสะสมมูลค่า)
@@ -3124,8 +3100,8 @@ onMounted(loadInitialDashboard)
                   <span class="px-2.5 py-0.5 rounded-full text-xs font-bold" :class="getRiskBadgeClass(insightModal.fund.risk)">
                     ความเสี่ยง {{ insightModal.fund.risk }}
                   </span>
-                  <span v-if="insightModal.fund.div > 0" class="text-xs bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 px-2 py-0.5 rounded-full font-bold">
-                    ปันผล {{ insightModal.fund.div }}%
+                  <span v-if="insightModal.fund.hasDividend" class="text-xs bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 px-2 py-0.5 rounded-full font-bold">
+                    ปันผล{{ insightModal.fund.div > 0 ? ` ${insightModal.fund.div}%` : '' }}
                   </span>
                 </div>
                 <h3 class="text-sm sm:text-base font-semibold text-slate-600 dark:text-slate-300 leading-snug">{{ insightModal.fund.name }}</h3>

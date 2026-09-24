@@ -65,7 +65,14 @@ export function checkpointSeries(retPRaw, n = CMP_LABELS.length) {
     const targetDays = (n - 1 - i) * CMP_STEP_DAYS
     series.push(interpolateAnchors(anchors, targetDays))
   }
-  return series
+
+  // Rebase to the oldest plotted point (start of the 12-month window), not
+  // "today" — the anchors above always pin today's value to exactly 100, so
+  // without this every line converges to a flat 0% at the most recent point
+  // regardless of real performance instead of ending at the actual return.
+  const base = series[0]
+  if (!Number.isFinite(base) || base <= 0) return series
+  return series.map((v) => +((v / base) * 100).toFixed(1))
 }
 
 function interpolateAnchors(anchors, targetDays) {
@@ -172,6 +179,7 @@ export function useFundinfoThemeTrend(type = 'feeder') {
   const fundinfoStore = useFundinfoStore()
   fundinfoStore.loadFundsByType(type)
   const funds = computed(() => fundinfoStore.getFundsByType(type))
+  const loading = computed(() => fundinfoStore.isLoading(type) && !funds.value.length)
 
   const scopes = computed(() => computeThemeScopes(funds.value))
   const stats = computed(() => scopes.value.map((scope) => themePulseStats(scope, bench.value.ret)))
@@ -248,6 +256,7 @@ export function useFundinfoThemeTrend(type = 'feeder') {
   return {
     stats,
     state,
+    loading,
     visibleStats,
     selectedStats,
     positiveCount,
