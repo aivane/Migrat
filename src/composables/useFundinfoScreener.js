@@ -73,13 +73,14 @@ export const MEGATREND_OPTIONS = [
 // Same field (fund.managementStyle) powers both "Fund Style" (feeder/offshore)
 // and "Investment Style" (thai/mixed) — one shared option list.
 //
-// DIVIDEND_FOCUSED describes the stock-picking universe, not payout — some
-// RMFs match it despite dividendPolicy "ไม่จ่าย" (can't distribute by law), so
-// the label was reworded off "เน้นจ่ายปันผล" to avoid implying a payout promise.
+// DIVIDEND_FOCUSED (management_style) deliberately excluded as a chip here —
+// it describes the stock-picking universe, not payout — some RMFs carry it
+// despite dividendPolicy "ไม่จ่าย" (can't distribute by law). "กองทุนจ่ายปันผล"
+// below is a separate quick-toggle wired to the real dividendPolicy field
+// instead (same field the "นโยบายปันผล" dropdown and the Dashboard use).
 export const MANAGEMENT_STYLE_OPTIONS = [
   { id: 'ACTIVE', label: 'บริหารเชิงรุก (Active)' },
   { id: 'PASSIVE_INDEX', label: 'อิงดัชนี (Passive / Index)' },
-  { id: 'DIVIDEND_FOCUSED', label: 'กองทุนปันผลสูง' },
 ]
 export const STYLE_OPTIONS = MANAGEMENT_STYLE_OPTIONS
 
@@ -259,6 +260,12 @@ function createFundinfoScreener(type) {
     screener.fxHedging = screener.fxHedging === value ? '' : value
   }
 
+  // Quick-toggle for the "กองทุนจ่ายปันผล" chip — shares state with the
+  // "นโยบายปันผล" dropdown (screener.dividendPolicy) so both stay in sync.
+  function toggleDividendPayer() {
+    screener.dividendPolicy = screener.dividendPolicy === 'pay' ? '' : 'pay'
+  }
+
   // new (thai/mixed)
   function toggleInvestmentStyle(value) {
     toggleInArray(screener.investmentStyle, value)
@@ -334,6 +341,7 @@ function createFundinfoScreener(type) {
     toggleMegatrend,
     toggleStyle,
     setFxHedging,
+    toggleDividendPayer,
     toggleInvestmentStyle,
     toggleSize,
     toggleExtraMetric,

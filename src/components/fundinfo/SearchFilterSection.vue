@@ -32,6 +32,7 @@ const {
   toggleMegatrend,
   toggleStyle,
   setFxHedging,
+  toggleDividendPayer,
   toggleInvestmentStyle,
   toggleSize,
   toggleExtraMetric,
@@ -138,7 +139,10 @@ function handleToggleAdvanced() {
       <div v-if="usesInvestmentStyleFilters" class="screener-advanced">
         <div>
           <h3>Investment Style</h3>
-          <div class="screener-pills"><button v-for="option in investmentStyleOptions" :key="option.id" type="button" :class="{ active: screener.investmentStyle.includes(option.id) }" @click="toggleInvestmentStyle(option.id)">{{ option.label }}</button></div>
+          <div class="screener-pills">
+            <button v-for="option in investmentStyleOptions" :key="option.id" type="button" :class="{ active: screener.investmentStyle.includes(option.id) }" @click="toggleInvestmentStyle(option.id)">{{ option.label }}</button>
+            <button type="button" :class="{ active: screener.dividendPolicy === 'pay' }" @click="toggleDividendPayer">กองทุนจ่ายปันผล</button>
+          </div>
         </div>
         <div>
           <h3>Size & Characteristic</h3>
@@ -161,7 +165,10 @@ function handleToggleAdvanced() {
         </div>
         <div>
           <h3>Fund Style</h3>
-          <div class="screener-pills"><button v-for="option in styleOptions" :key="option.id" type="button" :class="{ active: screener.style.includes(option.id) }" @click="toggleStyle(option.id)">{{ option.label }}</button></div>
+          <div class="screener-pills">
+            <button v-for="option in styleOptions" :key="option.id" type="button" :class="{ active: screener.style.includes(option.id) }" @click="toggleStyle(option.id)">{{ option.label }}</button>
+            <button type="button" :class="{ active: screener.dividendPolicy === 'pay' }" @click="toggleDividendPayer">กองทุนจ่ายปันผล</button>
+          </div>
         </div>
       </div>
     </div>
