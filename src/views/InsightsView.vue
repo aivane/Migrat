@@ -35,8 +35,7 @@ const errorMessage = ref('')
 
 const cacheMessage = computed(() => {
   if (!insightsStore.loadedAtLabel) return ''
-  const source = insightsStore.restoredFromSession ? 'จาก session cache' : 'ในหน้านี้'
-  return `ข้อมูล${source} ถูก cache ไว้ล่าสุด ${insightsStore.loadedAtLabel}`
+  return `อัปเดตข้อมูลล่าสุด ${insightsStore.loadedAtLabel}`
 })
 
 const partialErrorMessage = computed(() => {
@@ -52,23 +51,89 @@ const tabs = [
 
 const periods = ['1D', '1W', '1M', '3M', 'YTD']
 
+function flowValue(flow, period = state.period) {
+  if (!flow || typeof flow !== 'object') return 0
+
+  const p = String(period || '1M').toLowerCase()
+  if (p === '1m' && flow.estimated_flow_1m_m_thb != null) return Number(flow.estimated_flow_1m_m_thb)
+  if ((p === '1y' || p === 'ytd') && flow.estimated_flow_1y_m_thb != null) return Number(flow.estimated_flow_1y_m_thb)
+  if (p === '1d' && flow.unit_change_1d != null) return Number(flow.unit_change_1d)
+  if (p === '1w' && flow.unit_change_1w != null) return Number(flow.unit_change_1w)
+  if (p === '3m' && flow.unit_change_3m != null) return Number(flow.unit_change_3m)
+
+  const candidate =
+    flow.estimated_flow_1m_m_thb ??
+    flow.estimated_flow_1y_m_thb ??
+    flow.flow_usd ??
+    flow.value ??
+    flow.flow ??
+    flow.net_flow ??
+    flow.unit_change_1m ??
+    0
+
+  return Number(candidate) || 0
+}
+
 const positiveFlows = computed(() =>
   state.globalFlows
-    .filter((flow) => Number(flow.flow_usd || flow.value || 0) >= 0)
-    .sort((a, b) => Number(b.flow_usd || b.value || 0) - Number(a.flow_usd || a.value || 0))
+    .filter((flow) => flowValue(flow) > 0)
+    .sort((a, b) => flowValue(b) - flowValue(a))
     .slice(0, 10),
 )
 
 const negativeFlows = computed(() =>
   state.globalFlows
-    .filter((flow) => Number(flow.flow_usd || flow.value || 0) < 0)
-    .sort((a, b) => Number(a.flow_usd || a.value || 0) - Number(b.flow_usd || b.value || 0))
+    .filter((flow) => flowValue(flow) < 0)
+    .sort((a, b) => flowValue(a) - flowValue(b))
     .slice(0, 10),
 )
 
 const maxFlow = computed(() => {
-  const values = state.globalFlows.map((flow) => Math.abs(Number(flow.flow_usd || flow.value || 0)))
+  const values = state.globalFlows.map((flow) => Math.abs(flowValue(flow)))
   return Math.max(...values, 1)
+})
+
+const computedSummary = computed(() => {
+  const sum = state.globalFlowSummary || {}
+  const hasApiSummary = sum.net_flow_usd != null || sum.net_flow != null
+
+  if (hasApiSummary) {
+    return {
+      net_flow: Number(sum.net_flow_usd ?? sum.net_flow ?? 0),
+      total_inflow: Number(sum.total_inflow_usd ?? sum.total_inflow ?? 0),
+      total_outflow: Number(sum.total_outflow_usd ?? sum.total_outflow ?? 0),
+      inflow_count: sum.inflow_themes ?? positiveFlows.value.length,
+      outflow_count: sum.outflow_themes ?? negativeFlows.value.length,
+      prefix: '$',
+      suffix: '',
+    }
+  }
+
+  let inflow = 0
+  let outflow = 0
+  let inCount = 0
+  let outCount = 0
+
+  state.globalFlows.forEach((flow) => {
+    const val = flowValue(flow)
+    if (val > 0) {
+      inflow += val
+      inCount++
+    } else if (val < 0) {
+      outflow += Math.abs(val)
+      outCount++
+    }
+  })
+
+  return {
+    net_flow: inflow - outflow,
+    total_inflow: inflow,
+    total_outflow: outflow,
+    inflow_count: inCount,
+    outflow_count: outCount,
+    prefix: '฿',
+    suffix: 'M',
+  }
 })
 
 const selectedThemeGroups = computed(() => {
@@ -86,11 +151,15 @@ function themeLabel(value) {
   if (!value || typeof value !== 'object') return ''
 
   return (
+    value.theme_name ||
+    value.aimc_category_name_en ||
     value.name ||
     value.theme ||
     value.label ||
     value.title ||
     value.category ||
+    value.fund_code ||
+    value.code ||
     themeLabel(value.themes) ||
     ''
   )
@@ -115,17 +184,16 @@ function formatPercent(value) {
   return `${number >= 0 ? '+' : ''}${number.toFixed(2)}%`
 }
 
-function flowValue(flow) {
-  return Number(flow.flow_usd || flow.value || flow.flow || 0)
-}
-
 function flowWidth(flow) {
   return `${Math.max((Math.abs(flowValue(flow)) / maxFlow.value) * 100, 3)}%`
 }
 
 function flowDisplayValue(flow) {
   const value = flowValue(flow)
-  return `${value >= 0 ? '+' : '-'}$${formatCompact(Math.abs(value))}`
+  const isThb = flow.estimated_flow_1m_m_thb != null || flow.estimated_flow_1y_m_thb != null
+  const unit = isThb ? '฿' : '$'
+  const suffix = isThb ? 'M' : ''
+  return `${value >= 0 ? '+' : '-'}${unit}${formatCompact(Math.abs(value))}${suffix}`
 }
 
 function flowDetailRows(flow) {
@@ -153,7 +221,7 @@ function formatDetailValue(value) {
 }
 
 function fundName(fund) {
-  return fund.name_th || fund.name || fund.code || '-'
+  return fund?.fund_name_th || fund?.name_th || fund?.name || fund?.fund_name || fund?.fund_code || fund?.code || '-'
 }
 
 function returnValue(fund) {
@@ -220,11 +288,35 @@ function flowBarHeight(point, series) {
 }
 
 function fundAum(fund) {
-  return fund.aum ?? fund.total_aum ?? fund.asset_size ?? 0
+  return fund?.aum_m_thb ?? fund?.aum ?? fund?.total_aum ?? fund?.asset_size ?? 0
 }
 
 function fundNav(fund) {
   return fund.nav ?? fund.latest_nav ?? fund.price ?? 0
+}
+
+function formatNav(value) {
+  const number = Number(value)
+  return Number.isFinite(number) && number > 0
+    ? number.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })
+    : '-'
+}
+
+function optionalFundMetric(fund, keys, digits = 2, suffix = '') {
+  const value = keys
+    .map((key) => fund?.[key])
+    .find((candidate) => candidate !== null && candidate !== undefined && candidate !== '')
+  const number = Number(value)
+
+  return Number.isFinite(number) ? `${number.toFixed(digits)}${suffix}` : '-'
+}
+
+function fundStandardDeviation(fund) {
+  return optionalFundMetric(fund, ['standard_deviation', 'std_dev', 'sd', 'standard_deviation_1y'], 2, '%')
+}
+
+function fundSharpe(fund) {
+  return optionalFundMetric(fund, ['sharpe_ratio', 'sharpe_1y', 'sharpe'], 2)
 }
 
 function openFundModal(fund, themeName) {
@@ -400,27 +492,34 @@ onMounted(() => loadInsights(false))
         <div class="gf-summary">
           <div class="gf-summary-card">
             <div class="gf-summary-label">NET FLOW</div>
-            <div class="gf-summary-value" :class="{ negative: Number(state.globalFlowSummary.net_flow_usd || 0) < 0 }">
-              {{ Number(state.globalFlowSummary.net_flow_usd || 0) >= 0 ? '+' : '-' }}${{
-                formatCompact(Math.abs(Number(state.globalFlowSummary.net_flow_usd || 0)))
-              }}
+            <div
+              class="gf-summary-value"
+              :class="{ positive: computedSummary.net_flow >= 0, negative: computedSummary.net_flow < 0 }"
+            >
+              {{ computedSummary.net_flow >= 0 ? '+' : '-' }}{{ computedSummary.prefix }}{{
+                formatCompact(Math.abs(computedSummary.net_flow))
+              }}{{ computedSummary.suffix }}
             </div>
           </div>
           <div class="gf-summary-card">
             <div class="gf-summary-label">INFLOW</div>
-            <div class="gf-summary-value positive">+${{ formatCompact(state.globalFlowSummary.total_inflow_usd || 0) }}</div>
+            <div class="gf-summary-value positive">
+              +{{ computedSummary.prefix }}{{ formatCompact(computedSummary.total_inflow) }}{{ computedSummary.suffix }}
+            </div>
           </div>
           <div class="gf-summary-card">
             <div class="gf-summary-label">OUTFLOW</div>
-            <div class="gf-summary-value negative">-${{ formatCompact(Math.abs(state.globalFlowSummary.total_outflow_usd || 0)) }}</div>
+            <div class="gf-summary-value negative">
+              -{{ computedSummary.prefix }}{{ formatCompact(Math.abs(computedSummary.total_outflow)) }}{{ computedSummary.suffix }}
+            </div>
           </div>
           <div class="gf-summary-card">
-            <div class="gf-summary-label">INFLOW ธีม</div>
-            <div class="gf-summary-value positive">{{ state.globalFlowSummary.inflow_themes || positiveFlows.length }}</div>
+            <div class="gf-summary-label">INFLOW กองทุน/ธีม</div>
+            <div class="gf-summary-value positive">{{ computedSummary.inflow_count }}</div>
           </div>
           <div class="gf-summary-card">
-            <div class="gf-summary-label">OUTFLOW ธีม</div>
-            <div class="gf-summary-value negative">{{ state.globalFlowSummary.outflow_themes || negativeFlows.length }}</div>
+            <div class="gf-summary-label">OUTFLOW กองทุน/ธีม</div>
+            <div class="gf-summary-value negative">{{ computedSummary.outflow_count }}</div>
           </div>
         </div>
       </div>
@@ -439,11 +538,11 @@ onMounted(() => loadInsights(false))
             >
               <button class="gf-flow-detail-btn" aria-label="ดูรายละเอียด" @click="openFlowModal(flow, 'Inflow')">+</button>
               <button class="gf-flow-main" @click="toggleTheme(themeLabel(flow))">
-                <span class="gf-flow-name">{{ themeLabel(flow) || '-' }}</span>
+                <span class="gf-flow-name" :title="fundName(flow)">{{ flow.fund_code || flow.code || themeLabel(flow) || '-' }}</span>
                 <span class="gf-flow-bar-wrap">
                   <i class="gf-flow-bar inflow" :style="{ width: flowWidth(flow) }"></i>
                 </span>
-                <strong class="gf-flow-amount positive">+${{ formatCompact(flowValue(flow)) }}</strong>
+                <strong class="gf-flow-amount positive">{{ flowDisplayValue(flow) }}</strong>
               </button>
             </div>
           </div>
@@ -458,11 +557,11 @@ onMounted(() => loadInsights(false))
             >
               <button class="gf-flow-detail-btn" aria-label="ดูรายละเอียด" @click="openFlowModal(flow, 'Outflow')">+</button>
               <button class="gf-flow-main" @click="toggleTheme(themeLabel(flow))">
-                <span class="gf-flow-name">{{ themeLabel(flow) || '-' }}</span>
+                <span class="gf-flow-name" :title="fundName(flow)">{{ flow.fund_code || flow.code || themeLabel(flow) || '-' }}</span>
                 <span class="gf-flow-bar-wrap out">
                   <i class="gf-flow-bar outflow" :style="{ width: flowWidth(flow) }"></i>
                 </span>
-                <strong class="gf-flow-amount negative">-${{ formatCompact(Math.abs(flowValue(flow))) }}</strong>
+                <strong class="gf-flow-amount negative">{{ flowDisplayValue(flow) }}</strong>
               </button>
             </div>
           </div>
@@ -493,13 +592,13 @@ onMounted(() => loadInsights(false))
             <div v-if="group.funds.length" class="gf-fund-cards">
               <button
                 v-for="(fund, index) in group.funds.slice(0, 10)"
-                :key="fund.code || fund.name"
+                :key="fund.fund_code || fund.code || fund.name || index"
                 class="gf-fund-card"
                 @click="openFundModal(fund, group.name)"
               >
                 <span class="gf-fund-rank">#{{ fund.rank || index + 1 }}</span>
-                <strong class="gf-fund-code">{{ fund.code || '-' }}</strong>
-                <span class="gf-fund-amc">{{ fund.amc || '-' }}</span>
+                <strong class="gf-fund-code">{{ fund.fund_code || fund.code || '-' }}</strong>
+                <span class="gf-fund-amc">{{ fund.amc_name || fund.amc || '-' }}</span>
                 <span class="gf-fund-name">{{ fundName(fund) }}</span>
                 <div class="gf-fund-metrics">
                   <span>
@@ -507,24 +606,15 @@ onMounted(() => loadInsights(false))
                     <em class="gf-fund-ret" :class="{ negative: returnValue(fund) < 0 }">{{ formatPercent(returnValue(fund)) }}</em>
                   </span>
                   <span>
-                    <small>Risk</small>
-                    <strong>{{ fund.risk || '-' }}</strong>
+                    <small>1M</small>
+                    <em class="gf-fund-ret" :class="{ negative: Number(fund.return_1m || 0) < 0 }">{{ formatPercent(fund.return_1m || 0) }}</em>
+                  </span>
+                  <span>
+                    <small>AUM</small>
+                    <strong>฿{{ formatCompact(fund.aum_m_thb || fund.aum || 0) }}M</strong>
                   </span>
                 </div>
-                <div v-if="fundFlowSeries(fund).length" class="gf-mini-flow-chart compact">
-                  <div
-                    v-for="point in fundFlowSeries(fund)"
-                    :key="`${fund.code || fund.name}-${point.date || point.year || point.label}`"
-                    class="gf-mini-flow-point"
-                  >
-                    <i
-                      :class="{ positive: flowPointValue(point) >= 0, negative: flowPointValue(point) < 0 }"
-                      :style="{ height: flowBarHeight(point, fundFlowSeries(fund)) }"
-                    ></i>
-                    <span>{{ flowPointLabel(point) }}</span>
-                  </div>
-                </div>
-                <p v-else class="muted">ไม่มีข้อมูล Inflow / Outflow</p>
+                <span class="gf-fund-detail-link">ดูรายละเอียดกองทุน <b>→</b></span>
               </button>
             </div>
             <p v-else class="muted">ยังไม่มีข้อมูลกองทุนในธีมนี้</p>
@@ -584,26 +674,31 @@ onMounted(() => loadInsights(false))
         <table class="fi-tbl">
           <thead>
             <tr>
-              <th class="l">กองทุน</th>
-              <th class="c">PE Zone</th>
-              <th class="c">Upside</th>
-              <th class="r">AUM</th>
+              <th class="l">หลักทรัพย์ / กองทุน</th>
+              <th class="c">P/E Ratio</th>
+              <th class="c">P/B Ratio</th>
+              <th class="c">Dividend Yield</th>
+              <th class="r">Beta (3Y)</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="loading.page && !state.valuationFunds.length">
-              <td colspan="4">กำลังโหลดข้อมูล...</td>
+              <td colspan="5">กำลังโหลดข้อมูล...</td>
             </tr>
             <tr v-else-if="!state.valuationFunds.length">
-              <td colspan="4">ยังไม่มีข้อมูล valuation</td>
+              <td colspan="5">ยังไม่มีข้อมูล valuation</td>
             </tr>
-            <tr v-for="fund in state.valuationFunds" v-else :key="fund.code || fund.name">
-              <td class="l"><strong>{{ fund.code || '-' }}</strong></td>
-              <td class="c"><span class="fi-zone fi-zone-f">{{ fund.pe_zone || fund.valuation_zone || fund.zone || '-' }}</span></td>
-              <td class="c" :class="{ positive: Number(fund.upside_to_avg || returnValue(fund)) >= 0, negative: Number(fund.upside_to_avg || returnValue(fund)) < 0 }">
-                {{ formatPercent(fund.upside_to_avg || returnValue(fund)) }}
+            <tr v-for="item in state.valuationFunds" v-else :key="item.symbol || item.code || item.name">
+              <td class="l">
+                <strong>{{ item.symbol || item.code || '-' }}</strong>
+                <span>{{ item.fund_name || item.name || '-' }}</span>
               </td>
-              <td class="r">฿{{ formatCompact(fund.aum || 0) }}</td>
+              <td class="c"><span class="fi-zone fi-zone-f">{{ item.pe_ratio != null ? Number(item.pe_ratio).toFixed(2) : (item.pe_zone || '-') }}</span></td>
+              <td class="c">{{ item.pb_ratio != null ? Number(item.pb_ratio).toFixed(2) : '-' }}</td>
+              <td class="c" :class="{ positive: Number(item.dividend_yield || 0) > 0 }">
+                {{ item.dividend_yield != null ? Number(item.dividend_yield).toFixed(2) + '%' : '-' }}
+              </td>
+              <td class="r">{{ item.beta_3y != null ? Number(item.beta_3y).toFixed(2) : '-' }}</td>
             </tr>
           </tbody>
         </table>
@@ -675,17 +770,17 @@ onMounted(() => loadInsights(false))
           <button class="fund-modal-close" aria-label="Close" @click="closeFundModal">×</button>
           <div class="fund-modal-head">
             <span>{{ state.selectedFundTheme }}</span>
-            <h2>{{ state.selectedFund.code || '-' }}</h2>
+            <h2>{{ state.selectedFund.fund_code || state.selectedFund.code || '-' }}</h2>
             <p>{{ fundName(state.selectedFund) }}</p>
           </div>
           <div class="fund-modal-grid">
             <div>
               <span>AMC</span>
-              <strong>{{ state.selectedFund.amc || '-' }}</strong>
+              <strong>{{ state.selectedFund.amc_name || state.selectedFund.amc || '-' }}</strong>
             </div>
             <div>
               <span>Sector</span>
-              <strong>{{ state.selectedFund.sector || state.selectedFund.category || '-' }}</strong>
+              <strong>{{ state.selectedFund.aimc_category_name_en || state.selectedFund.sector || state.selectedFund.category || '-' }}</strong>
             </div>
             <div>
               <span>Risk</span>
@@ -709,11 +804,19 @@ onMounted(() => loadInsights(false))
             </div>
             <div>
               <span>NAV</span>
-              <strong>{{ formatCompact(fundNav(state.selectedFund)) }}</strong>
+              <strong>{{ formatNav(fundNav(state.selectedFund)) }}</strong>
             </div>
             <div>
               <span>Theme Rank</span>
               <strong>#{{ state.selectedFund.rank || '-' }}</strong>
+            </div>
+            <div>
+              <span>Standard Deviation</span>
+              <strong>{{ fundStandardDeviation(state.selectedFund) }}</strong>
+            </div>
+            <div>
+              <span>Sharpe Ratio</span>
+              <strong>{{ fundSharpe(state.selectedFund) }}</strong>
             </div>
           </div>
           <div class="fund-modal-chart">

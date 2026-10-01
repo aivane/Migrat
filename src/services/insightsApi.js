@@ -17,6 +17,8 @@ function labelFromTheme(value) {
   if (!value || typeof value !== 'object') return ''
 
   return (
+    value.theme_name ||
+    value.aimc_category_name_en ||
     value.name ||
     value.theme ||
     value.label ||
@@ -157,7 +159,8 @@ export async function getFlowTrend(params = {}) {
 }
 
 export async function getGlobalFlow(params = {}) {
-  const query = { limit: 50, ...params }
+  const cleanParams = typeof params === 'string' ? { period: params } : (params || {})
+  const query = { limit: 50, ...cleanParams }
 
   const payload =
     apiMode === 'wordpress'
@@ -230,9 +233,15 @@ export async function getFundTrend(code) {
 // Backward-compatible aliases (สำหรับ code เก่าที่อาจยังเรียกชื่อเหล่านี้)
 // -----------------------------------------------------------------
 
-/** @deprecated ใช้ getInsightSectorsForeign แทน */
 export async function getInsightTrend(params = {}) {
-  return getInsightSectorsForeign({ sort_by: 'holding_value', ...params })
+  const query = { type: 'FOREIGN', limit: 20, ...params }
+
+  if (apiMode === 'wordpress') {
+    return extractArray(await wpGet('fund_insights_trend', query))
+  }
+
+  // Recon API: GET /insights/trend
+  return extractArray(await reconGet('/insights/trend', query))
 }
 
 /** @deprecated ใช้ getInsightSectorsForeign แทน */
@@ -240,7 +249,13 @@ export async function getInsightPopularity(params = {}) {
   return getInsightSectorsForeign({ sort_by: 'flow', ...params })
 }
 
-/** @deprecated ใช้ getInsightThemes แทน */
 export async function getInsightValuation(params = {}) {
-  return getInsightThemes()
+  const query = { type: 'FOREIGN', limit: 20, ...params }
+
+  if (apiMode === 'wordpress') {
+    return extractArray(await wpGet('fund_insights_valuation', query))
+  }
+
+  // Recon API: GET /insights/valuation
+  return extractArray(await reconGet('/insights/valuation', query))
 }

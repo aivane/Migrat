@@ -48,6 +48,8 @@ function labelFromTheme(value) {
   if (!value || typeof value !== 'object') return ''
 
   return (
+    value.theme_name ||
+    value.aimc_category_name_en ||
     value.name ||
     value.theme ||
     value.label ||
@@ -140,15 +142,18 @@ export const useInsightsStore = defineStore('insights', {
         if (key === 'globalFlow') {
           this.globalFlows = result.value.flows
           this.globalFlowSummary = result.value.summary
-          if (!this.selectedThemes.length && result.value.flows.length) {
-            this.selectedThemes = result.value.flows.slice(0, 2).map(labelFromTheme).filter(Boolean)
-          }
         }
       })
 
+      if (!this.selectedThemes.length && this.themes.length) {
+        this.selectedThemes = this.themes.slice(0, 2).map(labelFromTheme).filter(Boolean)
+      } else if (!this.selectedThemes.length && this.globalFlows.length) {
+        this.selectedThemes = this.globalFlows.slice(0, 2).map(labelFromTheme).filter(Boolean)
+      }
+
       if (this.selectedThemes.length) {
         try {
-          this.themeFunds = await getThemeFunds(this.selectedThemes, 10)
+          this.themeFunds = await getThemeFunds(this.selectedThemes, 10, { period: this.period })
         } catch (error) {
           errors.themeFunds = errorMessage(error)
         }
